@@ -40,3 +40,7 @@ Output: `Menace.ModpackLoader/bin/Release/net6.0/Menace.ModpackLoader.dll`
 ## Relationship to Upstream
 
 This is a fork of the `Menace.ModpackLoader` component from the MenaceAssetPacker project. Changes made here are focused on the SDK surface — bug fixes, API additions, and improvements for mod authors. Credits to the original MenaceModkit team for the foundational work.
+
+## TODO
+
+See [TODO.md](TODO.md) for current project status.
