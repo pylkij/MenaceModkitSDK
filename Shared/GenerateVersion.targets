@@ -5,7 +5,7 @@
   -->
 
   <PropertyGroup>
-    <VersionsJsonPath>$(MSBuildThisFileDirectory)..\..\third_party\versions.json</VersionsJsonPath>
+    <VersionsJsonPath>$(MSBuildThisFileDirectory)..\third_party\versions.json</VersionsJsonPath>
     <ModkitVersionFile>$(MSBuildThisFileDirectory)ModkitVersion.cs</ModkitVersionFile>
   </PropertyGroup>
 

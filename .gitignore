@@ -2,3 +2,5 @@ third_party/MelonLoader/
 third_party/GameAssemblies/
 Shared/ModkitVersion.cs
 .vs/
+obj/
+bin/
