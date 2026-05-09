@@ -1,21 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
+
 using MelonLoader;
-using Menace.SDK;
-using SharpGLTF.Schema2;
 using UnityEngine;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Menace.SDK;
+
+using SharpGLTF.Schema2;
+
 using Vector2 = UnityEngine.Vector2;
 using Vector3 = UnityEngine.Vector3;
 using Vector4 = UnityEngine.Vector4;
 using Quaternion = UnityEngine.Quaternion;
 using Color = UnityEngine.Color;
 using Matrix4x4 = UnityEngine.Matrix4x4;
-using SysNumerics = System.Numerics;
-
-// Disambiguate between GLTF and Unity types
 using UnityMesh = UnityEngine.Mesh;
 using UnityMaterial = UnityEngine.Material;
 using GltfMesh = SharpGLTF.Schema2.Mesh;
@@ -23,39 +24,31 @@ using GltfMaterial = SharpGLTF.Schema2.Material;
 
 namespace Menace.ModpackLoader;
 
-/// <summary>
-/// Runtime GLB/GLTF loader that converts 3D model files to Unity objects.
-/// Creates Mesh, Material, and Texture2D assets that the existing
-/// AssetReplacer can use for in-game replacements.
-///
-/// Can be disabled via ModSettings if it causes crashes.
-/// Supports skinned meshes with bone hierarchies.
-///
-/// For animations, use one of these approaches:
-/// 1. Match bone names to existing game skeletons (game animations drive your mesh)
-/// 2. Use SDK animation helpers (Rotate, Hover, Bob) via Lua/C#
-/// 3. Export full Unity prefabs with Animation components for complex needs
-/// </summary>
 public static class GlbLoader
 {
     private static readonly MelonLogger.Instance _log = new("GlbLoader");
+    private static readonly string[] ModelSearchPatterns = { "*.glb", "*.gltf" };
+    private static readonly string[] ShaderNames =
+    {
+        "HDRP/Lit",
+        "HDRenderPipeline/Lit",
+        "HD/Lit",
+        "Shader Graphs/Lit",
+        "Universal Render Pipeline/Lit",
+        "Standard",
+        "Diffuse",
+        "Unlit/Color"
+    };
 
-    // Settings
     private const string SETTINGS_NAME = "Modpack Loader";
     private const string SETTING_KEY_ENABLED = "GlbLoader";
 
     private static bool _enabled = true;
     private static bool _initialized = false;
+    private static Shader _resolvedShader;
 
-    /// <summary>
-    /// Whether GLB loading is enabled.
-    /// </summary>
     public static bool IsEnabled => _enabled;
 
-    /// <summary>
-    /// Initialize the GLB loader settings.
-    /// Call from ModpackLoaderMod.OnInitializeMelon().
-    /// </summary>
     public static void Initialize()
     {
         if (_initialized) return;
@@ -73,12 +66,10 @@ public static class GlbLoader
         }
     }
 
-    /// <summary>
-    /// Loaded model with all its components.
-    /// </summary>
     public class LoadedModel
     {
         public string Name { get; set; } = string.Empty;
+        public string SourcePath { get; set; } = string.Empty;
         public List<UnityMesh> Meshes { get; set; } = new();
         public List<UnityMaterial> Materials { get; set; } = new();
         public List<Texture2D> Textures { get; set; } = new();
@@ -86,13 +77,10 @@ public static class GlbLoader
     }
 
     private static readonly List<LoadedModel> _loadedModels = new();
+    private static readonly Dictionary<string, LoadedModel> _loadedModelsByPath = new(StringComparer.OrdinalIgnoreCase);
     public static int LoadedCount => _loadedModels.Count;
 
-    /// <summary>
-    /// Load all GLB files from a modpack's models directory.
-    /// Called during modpack initialization.
-    /// </summary>
-    public static void LoadModpackModels(string modpackPath)
+    public static void LoadModpackModels(string modpackPath, string modpackName = null)
     {
         if (!_enabled)
         {
@@ -103,44 +91,15 @@ public static class GlbLoader
         if (!Directory.Exists(modelsDir))
             return;
 
-        // Find GLB files (either copied directly or via manifest)
-        var glbFiles = Directory.GetFiles(modelsDir, "*.glb", SearchOption.AllDirectories);
+        var modelFiles = ModelSearchPatterns
+            .SelectMany(pattern => Directory.EnumerateFiles(modelsDir, pattern, SearchOption.AllDirectories))
+            .OrderBy(path => path);
 
-        foreach (var glbPath in glbFiles)
+        foreach (var glbPath in modelFiles)
         {
             try
             {
-                var model = LoadGlb(glbPath);
-                if (model != null)
-                {
-                    _loadedModels.Add(model);
-
-                    // Register the root prefab with BundleLoader for template patching.
-                    // Meshes/materials/textures are part of the prefab hierarchy and don't
-                    // need separate registration (which could cause unwanted replacements
-                    // if names like "geometry_0" match game assets).
-                    if (model.RootPrefab != null)
-                    {
-                        BundleLoader.RegisterAsset(model.Name, model.RootPrefab, "GameObject");
-                        _log.Msg($"  Registered prefab '{model.Name}' as GameObject with BundleLoader");
-
-                        // Auto-register character visual overrides for character prefab names.
-                        // If a GLB is named like a character prefab (e.g., "rmc_default_female_soldier"),
-                        // automatically register it as a visual override so the meshes/materials
-                        // are applied to spawned characters without requiring any code.
-                        if (IsCharacterPrefabName(model.Name))
-                        {
-                            SDK.CharacterVisuals.RegisterOverrideFromGlb(model.Name, model.Name);
-                            _log.Msg($"  Auto-registered character visual override for '{model.Name}'");
-                        }
-                    }
-                    else
-                    {
-                        _log.Warning($"  RootPrefab is null for {model.Name}, cannot register");
-                    }
-
-                    _log.Msg($"Loaded GLB: {Path.GetFileName(glbPath)} ({model.Meshes.Count} meshes, {model.Materials.Count} materials)");
-                }
+                LoadAndRegisterGlb(glbPath, modpackName ?? Path.GetFileName(modpackPath));
             }
             catch (Exception ex)
             {
@@ -149,23 +108,58 @@ public static class GlbLoader
         }
     }
 
-    /// <summary>
-    /// Load a single GLB file and create Unity objects.
-    /// </summary>
+    public static LoadedModel LoadAndRegisterGlb(string glbPath, string modpackName = "Runtime")
+    {
+        if (!_enabled)
+            return null;
+
+        if (string.IsNullOrWhiteSpace(glbPath))
+        {
+            _log.Warning("GLB file path was empty.");
+            return null;
+        }
+
+        var fullPath = Path.GetFullPath(glbPath);
+        if (_loadedModelsByPath.TryGetValue(fullPath, out var cached))
+            return cached;
+
+        var model = LoadGlb(fullPath);
+        if (model == null)
+            return null;
+
+        if (model.RootPrefab == null)
+        {
+            _log.Warning($"  RootPrefab is null for {model.Name}, cannot register");
+            return null;
+        }
+
+        modpackName = string.IsNullOrWhiteSpace(modpackName) ? "Runtime" : modpackName;
+
+        // Avoid registering child meshes/materials by generic names such as "geometry_0".
+        BundleLoader.RegisterAsset(model.Name, model.RootPrefab, "GameObject", modpackName);
+        _log.Msg($"  Registered prefab '{model.Name}' as GameObject with BundleLoader");
+
+        _loadedModels.Add(model);
+        _loadedModelsByPath[fullPath] = model;
+
+        _log.Msg($"Loaded GLB: {Path.GetFileName(fullPath)} ({model.Meshes.Count} mesh(es), {model.Materials.Count} material(s))");
+        return model;
+    }
+
     public static LoadedModel LoadGlb(string glbPath)
     {
-        if (!File.Exists(glbPath))
+        if (string.IsNullOrWhiteSpace(glbPath) || !File.Exists(glbPath))
         {
             _log.Warning($"GLB file not found: {glbPath}");
             return null;
         }
 
+        glbPath = Path.GetFullPath(glbPath);
         var modelRoot = ModelRoot.Load(glbPath);
         var modelName = Path.GetFileNameWithoutExtension(glbPath);
 
-        var result = new LoadedModel { Name = modelName };
+        var result = new LoadedModel { Name = modelName, SourcePath = glbPath };
 
-        // Load all textures first (materials reference them)
         var textureMap = new Dictionary<int, Texture2D>();
         foreach (var image in modelRoot.LogicalImages)
         {
@@ -177,7 +171,6 @@ public static class GlbLoader
             }
         }
 
-        // Load materials
         var materialMap = new Dictionary<int, UnityMaterial>();
         foreach (var gltfMat in modelRoot.LogicalMaterials)
         {
@@ -186,62 +179,48 @@ public static class GlbLoader
             result.Materials.Add(mat);
         }
 
-        // Create a default material if none exist
         if (materialMap.Count == 0)
         {
-            var defaultShader = Shader.Find("HDRP/Lit") ??
-                                Shader.Find("Standard") ??
-                                Shader.Find("Unlit/Color");
-            _log.Msg($"Creating default material with shader: {defaultShader?.name ?? "null"}");
-            var defaultMat = new UnityMaterial(defaultShader);
+            var defaultMat = new UnityMaterial(ResolveShader());
             defaultMat.name = $"{modelName}_DefaultMaterial";
+            defaultMat.hideFlags = HideFlags.DontUnloadUnusedAsset;
             materialMap[-1] = defaultMat;
             result.Materials.Add(defaultMat);
         }
 
-        // Create a holder object that's hidden far away.
-        // The actual prefab is a child at local (0,0,0) so instantiated copies
-        // won't inherit the hidden position.
         var holder = new GameObject($"{modelName}_Holder");
         UnityEngine.Object.DontDestroyOnLoad(holder);
+        holder.hideFlags = HideFlags.DontUnloadUnusedAsset;
         holder.transform.position = new Vector3(0, -10000, 0);
 
-        // Create root prefab GameObject as child of holder
         var rootGO = new GameObject(modelName);
         rootGO.transform.SetParent(holder.transform, false);
-        // Local position is (0,0,0) - instantiated copies will use this
+        rootGO.hideFlags = HideFlags.DontUnloadUnusedAsset;
 
-        // Create an intermediate transform child to hold rotation correction.
-        // This allows the root to be positioned by the attachment system while
-        // the model itself is correctly oriented.
         var modelContainer = new GameObject("ModelContainer");
         modelContainer.transform.SetParent(rootGO.transform, false);
+        modelContainer.hideFlags = HideFlags.DontUnloadUnusedAsset;
 
-        // Apply rotation correction: GLTF/Blender models often need rotation to
-        // align with Unity's coordinate expectations for weapon attachments.
-        // -90° X: corrects Y-up to Z-forward
-        // -90° Z: corrects the "roll" so gun top points up instead of sideways
-        // Note: Model origin should be at the grip point in Blender for correct attachment.
+        // Keeps the prefab root usable as an attachment point while correcting Blender weapon exports.
         modelContainer.transform.localRotation = Quaternion.Euler(-90f, 0f, -90f);
 
         _log.Msg($"Created prefab GameObject: {modelName}");
 
-        // Load meshes and create child GameObjects
         foreach (var gltfMesh in modelRoot.LogicalMeshes)
         {
             try
             {
-                var mesh = CreateMesh(gltfMesh, modelName);
+                var mesh = CreateMesh(gltfMesh, modelName, out var materialIndices);
                 if (mesh != null)
                 {
                     result.Meshes.Add(mesh);
                     _log.Msg($"  Created mesh: {mesh.name} ({mesh.vertexCount} vertices)");
 
-                    // Create a child GameObject with the mesh (under the model container)
                     var meshGO = new GameObject(mesh.name);
                     meshGO.transform.SetParent(modelContainer.transform, false);
+                    meshGO.hideFlags = HideFlags.DontUnloadUnusedAsset;
+                    var materials = ResolveMaterials(materialIndices, materialMap);
 
-                    // Determine if this is a skinned mesh
                     var skin = modelRoot.LogicalSkins.FirstOrDefault(s =>
                         modelRoot.LogicalNodes.Any(n => n.Mesh == gltfMesh && n.Skin == s));
 
@@ -250,12 +229,8 @@ public static class GlbLoader
                         _log.Msg($"  Setting up skinned mesh with {skin.JointsCount} bones");
                         var smr = meshGO.AddComponent<SkinnedMeshRenderer>();
                         smr.sharedMesh = mesh;
+                        ApplyMaterials(smr, materials);
 
-                        // Get material for first primitive
-                        var matIndex = gltfMesh.Primitives.FirstOrDefault()?.Material?.LogicalIndex ?? -1;
-                        smr.sharedMaterial = materialMap.GetValueOrDefault(matIndex, materialMap.Values.FirstOrDefault());
-
-                        // Set up bones (simplified - full bone setup requires node hierarchy)
                         try
                         {
                             SetupBones(smr, skin, modelRoot);
@@ -271,8 +246,7 @@ public static class GlbLoader
                         mf.sharedMesh = mesh;
 
                         var mr = meshGO.AddComponent<MeshRenderer>();
-                        var matIndex = gltfMesh.Primitives.FirstOrDefault()?.Material?.LogicalIndex ?? -1;
-                        mr.sharedMaterial = materialMap.GetValueOrDefault(matIndex, materialMap.Values.FirstOrDefault());
+                        ApplyMaterials(mr, materials);
                     }
                 }
             }
@@ -282,13 +256,16 @@ public static class GlbLoader
             }
         }
 
+        if (result.Meshes.Count == 0)
+        {
+            _log.Warning($"GLB '{modelName}' did not create any meshes.");
+            return null;
+        }
+
         result.RootPrefab = rootGO;
         return result;
     }
 
-    /// <summary>
-    /// Load a texture from a GLTF image.
-    /// </summary>
     private static Texture2D LoadTexture(SharpGLTF.Schema2.Image image, string modelName)
     {
         try
@@ -297,19 +274,16 @@ public static class GlbLoader
             if (content == null || content.Length == 0)
                 return null;
 
-            var tex = new Texture2D(2, 2);
+            var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             tex.name = image.Name ?? $"{modelName}_Texture_{image.LogicalIndex}";
+            tex.hideFlags = HideFlags.DontUnloadUnusedAsset;
 
             var il2cppBytes = new Il2CppStructArray<byte>(content);
             if (ImageConversion.LoadImage(tex, il2cppBytes))
-            {
                 return tex;
-            }
-            else
-            {
-                _log.Warning($"Failed to decode texture: {tex.name}");
-                return null;
-            }
+
+            _log.Warning($"Failed to decode texture: {tex.name}");
+            return null;
         }
         catch (Exception ex)
         {
@@ -318,40 +292,13 @@ public static class GlbLoader
         }
     }
 
-    /// <summary>
-    /// Create a Unity Material from a GLTF material.
-    /// Uses HDRP shaders for compatibility with Menace's render pipeline.
-    /// </summary>
     private static UnityMaterial CreateMaterial(GltfMaterial gltfMat,
         Dictionary<int, Texture2D> textures, string modelName)
     {
-        // Try to find a working shader - the exact name varies by Unity/HDRP version
-        Shader shader = null;
-        var shaderNames = new[] {
-            "HDRP/Lit", "HDRenderPipeline/Lit", "HD/Lit",
-            "Shader Graphs/Lit", "Universal Render Pipeline/Lit",
-            "Standard", "Diffuse", "Unlit/Color"
-        };
-        foreach (var name in shaderNames)
-        {
-            shader = Shader.Find(name);
-            if (shader != null)
-            {
-                _log.Msg($"Using shader: {name}");
-                break;
-            }
-        }
-
-        if (shader == null)
-        {
-            _log.Warning($"No shader found for material {gltfMat.Name}, model may not render");
-            // Create with null shader - Unity will use pink error material
-        }
-
-        var mat = new UnityMaterial(shader);
+        var mat = new UnityMaterial(ResolveShader());
         mat.name = gltfMat.Name ?? $"{modelName}_Material_{gltfMat.LogicalIndex}";
+        mat.hideFlags = HideFlags.DontUnloadUnusedAsset;
 
-        // Base color
         var baseColorChannel = gltfMat.FindChannel("BaseColor");
         if (baseColorChannel.HasValue)
         {
@@ -359,38 +306,39 @@ public static class GlbLoader
             mat.color = new Color(color.X, color.Y, color.Z, color.W);
 
             var tex = baseColorChannel.Value.Texture;
-            if (tex != null && textures.TryGetValue(tex.PrimaryImage.LogicalIndex, out var unityTex))
-            {
+            if (tex?.PrimaryImage != null && textures.TryGetValue(tex.PrimaryImage.LogicalIndex, out var unityTex))
                 mat.mainTexture = unityTex;
-            }
         }
 
-        // Metallic/Roughness
         var mrChannel = gltfMat.FindChannel("MetallicRoughness");
-        if (mrChannel.HasValue && mat.HasProperty("_Metallic"))
+        if (mrChannel.HasValue)
         {
             foreach (var param in mrChannel.Value.Parameters)
             {
-                if (param.Name == "MetallicFactor" && mat.HasProperty("_Metallic"))
-                    mat.SetFloat("_Metallic", (float)param.Value);
-                else if (param.Name == "RoughnessFactor" && mat.HasProperty("_Glossiness"))
-                    mat.SetFloat("_Glossiness", 1.0f - (float)param.Value);
+                try
+                {
+                    if (param.Name == "MetallicFactor" && mat.HasProperty("_Metallic"))
+                        mat.SetFloat("_Metallic", Convert.ToSingle(param.Value, CultureInfo.InvariantCulture));
+                    else if (param.Name == "RoughnessFactor" && mat.HasProperty("_Glossiness"))
+                        mat.SetFloat("_Glossiness", 1.0f - Convert.ToSingle(param.Value, CultureInfo.InvariantCulture));
+                }
+                catch (Exception ex)
+                {
+                    _log.Warning($"Failed to read GLB material parameter '{param.Name}': {ex.Message}");
+                }
             }
         }
 
-        // Normal map
         var normalChannel = gltfMat.FindChannel("Normal");
         if (normalChannel.HasValue)
         {
             var tex = normalChannel.Value.Texture;
-            if (tex != null && textures.TryGetValue(tex.PrimaryImage.LogicalIndex, out var normalTex))
-            {
-                if (mat.HasProperty("_BumpMap"))
-                    mat.SetTexture("_BumpMap", normalTex);
-            }
+            if (tex?.PrimaryImage != null &&
+                textures.TryGetValue(tex.PrimaryImage.LogicalIndex, out var normalTex) &&
+                mat.HasProperty("_BumpMap"))
+                mat.SetTexture("_BumpMap", normalTex);
         }
 
-        // Emission
         var emissiveChannel = gltfMat.FindChannel("Emissive");
         if (emissiveChannel.HasValue)
         {
@@ -405,13 +353,67 @@ public static class GlbLoader
         return mat;
     }
 
-    /// <summary>
-    /// Create a Unity Mesh from a GLTF mesh.
-    /// </summary>
-    private static UnityMesh CreateMesh(GltfMesh gltfMesh, string modelName)
+    private static Shader ResolveShader()
     {
+        if (_resolvedShader != null)
+            return _resolvedShader;
+
+        foreach (var name in ShaderNames)
+        {
+            var shader = Shader.Find(name);
+            if (shader == null)
+                continue;
+
+            _resolvedShader = shader;
+            _log.Msg($"Using shader: {name}");
+            return _resolvedShader;
+        }
+
+        _log.Warning("No compatible shader found for GLB materials; Unity will use an error material.");
+        return null;
+    }
+
+    private static UnityMaterial[] ResolveMaterials(
+        IReadOnlyList<int> materialIndices,
+        Dictionary<int, UnityMaterial> materialMap)
+    {
+        var fallback = materialMap.TryGetValue(-1, out var defaultMaterial)
+            ? defaultMaterial
+            : materialMap.Values.FirstOrDefault();
+
+        if (materialIndices == null || materialIndices.Count == 0)
+            return fallback != null ? new[] { fallback } : Array.Empty<UnityMaterial>();
+
+        var materials = new UnityMaterial[materialIndices.Count];
+        for (int i = 0; i < materialIndices.Count; i++)
+        {
+            if (!materialMap.TryGetValue(materialIndices[i], out var material))
+                material = fallback;
+
+            materials[i] = material;
+        }
+
+        return materials;
+    }
+
+    private static void ApplyMaterials(Renderer renderer, UnityMaterial[] materials)
+    {
+        if (renderer == null || materials == null || materials.Length == 0)
+            return;
+
+        if (materials.Length == 1)
+            renderer.sharedMaterial = materials[0];
+        else
+            renderer.sharedMaterials = materials;
+    }
+
+    private static UnityMesh CreateMesh(GltfMesh gltfMesh, string modelName, out int[] materialIndices)
+    {
+        materialIndices = Array.Empty<int>();
+
         var mesh = new UnityMesh();
         mesh.name = gltfMesh.Name ?? $"{modelName}_Mesh_{gltfMesh.LogicalIndex}";
+        mesh.hideFlags = HideFlags.DontUnloadUnusedAsset;
 
         var allVertices = new List<Vector3>();
         var allNormals = new List<Vector3>();
@@ -420,6 +422,7 @@ public static class GlbLoader
         var allColors = new List<Color>();
         var allIndices = new List<int>();
         var allBoneWeights = new List<BoneWeight>();
+        var materialIndexList = new List<int>();
         var subMeshes = new List<(int start, int count)>();
 
         int vertexOffset = 0;
@@ -432,11 +435,9 @@ public static class GlbLoader
             var positions = positionAccessor.AsVector3Array();
             foreach (var pos in positions)
             {
-                // Convert from GLTF (Y-up, right-handed) to Unity (Y-up, left-handed)
                 allVertices.Add(new Vector3(pos.X, pos.Y, -pos.Z));
             }
 
-            // Normals
             var normalAccessor = primitive.GetVertexAccessor("NORMAL");
             if (normalAccessor != null)
             {
@@ -446,7 +447,6 @@ public static class GlbLoader
                 }
             }
 
-            // Tangents
             var tangentAccessor = primitive.GetVertexAccessor("TANGENT");
             if (tangentAccessor != null)
             {
@@ -456,17 +456,15 @@ public static class GlbLoader
                 }
             }
 
-            // UV0
             var uv0Accessor = primitive.GetVertexAccessor("TEXCOORD_0");
             if (uv0Accessor != null)
             {
                 foreach (var uv in uv0Accessor.AsVector2Array())
                 {
-                    allUV0.Add(new Vector2(uv.X, 1 - uv.Y)); // Flip V
+                    allUV0.Add(new Vector2(uv.X, 1 - uv.Y));
                 }
             }
 
-            // Vertex colors
             var colorAccessor = primitive.GetVertexAccessor("COLOR_0");
             if (colorAccessor != null)
             {
@@ -476,7 +474,6 @@ public static class GlbLoader
                 }
             }
 
-            // Bone weights
             var weightsAccessor = primitive.GetVertexAccessor("WEIGHTS_0");
             var jointsAccessor = primitive.GetVertexAccessor("JOINTS_0");
             if (weightsAccessor != null && jointsAccessor != null)
@@ -501,25 +498,44 @@ public static class GlbLoader
                 }
             }
 
-            // Indices - reverse winding for left-handed
             var indexAccessor = primitive.IndexAccessor;
             int indexStart = allIndices.Count;
             if (indexAccessor != null)
             {
                 var indices = indexAccessor.AsIndicesArray();
-                for (int i = 0; i < indices.Count; i += 3)
+                for (int i = 0; i + 2 < indices.Count; i += 3)
                 {
                     allIndices.Add((int)indices[i] + vertexOffset);
                     allIndices.Add((int)indices[i + 2] + vertexOffset);
                     allIndices.Add((int)indices[i + 1] + vertexOffset);
                 }
             }
+            else
+            {
+                for (int i = 0; i + 2 < positions.Count; i += 3)
+                {
+                    allIndices.Add(i + vertexOffset);
+                    allIndices.Add(i + 2 + vertexOffset);
+                    allIndices.Add(i + 1 + vertexOffset);
+                }
+            }
 
-            subMeshes.Add((indexStart, allIndices.Count - indexStart));
+            var indexCount = allIndices.Count - indexStart;
+            if (indexCount > 0)
+            {
+                subMeshes.Add((indexStart, indexCount));
+                materialIndexList.Add(primitive.Material?.LogicalIndex ?? -1);
+            }
+
             vertexOffset += positions.Count;
         }
 
-        // Assign mesh data - use arrays for IL2CPP compatibility
+        if (allVertices.Count == 0 || allIndices.Count == 0)
+            return null;
+
+        if (allVertices.Count > 65535)
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+
         mesh.vertices = allVertices.ToArray();
 
         if (allNormals.Count == allVertices.Count)
@@ -536,7 +552,6 @@ public static class GlbLoader
 
         mesh.triangles = allIndices.ToArray();
 
-        // Set up submeshes
         if (subMeshes.Count > 1)
         {
             mesh.subMeshCount = subMeshes.Count;
@@ -547,25 +562,20 @@ public static class GlbLoader
             }
         }
 
-        // Set bone weights if present
         if (allBoneWeights.Count == allVertices.Count)
         {
             mesh.boneWeights = allBoneWeights.ToArray();
         }
 
-        // Finalize
         if (allNormals.Count != allVertices.Count)
             mesh.RecalculateNormals();
 
         mesh.RecalculateBounds();
+        materialIndices = materialIndexList.ToArray();
 
         return mesh;
     }
 
-    /// <summary>
-    /// Set up bone transforms for a skinned mesh renderer.
-    /// Preserves the GLTF bone hierarchy (parent-child relationships).
-    /// </summary>
     private static void SetupBones(SkinnedMeshRenderer smr, Skin skin, ModelRoot model)
     {
         var bones = new Transform[skin.JointsCount];
@@ -573,43 +583,41 @@ public static class GlbLoader
 
         var boneRoot = new GameObject("Armature").transform;
         boneRoot.SetParent(smr.transform.parent, false);
+        boneRoot.gameObject.hideFlags = HideFlags.DontUnloadUnusedAsset;
 
-        // Build a mapping from GLTF node to joint index and Transform
-        var nodeToJointIndex = new Dictionary<Node, int>();
         var nodeToTransform = new Dictionary<Node, Transform>();
 
-        // First pass: create all bone GameObjects and map nodes to joint indices
         for (int i = 0; i < skin.JointsCount; i++)
         {
             var (joint, inverseBindMatrix) = skin.GetJoint(i);
-            nodeToJointIndex[joint] = i;
 
             var boneGO = new GameObject(joint.Name ?? $"Bone_{i}");
+            boneGO.hideFlags = HideFlags.DontUnloadUnusedAsset;
             bones[i] = boneGO.transform;
             nodeToTransform[joint] = boneGO.transform;
 
-            // Convert inverse bind matrix
-            bindPoses[i] = ConvertMatrix(inverseBindMatrix);
+            bindPoses[i] = new Matrix4x4(
+                new Vector4(inverseBindMatrix.M11, inverseBindMatrix.M12, -inverseBindMatrix.M13, inverseBindMatrix.M14),
+                new Vector4(inverseBindMatrix.M21, inverseBindMatrix.M22, -inverseBindMatrix.M23, inverseBindMatrix.M24),
+                new Vector4(-inverseBindMatrix.M31, -inverseBindMatrix.M32, inverseBindMatrix.M33, -inverseBindMatrix.M34),
+                new Vector4(inverseBindMatrix.M41, inverseBindMatrix.M42, -inverseBindMatrix.M43, inverseBindMatrix.M44)
+            );
         }
 
-        // Second pass: establish parent-child relationships and set transforms
         Transform firstRootBone = null;
         for (int i = 0; i < skin.JointsCount; i++)
         {
             var (joint, _) = skin.GetJoint(i);
             var boneTransform = bones[i];
 
-            // Find parent in GLTF hierarchy
             var parentNode = joint.VisualParent;
 
             if (parentNode != null && nodeToTransform.TryGetValue(parentNode, out var parentTransform))
             {
-                // Parent is also a joint in this skin - establish hierarchy
                 boneTransform.SetParent(parentTransform, false);
             }
             else
             {
-                // Root bone (parent is not a joint) - parent to Armature
                 boneTransform.SetParent(boneRoot, false);
                 if (firstRootBone == null)
                 {
@@ -617,86 +625,20 @@ public static class GlbLoader
                 }
             }
 
-            // Set local transform from GLTF
             var localTransform = joint.LocalTransform;
-            boneTransform.localPosition = ConvertPosition(localTransform.Translation);
-            boneTransform.localRotation = ConvertRotation(localTransform.Rotation);
-            boneTransform.localScale = ConvertScale(localTransform.Scale);
+            var translation = localTransform.Translation;
+            var rotation = localTransform.Rotation;
+            var scale = localTransform.Scale;
+
+            boneTransform.localPosition = new Vector3(translation.X, translation.Y, -translation.Z);
+            boneTransform.localRotation = new Quaternion(rotation.X, rotation.Y, -rotation.Z, -rotation.W);
+            boneTransform.localScale = new Vector3(scale.X, scale.Y, scale.Z);
         }
 
         smr.bones = bones;
         smr.sharedMesh.bindposes = bindPoses;
-        // Use the first root bone as the root, or the Armature if no bones
         smr.rootBone = firstRootBone ?? boneRoot;
 
         _log.Msg($"    Bone hierarchy set up with {skin.JointsCount} bones, root: {smr.rootBone.name}");
-    }
-
-    // Coordinate conversion helpers (GLTF right-handed → Unity left-handed)
-
-    private static Vector3 ConvertPosition(SysNumerics.Vector3 v)
-    {
-        return new Vector3(v.X, v.Y, -v.Z);
-    }
-
-    private static Quaternion ConvertRotation(SysNumerics.Quaternion q)
-    {
-        return new Quaternion(q.X, q.Y, -q.Z, -q.W);
-    }
-
-    private static Vector3 ConvertScale(SysNumerics.Vector3 v)
-    {
-        return new Vector3(v.X, v.Y, v.Z);
-    }
-
-    private static Matrix4x4 ConvertMatrix(SysNumerics.Matrix4x4 m)
-    {
-        // Convert from right-handed to left-handed by negating Z components
-        return new Matrix4x4(
-            new Vector4(m.M11, m.M12, -m.M13, m.M14),
-            new Vector4(m.M21, m.M22, -m.M23, m.M24),
-            new Vector4(-m.M31, -m.M32, m.M33, -m.M34),
-            new Vector4(m.M41, m.M42, -m.M43, m.M44)
-        );
-    }
-
-    /// <summary>
-    /// Check if a prefab name looks like a character prefab that should have
-    /// visual overrides auto-applied when spawned.
-    /// </summary>
-    private static bool IsCharacterPrefabName(string name)
-    {
-        if (string.IsNullOrEmpty(name))
-            return false;
-
-        // Common character prefab patterns in the game:
-        // - rmc_* (e.g., rmc_default_female_soldier, rmc_heavy_trooper)
-        // - Contains "soldier", "trooper", "enemy", "character", "humanoid"
-        // - Contains "_LOD" suffix patterns indicating it's a character model
-
-        var lower = name.ToLowerInvariant();
-
-        // Explicit character prefab prefixes
-        if (lower.StartsWith("rmc_"))
-            return true;
-
-        // Character-related keywords
-        string[] characterKeywords = {
-            "soldier", "trooper", "enemy", "character", "humanoid",
-            "civilian", "squaddie", "alien", "construct", "militia"
-        };
-
-        foreach (var keyword in characterKeywords)
-        {
-            if (lower.Contains(keyword))
-                return true;
-        }
-
-        // Has LOD children (indicates skinned mesh with LOD levels)
-        // Check if name ends with base name without LOD suffix
-        if (lower.Contains("_lod"))
-            return true;
-
-        return false;
     }
 }

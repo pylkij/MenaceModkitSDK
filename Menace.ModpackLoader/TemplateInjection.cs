@@ -4,9 +4,11 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+
 using MelonLoader;
 using Menace.SDK;
 using Menace.SDK.Internal;
@@ -15,43 +17,27 @@ using UnityEngine;
 
 namespace Menace.ModpackLoader;
 
-/// <summary>
-/// Template injection via IL2CPP reflection.
-/// Used as a fallback for modpacks that don't have compiled asset bundles.
-/// Once the bundle compiler (Phase 5) produces real asset bundles, this path
-/// becomes unnecessary — bundles apply template changes via Unity's native deserialization.
-/// </summary>
+// IL2CPP reflection fallback for template patches.
 public partial class ModpackLoaderMod
 {
     private static readonly MethodInfo TryCastMethod = typeof(Il2CppObjectBase).GetMethod("TryCast");
 
-    // Properties that should not be modified (internal Unity/IL2CPP fields)
     private static readonly HashSet<string> ReadOnlyProperties = new(StringComparer.OrdinalIgnoreCase)
     {
         "Pointer", "ObjectClass", "WasCollected", "m_CachedPtr",
         "name", "m_ID", "hideFlags", "serializationData"
     };
 
-    // Computed/translated fields that derive from other editable fields
-    // These are skipped with an informative message rather than a warning
     private static readonly HashSet<string> TranslatedFields = new(StringComparer.OrdinalIgnoreCase)
     {
         "DisplayTitle", "DisplayShortName", "DisplayDescription",
-        // Icon properties computed from internal Sprite reference
         "HasIcon", "IconAssetName"
     };
 
-    // Cache for name -> Object lookups, keyed by element type
     private readonly Dictionary<Type, Dictionary<string, UnityEngine.Object>> _nameLookupCache = new();
-
-    // Keep runtime-created sprites and textures alive to prevent garbage collection
     private readonly List<Sprite> _runtimeSprites = new();
     private readonly List<Texture2D> _runtimeTextures = new();
 
-    /// <summary>
-    /// Clear the name lookup cache. Call this after creating clones so that
-    /// subsequent patch operations will rebuild the cache and find the new clones.
-    /// </summary>
     public void InvalidateNameLookupCache()
     {
         if (_nameLookupCache.Count > 0)
@@ -61,13 +47,26 @@ public partial class ModpackLoaderMod
         }
     }
 
+    private static int AddAssetsToLookup(Dictionary<string, UnityEngine.Object> lookup, IEnumerable<UnityEngine.Object> assets)
+    {
+        var addedCount = 0;
+        foreach (var asset in assets)
+        {
+            if (asset != null && !string.IsNullOrEmpty(asset.name) && !lookup.ContainsKey(asset.name))
+            {
+                lookup[asset.name] = asset;
+                addedCount++;
+            }
+        }
+        return addedCount;
+    }
+
     private enum CollectionKind { None, StructArray, ReferenceArray, Il2CppList, ManagedArray }
 
     private static CollectionKind ClassifyCollectionType(Type propType, out Type elementType)
     {
         elementType = null;
 
-        // Check generic types first
         if (propType.IsGenericType)
         {
             var genName = propType.GetGenericTypeDefinition().Name;
@@ -85,7 +84,6 @@ public partial class ModpackLoaderMod
                 return CollectionKind.ReferenceArray;
             }
 
-            // IL2CPP List detection
             if (genName.Contains("List"))
             {
                 var isIl2Cpp = propType.FullName?.Contains("Il2Cpp") == true
@@ -98,21 +96,18 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // Il2CppStringArray is non-generic but extends Il2CppReferenceArray<string>
         if (propType.Name == "Il2CppStringArray")
         {
             elementType = typeof(string);
             return CollectionKind.ReferenceArray;
         }
 
-        // Managed arrays
         if (propType.IsArray)
         {
             elementType = propType.GetElementType();
             return CollectionKind.ManagedArray;
         }
 
-        // Walk base types to detect IL2CPP collections on derived types
         var baseType = propType.BaseType;
         while (baseType != null && baseType != typeof(object) && baseType != typeof(Il2CppObjectBase))
         {
@@ -150,20 +145,14 @@ public partial class ModpackLoaderMod
         return false;
     }
 
-    /// <summary>
-    /// Check if a type is a localization wrapper (LocalizedLine, LocalizedMultiLine, BaseLocalizedString).
-    /// These types store the actual text in m_DefaultTranslation at offset +0x38.
-    /// </summary>
     private static bool IsLocalizationType(Type type)
     {
         if (type == null) return false;
 
-        // Check by name (faster than walking inheritance for common cases)
         var name = type.Name;
         if (name == "LocalizedLine" || name == "LocalizedMultiLine" || name == "BaseLocalizedString")
             return true;
 
-        // Walk inheritance chain to find BaseLocalizedString
         var current = type.BaseType;
         while (current != null && current != typeof(object) && current != typeof(Il2CppObjectBase))
         {
@@ -174,35 +163,21 @@ public partial class ModpackLoaderMod
         return false;
     }
 
-    /// <summary>
-    /// Field names that are known to be localization fields.
-    /// Used as a fallback when type detection fails for IL2CPP wrapped types.
-    /// Note: "Name" is excluded as it's too generic (many plain string fields use this name).
-    /// </summary>
     private static readonly HashSet<string> KnownLocalizationFieldNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "Title", "ShortName", "Description", "Text", "DisplayText",
         "TooltipText", "Label", "Message", "Hint"
     };
 
-    /// <summary>
-    /// Check if a field is likely a localization field by name.
-    /// Used when the C# type doesn't match but we need to handle localization specially.
-    /// </summary>
     private static bool IsLikelyLocalizationField(string fieldName)
     {
         return KnownLocalizationFieldNames.Contains(fieldName);
     }
 
-    /// <summary>
-    /// Try to detect if an IL2CPP object's property actually holds a localization type at runtime.
-    /// This catches cases where the C# property type is wrong but the runtime object is a LocalizedLine.
-    /// </summary>
     private static bool IsRuntimeLocalizationType(object value)
     {
         if (value == null) return false;
 
-        // If it's an IL2CPP object, check its actual runtime class
         if (value is Il2CppObjectBase il2cppObj)
         {
             try
@@ -238,13 +213,9 @@ public partial class ModpackLoaderMod
     private const int LOC_DEFAULT_TRANSLATION_OFFSET = 0x38; // string m_DefaultTranslation
     private const int LOC_HAS_PLACEHOLDERS_OFFSET = 0x40;   // bool hasPlaceholders
 
-    // Cache for LocalizedLine/LocalizedMultiLine class pointers
     private static IntPtr _localizedLineClass = IntPtr.Zero;
     private static IntPtr _localizedMultiLineClass = IntPtr.Zero;
 
-    /// <summary>
-    /// Get the IL2CPP class pointer for LocalizedLine.
-    /// </summary>
     private static IntPtr GetLocalizedLineClass()
     {
         if (_localizedLineClass != IntPtr.Zero)
@@ -254,9 +225,6 @@ public partial class ModpackLoaderMod
         return _localizedLineClass;
     }
 
-    /// <summary>
-    /// Get the IL2CPP class pointer for LocalizedMultiLine.
-    /// </summary>
     private static IntPtr GetLocalizedMultiLineClass()
     {
         if (_localizedMultiLineClass != IntPtr.Zero)
@@ -266,11 +234,6 @@ public partial class ModpackLoaderMod
         return _localizedMultiLineClass;
     }
 
-    /// <summary>
-    /// Create a new LocalizedLine or LocalizedMultiLine object with the given text.
-    /// Creates a FRESH instance to avoid corrupting shared localization objects.
-    /// If existingLocPtr is null/zero, creates a LocalizedLine by default.
-    /// </summary>
     private IntPtr CreateLocalizedObject(IntPtr existingLocPtr, string value)
     {
         try
@@ -280,7 +243,6 @@ public partial class ModpackLoaderMod
 
             if (existingLocPtr != IntPtr.Zero)
             {
-                // Get the class of the existing object to create the same type
                 var existingClass = IL2CPP.il2cpp_object_get_class(existingLocPtr);
                 if (existingClass == IntPtr.Zero)
                 {
@@ -289,28 +251,23 @@ public partial class ModpackLoaderMod
                 }
                 else
                 {
-                    // Get the class name to determine if it's LocalizedLine or LocalizedMultiLine
                     var classNamePtr = IL2CPP.il2cpp_class_get_name(existingClass);
                     var className = classNamePtr != IntPtr.Zero ? Marshal.PtrToStringAnsi(classNamePtr) : "";
 
-                    // Get the appropriate class pointer
                     if (className == "LocalizedMultiLine")
                     {
                         newClass = GetLocalizedMultiLineClass();
                     }
                     else
                     {
-                        // Default to LocalizedLine for LocalizedLine or BaseLocalizedString
                         newClass = GetLocalizedLineClass();
                     }
 
-                    // Copy hasPlaceholders from existing object
                     hasPlaceholders = Marshal.ReadByte(existingLocPtr + LOC_HAS_PLACEHOLDERS_OFFSET);
                 }
             }
             else
             {
-                // No existing object - default to LocalizedLine (most common for names/titles)
                 newClass = GetLocalizedLineClass();
             }
 
@@ -320,7 +277,6 @@ public partial class ModpackLoaderMod
                 return IntPtr.Zero;
             }
 
-            // Allocate a new instance
             var newObj = IL2CPP.il2cpp_object_new(newClass);
             if (newObj == IntPtr.Zero)
             {
@@ -328,27 +284,13 @@ public partial class ModpackLoaderMod
                 return IntPtr.Zero;
             }
 
-            // IMPORTANT: Clear the key fields so localization lookup FAILS
-            // This forces the game to use m_DefaultTranslation as the actual text
-            // If we copy the original key, the game's localization system will
-            // look it up and OVERWRITE m_DefaultTranslation with cached text
-
-            // Clear LocaCategory (int at +0x10) - set to 0 (None/Invalid)
+            // Clear lookup keys so the game uses m_DefaultTranslation instead of cached localized text.
             Marshal.WriteInt32(newObj + LOC_CATEGORY_OFFSET, 0);
-
-            // Clear m_KeyPart1 (string at +0x18) - set to null
             Marshal.WriteIntPtr(newObj + LOC_KEY_PART1_OFFSET, IntPtr.Zero);
-
-            // Clear m_KeyPart2 (string at +0x20) - set to null
             Marshal.WriteIntPtr(newObj + LOC_KEY_PART2_OFFSET, IntPtr.Zero);
-
-            // Clear m_CategoryName (string at +0x28) - set to null
             Marshal.WriteIntPtr(newObj + LOC_CATEGORY_NAME_OFFSET, IntPtr.Zero);
-
-            // Clear m_Identifier (string at +0x30) - set to null
             Marshal.WriteIntPtr(newObj + LOC_IDENTIFIER_OFFSET, IntPtr.Zero);
 
-            // Set m_DefaultTranslation to our new value (string at +0x38)
             IntPtr il2cppStr = IntPtr.Zero;
             if (!string.IsNullOrEmpty(value))
             {
@@ -356,7 +298,6 @@ public partial class ModpackLoaderMod
             }
             Marshal.WriteIntPtr(newObj + LOC_DEFAULT_TRANSLATION_OFFSET, il2cppStr);
 
-            // Set hasPlaceholders (bool at +0x40)
             Marshal.WriteByte(newObj + LOC_HAS_PLACEHOLDERS_OFFSET, hasPlaceholders);
 
             return newObj;
@@ -368,15 +309,6 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Write a localized string to a template's localization field.
-    /// Creates a NEW localization object to avoid corrupting shared instances.
-    ///
-    /// IMPORTANT: The old approach modified the shared LocalizedLine/LocalizedMultiLine
-    /// instances directly, which caused random text corruption across unrelated templates
-    /// that shared the same localization key. This new approach creates a fresh object
-    /// for each modified field.
-    /// </summary>
     private bool WriteLocalizedFieldDirect(Il2CppObjectBase templateObj, string fieldName, string value)
     {
         try
@@ -385,12 +317,10 @@ public partial class ModpackLoaderMod
             if (templatePtr == IntPtr.Zero)
                 return false;
 
-            // Get the class pointer for the template
             var klassPtr = IL2CPP.il2cpp_object_get_class(templatePtr);
             if (klassPtr == IntPtr.Zero)
                 return false;
 
-            // Find the field offset for the localization property
             var fieldOffset = OffsetCache.GetOrResolve(klassPtr, fieldName);
             if (fieldOffset == 0)
             {
@@ -398,19 +328,14 @@ public partial class ModpackLoaderMod
                 return false;
             }
 
-            // Read the existing localization object pointer
             var existingLocPtr = Marshal.ReadIntPtr(templatePtr + (int)fieldOffset);
 
-            // Validate the pointer if non-null
             if (existingLocPtr != IntPtr.Zero && existingLocPtr.ToInt64() < 0x10000)
             {
                 SdkLogger.Warning($"    {fieldName}: invalid localization pointer, treating as null");
                 existingLocPtr = IntPtr.Zero;
             }
 
-            // Create a NEW localization object with our text
-            // If existingLocPtr is null (e.g., on cloned templates), CreateLocalizedObject
-            // will create a fresh LocalizedLine object
             var newLocPtr = CreateLocalizedObject(existingLocPtr, value);
             if (newLocPtr == IntPtr.Zero)
             {
@@ -418,7 +343,6 @@ public partial class ModpackLoaderMod
                 return false;
             }
 
-            // Write the NEW object pointer to the template's field
             Marshal.WriteIntPtr(templatePtr + (int)fieldOffset, newLocPtr);
 
             return true;
@@ -430,15 +354,10 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Write a localized string via reflection, creating a NEW object to avoid corruption.
-    /// Used for fallback cases where the parent is not a direct IL2CPP object.
-    /// </summary>
     private bool WriteLocalizedFieldViaReflection(object parent, PropertyInfo prop, FieldInfo field, string fieldName, string value)
     {
         try
         {
-            // Get the existing localization object (may be null for cloned templates)
             object existingLoc = prop != null ? prop.GetValue(parent) : field?.GetValue(parent);
             IntPtr existingPtr = IntPtr.Zero;
             Type locType = null;
@@ -449,7 +368,6 @@ public partial class ModpackLoaderMod
                 locType = existingLoc.GetType();
             }
 
-            // If no existing object, try to determine the type from the property/field declaration
             if (locType == null)
             {
                 locType = prop?.PropertyType ?? field?.FieldType;
@@ -460,8 +378,6 @@ public partial class ModpackLoaderMod
                 }
             }
 
-            // Create a NEW localization object with our text
-            // CreateLocalizedObject handles null existingPtr by creating a fresh LocalizedLine
             var newLocPtr = CreateLocalizedObject(existingPtr, value);
             if (newLocPtr == IntPtr.Zero)
             {
@@ -469,7 +385,6 @@ public partial class ModpackLoaderMod
                 return false;
             }
 
-            // Wrap the new pointer in the appropriate managed type and set it back
             var wrappedNew = Activator.CreateInstance(locType, newLocPtr);
             if (wrappedNew == null)
             {
@@ -505,11 +420,8 @@ public partial class ModpackLoaderMod
 
         try
         {
-            // For Sprite type, first add any custom sprites from AssetReplacer
-            // These are runtime-created and won't be found by FindObjectsOfTypeAll
             if (elementType == typeof(Sprite))
             {
-                // Get all custom sprites and add them to the lookup
                 var customSpriteNames = AssetReplacer.GetCustomSpriteNames();
                 foreach (var name in customSpriteNames)
                 {
@@ -521,9 +433,6 @@ public partial class ModpackLoaderMod
                     SdkLogger.Msg($"    Added {customSpriteNames.Count} custom sprite(s) to lookup");
             }
 
-            // Check BundleLoader for custom assets (GLB models, audio, etc.)
-            // These are runtime-loaded and won't be found by FindObjectsOfTypeAll
-            // Try multiple type name variants to handle IL2CPP naming differences
             try
             {
                 var simpleTypeName = elementType.Name;
@@ -539,32 +448,22 @@ public partial class ModpackLoaderMod
 
                 var typeNamesToTry = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { il2cppTypeName, simpleTypeName };
 
-                var addedCount = 0;
+                var compiledAssetCount = 0;
+                var bundleAssetCount = 0;
                 foreach (var typeName in typeNamesToTry)
                 {
-                    // Check compiled assets (loaded from manifest via Resources.Load)
-                    var compiledAssets = CompiledAssetLoader.GetAssetsByType(typeName);
-                    foreach (var asset in compiledAssets)
-                    {
-                        if (asset != null && !string.IsNullOrEmpty(asset.name) && !lookup.ContainsKey(asset.name))
-                        {
-                            lookup[asset.name] = asset;
-                            addedCount++;
-                        }
-                    }
+                    compiledAssetCount += AddAssetsToLookup(lookup, CompiledAssetLoader.GetAssetsByType(typeName));
+                    bundleAssetCount += AddAssetsToLookup(lookup, BundleLoader.GetAssetsByType(typeName));
                 }
-                if (addedCount > 0)
-                    SdkLogger.Msg($"    Added {addedCount} custom {simpleTypeName}(s) to lookup");
+                if (compiledAssetCount > 0)
+                    SdkLogger.Msg($"    Added {compiledAssetCount} compiled {simpleTypeName}(s) to lookup");
+                if (bundleAssetCount > 0)
+                    SdkLogger.Msg($"    Added {bundleAssetCount} runtime {simpleTypeName}(s) to lookup");
 
-                // For Sprites: create runtime sprites from PNG files in compiled/textures
-                // Asset-file sprites have complex vertex/UV data that's hard to generate correctly,
-                // and asset-file textures have ColorSpace issues (always washed out)
-                // Runtime loading via ImageConversion.LoadImage works correctly for both
                 if (elementType == typeof(Sprite))
                 {
                     int runtimeSpriteCount = 0;
 
-                    // Scan compiled/textures directory for PNG files
                     var modsPath = Path.Combine(Directory.GetCurrentDirectory(), "Mods");
                     var texturesDir = Path.Combine(modsPath, "compiled", "textures");
 
@@ -577,12 +476,10 @@ public partial class ModpackLoaderMod
                         {
                             var textureName = Path.GetFileNameWithoutExtension(pngPath);
 
-                            // Skip if we already have a sprite for this texture
                             if (lookup.ContainsKey(textureName)) continue;
 
                             try
                             {
-                                // Load PNG file as Texture2D using ImageConversion
                                 var bytes = File.ReadAllBytes(pngPath);
                                 var tex = new Texture2D(2, 2);
                                 var il2cppBytes = new Il2CppStructArray<byte>(bytes);
@@ -591,7 +488,6 @@ public partial class ModpackLoaderMod
                                 {
                                     tex.name = textureName;
 
-                                    // Create a runtime sprite from the texture
                                     var rect = new Rect(0, 0, tex.width, tex.height);
                                     var pivot = new Vector2(0.5f, 0.5f);
                                     var sprite = Sprite.Create(tex, rect, pivot, 100f);
@@ -601,7 +497,6 @@ public partial class ModpackLoaderMod
                                         sprite.name = textureName;
                                         lookup[textureName] = sprite;
 
-                                        // Cache to prevent garbage collection
                                         _runtimeSprites.Add(sprite);
                                         _runtimeTextures.Add(tex);
                                         runtimeSpriteCount++;
@@ -627,11 +522,9 @@ public partial class ModpackLoaderMod
             }
             catch (Exception ex)
             {
-                SdkLogger.Warning($"    BundleLoader lookup failed for {elementType.Name}: {ex.Message}");
+                SdkLogger.Warning($"    Runtime asset lookup failed for {elementType.Name}: {ex.Message}");
             }
 
-            // Force-load templates via DataTemplateLoader before FindObjectsOfTypeAll
-            // This ensures referenced templates are in memory
             var gameAssembly = AppDomain.CurrentDomain.GetAssemblies()
                 .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
             if (gameAssembly != null)
@@ -646,7 +539,6 @@ public partial class ModpackLoaderMod
                 {
                     if (obj != null && !string.IsNullOrEmpty(obj.name))
                     {
-                        // Don't overwrite custom sprites with game sprites of same name
                         if (!lookup.ContainsKey(obj.name))
                             lookup[obj.name] = obj;
                     }
@@ -666,7 +558,6 @@ public partial class ModpackLoaderMod
 
     private void ApplyTemplateModifications(UnityEngine.Object obj, Type templateType, Dictionary<string, object> modifications)
     {
-        // Cast to the correct proxy type via TryCast<T>()
         object castObj;
         try
         {
@@ -685,7 +576,6 @@ public partial class ModpackLoaderMod
             return;
         }
 
-        // Build property lookup for this type (walk inheritance chain)
         var propertyMap = new Dictionary<string, PropertyInfo>(StringComparer.OrdinalIgnoreCase);
         var currentType = templateType;
         while (currentType != null && currentType.Name != "Object" &&
@@ -707,15 +597,12 @@ public partial class ModpackLoaderMod
             if (ReadOnlyProperties.Contains(fieldName))
                 continue;
 
-            // Skip translated/computed fields with informative message
             if (TranslatedFields.Contains(fieldName))
             {
                 SdkLogger.Msg($"    {obj.name}: skipping {fieldName} (translated field - edit Title/ShortName/Description instead)");
                 continue;
             }
 
-            // Handle dotted paths (e.g., "Properties.HitpointsPerElement")
-            // by navigating to the nested object and setting the sub-field.
             var dotIdx = fieldName.IndexOf('.');
             if (dotIdx > 0)
             {
@@ -737,11 +624,9 @@ public partial class ModpackLoaderMod
                         continue;
                     }
 
-                    // Try to find a property first
                     var childProp = parentObj.GetType().GetProperty(childFieldName,
                         BindingFlags.Public | BindingFlags.Instance);
 
-                    // If no property found, try to find a field (common for value-type structs like OperationResources)
                     FieldInfo childField = null;
                     if (childProp == null || !childProp.CanWrite)
                     {
@@ -755,7 +640,6 @@ public partial class ModpackLoaderMod
                         }
                     }
 
-                    // Get the target type from either property or field
                     var childType = childProp?.PropertyType ?? childField.FieldType;
 
                     if (rawValue is JArray nestedJArray)
@@ -769,7 +653,6 @@ public partial class ModpackLoaderMod
                         }
                     }
 
-                    // Incremental list operations via JObject with $op
                     if (rawValue is JObject nestedJObj)
                     {
                         var nestedKind = ClassifyCollectionType(childType, out var nestedElType);
@@ -781,13 +664,6 @@ public partial class ModpackLoaderMod
                         }
                     }
 
-                    // Localization types: write directly to m_DefaultTranslation
-                    // Use direct memory access if parentObj is an IL2CPP object to avoid crashes
-                    //
-                    // Detection strategy (same as ApplyFieldOverrides):
-                    // 1. Check C# property type (fastest, catches most cases)
-                    // 2. Check runtime type of current value (catches IL2CPP type mismatches)
-                    // 3. Name-based fallback: only if current value is an IL2CPP object
                     var childCurrentValue = childProp?.CanRead == true ? childProp.GetValue(parentObj) : childField?.GetValue(parentObj);
                     bool isChildLocalization = IsLocalizationType(childType) ||
                                                IsRuntimeLocalizationType(childCurrentValue) ||
@@ -802,12 +678,10 @@ public partial class ModpackLoaderMod
 
                         if (parentObj is Il2CppObjectBase il2cppParent)
                         {
-                            // Use safe direct memory access
                             success = WriteLocalizedFieldDirect(il2cppParent, childFieldName, stringValue);
                         }
                         else
                         {
-                            // Fallback for managed value types - create new object via reflection
                             success = WriteLocalizedFieldViaReflection(parentObj, childProp, childField, childFieldName, stringValue);
                         }
 
@@ -817,23 +691,16 @@ public partial class ModpackLoaderMod
                                                   IsRuntimeLocalizationType(childCurrentValue) ? "runtime" : "name";
                             SdkLogger.Msg($"    {obj.name}.{fieldName}: set localized text (detected by {detectionMethod})");
                             appliedCount++;
-                            continue; // Localization handled successfully
+                            continue;
                         }
-                        // Fall through to normal assignment if localization write failed
                         SdkLogger.Msg($"    {obj.name}.{fieldName}: localization write failed, trying normal assignment");
                     }
 
                     var nestedConverted = ConvertToPropertyType(rawValue, childType);
 
-                    // For value-type structs (like OperationResources), we need to:
-                    // 1. Get a boxed copy of the struct
-                    // 2. Modify the field on the boxed copy
-                    // 3. Set the modified struct back to the parent property
                     if (childField != null && parentProp.PropertyType.IsValueType)
                     {
-                        // parentObj is already a boxed copy of the struct
                         childField.SetValue(parentObj, nestedConverted);
-                        // Write the modified struct back to the parent property
                         parentProp.SetValue(castObj, parentObj);
                     }
                     else if (childField != null)
@@ -862,7 +729,6 @@ public partial class ModpackLoaderMod
 
             try
             {
-                // Collection/array patch: JArray → full replacement
                 if (rawValue is JArray jArray)
                 {
                     var kind = ClassifyCollectionType(prop.PropertyType, out _);
@@ -874,7 +740,6 @@ public partial class ModpackLoaderMod
                     }
                 }
 
-                // Incremental list/array operations: JObject with $remove/$update/$append
                 if (rawValue is JObject jObj)
                 {
                     var collKind = ClassifyCollectionType(prop.PropertyType, out var elType);
@@ -895,14 +760,6 @@ public partial class ModpackLoaderMod
                     }
                 }
 
-                // Localization types (LocalizedLine, LocalizedMultiLine): write directly to m_DefaultTranslation
-                // These are wrapper objects that can't be replaced with strings via normal property set
-                // Use direct memory access to avoid property getter crashes
-                //
-                // Detection strategy (same as ApplyFieldOverrides):
-                // 1. Check C# property type (fastest, catches most cases)
-                // 2. Check runtime type of current value (catches IL2CPP type mismatches)
-                // 3. Name-based fallback: only if current value is an IL2CPP object
                 var topLevelCurrentValue = prop.CanRead ? prop.GetValue(castObj) : null;
                 bool isTopLevelLocalization = IsLocalizationType(prop.PropertyType) ||
                                               IsRuntimeLocalizationType(topLevelCurrentValue) ||
@@ -920,9 +777,8 @@ public partial class ModpackLoaderMod
                                               IsRuntimeLocalizationType(topLevelCurrentValue) ? "runtime" : "name";
                         SdkLogger.Msg($"    {obj.name}.{fieldName}: set localized text (detected by {detectionMethod})");
                         appliedCount++;
-                        continue; // Localization handled successfully
+                        continue;
                     }
-                    // Fall through to normal assignment if localization write failed
                     SdkLogger.Msg($"    {obj.name}.{fieldName}: localization write failed, trying normal assignment");
                 }
 
@@ -991,7 +847,6 @@ public partial class ModpackLoaderMod
     {
         var arrayType = prop.PropertyType;
 
-        // UnityEngine.Object references: resolve by name
         if (typeof(UnityEngine.Object).IsAssignableFrom(elementType))
         {
             var lookup = BuildNameLookup(elementType);
@@ -1019,7 +874,6 @@ public partial class ModpackLoaderMod
             return true;
         }
 
-        // String arrays
         if (elementType == typeof(string) || elementType.FullName == "Il2CppSystem.String")
         {
             var array = Activator.CreateInstance(arrayType, new object[] { jArray.Count });
@@ -1034,7 +888,6 @@ public partial class ModpackLoaderMod
             return true;
         }
 
-        // Other reference types: convert each element
         var refArray = Activator.CreateInstance(arrayType, new object[] { jArray.Count });
         var refIndexer = arrayType.GetProperty("Item");
         if (refIndexer == null) return false;
@@ -1085,13 +938,10 @@ public partial class ModpackLoaderMod
 
         clearMethod.Invoke(list, null);
 
-        // Check if elements are string references (asset names) or embedded objects (JObjects with data)
-        // EventHandlers are embedded objects with _type field, not string references
         bool hasEmbeddedObjects = jArray.Any(item => item is JObject);
 
         if (typeof(UnityEngine.Object).IsAssignableFrom(elementType) && !hasEmbeddedObjects)
         {
-            // String references to existing assets (templates, ScriptableObjects, etc.)
             var lookup = BuildNameLookup(elementType);
 
             foreach (var item in jArray)
@@ -1120,7 +970,6 @@ public partial class ModpackLoaderMod
                     var converted = ConvertJTokenToType(item, elementType);
                     if (converted == null)
                     {
-                        // Log details about what failed to convert
                         var typeHint = item is JObject jObj && jObj.TryGetValue("_type", out var typeToken)
                             ? typeToken.Value<string>() : "unknown";
                         SdkLogger.Warning($"    {prop.Name}[{i}]: conversion returned null (item type: {typeHint}, target: {elementType.Name})");
@@ -1163,24 +1012,20 @@ public partial class ModpackLoaderMod
         if (value == null)
             return null;
 
-        // Handle JToken from Newtonsoft deserialization
         if (value is JToken jToken)
         {
             return ConvertJTokenToType(jToken, targetType);
         }
 
-        // Direct type match
         if (targetType.IsInstanceOfType(value))
             return value;
 
-        // Enum from integer
         if (targetType.IsEnum)
         {
             var intVal = Convert.ToInt32(value);
             return Enum.ToObject(targetType, intVal);
         }
 
-        // Numeric conversions
         if (targetType == typeof(int)) return Convert.ToInt32(value);
         if (targetType == typeof(float)) return Convert.ToSingle(value);
         if (targetType == typeof(double)) return Convert.ToDouble(value);
@@ -1190,14 +1035,11 @@ public partial class ModpackLoaderMod
         if (targetType == typeof(long)) return Convert.ToInt64(value);
         if (targetType == typeof(string)) return value.ToString();
 
-        // String to IL2CPP type: resolve as reference
         if (value is string strValue && IsIl2CppType(targetType))
         {
             return ResolveIl2CppReference(strValue, targetType);
         }
 
-        // Simple value-type structs (e.g., OperationResources with a single int field)
-        // These are blittable structs that can be set from a primitive value
         if (targetType.IsValueType && !targetType.IsPrimitive && !targetType.IsEnum)
         {
             var structResult = TryCreateSimpleStruct(targetType, value);
@@ -1225,8 +1067,6 @@ public partial class ModpackLoaderMod
         if (targetType == typeof(long)) return token.Value<long>();
         if (targetType == typeof(string)) return token.Value<string>();
 
-        // IL2CPP types: resolve by name from string
-        // This covers templates, ScriptableObjects, and other Unity assets
         if (token.Type == JTokenType.String && IsIl2CppType(targetType))
         {
             var name = token.Value<string>();
@@ -1235,16 +1075,11 @@ public partial class ModpackLoaderMod
             return null;
         }
 
-        // IL2CPP object construction from JObject
         if (token is JObject jObj && IsIl2CppType(targetType))
             return CreateIl2CppObject(targetType, jObj);
 
-        // Simple value-type structs (e.g., OperationResources with a single int field)
-        // When a primitive value (int, float) is provided for a struct type,
-        // try to construct the struct and set its primary field
         if (targetType.IsValueType && !targetType.IsPrimitive && !targetType.IsEnum)
         {
-            // Get the primitive value from the token
             object primitiveValue = token.Type switch
             {
                 JTokenType.Integer => token.Value<long>(),
@@ -1261,33 +1096,23 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // For complex types, fall back to conversion
         return token.ToObject(targetType);
     }
 
-    /// <summary>
-    /// Tries to create a simple value-type struct from a primitive value.
-    /// Handles structs like OperationResources that wrap a single int/float field.
-    /// Returns null if the struct cannot be created from the primitive.
-    /// </summary>
     private object TryCreateSimpleStruct(Type structType, object primitiveValue)
     {
         try
         {
-            // Create default instance of the struct
             var structInstance = Activator.CreateInstance(structType);
             if (structInstance == null)
                 return null;
 
-            // Find writable fields on the struct
             var fields = structType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
 
-            // Common field name patterns for wrapper structs
             string[] preferredNames = { "m_Supplies", "m_Value", "Value", "value", "_value", "m_Amount", "Amount" };
 
             FieldInfo targetField = null;
 
-            // First, try to find a field by preferred name
             foreach (var name in preferredNames)
             {
                 targetField = fields.FirstOrDefault(f => f.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
@@ -1295,7 +1120,6 @@ public partial class ModpackLoaderMod
                     break;
             }
 
-            // If no preferred name found, use the single field if there's only one
             if (targetField == null && fields.Length == 1)
             {
                 targetField = fields[0];
@@ -1303,7 +1127,6 @@ public partial class ModpackLoaderMod
 
             if (targetField == null)
             {
-                // Try properties as fallback
                 var props = structType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                     .Where(p => p.CanWrite && p.CanRead)
                     .ToArray();
@@ -1321,7 +1144,6 @@ public partial class ModpackLoaderMod
                 return null;
             }
 
-            // Convert the primitive value to match the field type
             var fieldValue = ConvertPrimitiveToType(primitiveValue, targetField.FieldType);
             if (fieldValue == null)
                 return null;
@@ -1336,9 +1158,6 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Converts a primitive value (int, long, float, double, bool) to the target type.
-    /// </summary>
     private static object ConvertPrimitiveToType(object value, Type targetType)
     {
         try
@@ -1363,18 +1182,11 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Resolves a string name to an IL2CPP object reference.
-    /// First tries name lookup via Resources.FindObjectsOfTypeAll,
-    /// then falls back to constructing wrapper types (like LocalizedLine).
-    /// </summary>
     private object ResolveIl2CppReference(string name, Type targetType)
     {
         if (string.IsNullOrEmpty(name))
             return null;
 
-        // Try to look up by name via Resources (works for templates, ScriptableObjects, etc.)
-        // Only attempt this for types that extend UnityEngine.Object (can be looked up via Resources)
         if (typeof(UnityEngine.Object).IsAssignableFrom(targetType))
         {
             try
@@ -1388,7 +1200,6 @@ public partial class ModpackLoaderMod
                 }
                 else
                 {
-                    // Log failed lookups for Sprite type to debug icon issues
                     if (targetType == typeof(Sprite))
                     {
                         SdkLogger.Warning($"    [Debug] Sprite lookup FAILED for '{name}' (lookup has {lookup.Count} entries)");
@@ -1397,19 +1208,15 @@ public partial class ModpackLoaderMod
             }
             catch (Exception ex)
             {
-                // Type can't be looked up via Resources - log only at debug level
                 SdkLogger.Msg($"    [Debug] BuildNameLookup failed for {targetType.Name}: {ex.Message}");
             }
         }
 
-        // Try to construct the type if it's a wrapper (like LocalizedLine)
-        // that stores a string key/value
         try
         {
             var obj = Activator.CreateInstance(targetType);
             if (obj != null)
             {
-                // Common patterns for wrapper types: Key, Value, Name, Id, key, value
                 var keyProp = targetType.GetProperty("Key") ??
                               targetType.GetProperty("Value") ??
                               targetType.GetProperty("key") ??
@@ -1427,30 +1234,21 @@ public partial class ModpackLoaderMod
                     }
                 }
 
-                // If we constructed the object but couldn't set a key property,
-                // still return it if it's a valid IL2CPP object (might use default constructor)
                 return obj;
             }
         }
         catch
         {
-            // Construction failed - type may require special initialization
         }
 
         SdkLogger.Warning($"    Could not resolve '{name}' as {targetType.Name}");
         return null;
     }
 
-    // Cache for polymorphic type resolution (base type name + _type value → concrete Type)
     private static readonly Dictionary<string, Type> _polymorphicTypeCache = new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// Constructs a new IL2CPP proxy object from a JObject and recursively sets its properties.
-    /// Handles polymorphic types by checking for _type field and resolving the concrete type.
-    /// </summary>
     private object CreateIl2CppObject(Type targetType, JObject jObj, Type skipType = null)
     {
-        // Check for polymorphic _type field
         Type actualType = targetType;
         string typeDiscriminator = null;
 
@@ -1479,7 +1277,6 @@ public partial class ModpackLoaderMod
             return null;
         }
 
-        // Create a copy of jObj without the _type field for property application
         var propsToApply = new JObject();
         foreach (var kvp in jObj)
         {
@@ -1491,18 +1288,12 @@ public partial class ModpackLoaderMod
         return newObj;
     }
 
-    /// <summary>
-    /// Resolves a polymorphic type from a _type discriminator string.
-    /// Searches for concrete implementations in the game assembly.
-    /// </summary>
     private Type ResolvePolymorphicType(Type baseType, string typeDiscriminator)
     {
-        // Build cache key from base type and discriminator
         var cacheKey = $"{baseType.FullName}:{typeDiscriminator}";
         if (_polymorphicTypeCache.TryGetValue(cacheKey, out var cached))
             return cached;
 
-        // Get the game assembly
         var gameAssembly = AppDomain.CurrentDomain.GetAssemblies()
             .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
 
@@ -1512,25 +1303,16 @@ public partial class ModpackLoaderMod
             return null;
         }
 
-        // For EventHandlers, the naming pattern is: discriminator + "Handler"
-        // e.g., "ChangeProperty" → "ChangePropertyHandler"
-        // e.g., "Attack" → "AttackHandler"
-        // The base types may be SkillEventHandlerTemplate (schema) or SkillEventHandler (runtime)
         var candidateNames = new List<string>
         {
-            // Primary pattern for EventHandlers (most common)
             $"{typeDiscriminator}Handler",
-            // Direct match
             typeDiscriminator,
-            // Other possible suffixes
             $"{typeDiscriminator}EventHandler",
             $"{typeDiscriminator}Template",
-            // With "Skill" prefix (for skill event handlers)
             $"Skill{typeDiscriminator}Handler",
             $"Skill{typeDiscriminator}",
         };
 
-        // Also try with base type's namespace
         var baseNamespace = baseType.Namespace;
         if (!string.IsNullOrEmpty(baseNamespace))
         {
@@ -1540,15 +1322,12 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // Search for the type - check both direct inheritance and via intermediate base classes
         Type resolvedType = null;
         foreach (var candidate in candidateNames)
         {
             resolvedType = gameAssembly.GetType(candidate, throwOnError: false, ignoreCase: true);
             if (resolvedType != null && !resolvedType.IsAbstract)
             {
-                // Check if it's assignable from baseType OR shares a common ancestor
-                // (handles cases where schema uses SkillEventHandlerTemplate but runtime uses SkillEventHandler)
                 if (baseType.IsAssignableFrom(resolvedType) || IsCompatibleHandlerType(resolvedType, baseType))
                 {
                     SdkLogger.Msg($"    Resolved polymorphic type: '{typeDiscriminator}' → {resolvedType.FullName}");
@@ -1558,8 +1337,6 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // Fallback: search all types in assembly that might be handlers
-        // and match the discriminator (case-insensitive, partial match)
         try
         {
             var allTypes = gameAssembly.GetTypes();
@@ -1568,7 +1345,6 @@ public partial class ModpackLoaderMod
                 if (type.IsAbstract)
                     continue;
 
-                // Check if type name matches the discriminator pattern
                 var typeName = type.Name;
                 bool nameMatches = typeName.Equals($"{typeDiscriminator}Handler", StringComparison.OrdinalIgnoreCase) ||
                                    typeName.Equals(typeDiscriminator, StringComparison.OrdinalIgnoreCase);
@@ -1586,25 +1362,17 @@ public partial class ModpackLoaderMod
             SdkLogger.Warning($"    ResolvePolymorphicType fallback failed: {ex.Message}");
         }
 
-        // Cache null result to avoid repeated lookups
         SdkLogger.Warning($"    ResolvePolymorphicType: could not find type for '{typeDiscriminator}' (base: {baseType.Name})");
         _polymorphicTypeCache[cacheKey] = null;
         return null;
     }
 
-    /// <summary>
-    /// Checks if a candidate type is compatible with the expected base type for handlers.
-    /// Handles the case where the schema uses SkillEventHandlerTemplate but the runtime
-    /// classes inherit from SkillEventHandler.
-    /// </summary>
     private static bool IsCompatibleHandlerType(Type candidateType, Type expectedBaseType)
     {
-        // Walk up the inheritance chain looking for handler base types
         var current = candidateType;
         while (current != null && current != typeof(object))
         {
             var name = current.Name;
-            // Check for known handler base types
             if (name == "SkillEventHandlerTemplate" ||
                 name == "SkillEventHandler" ||
                 name == "TileEffectHandler" ||
@@ -1617,15 +1385,10 @@ public partial class ModpackLoaderMod
         return false;
     }
 
-    /// <summary>
-    /// Sets individual fields on an existing IL2CPP object from a JObject.
-    /// Used by both $update incremental operations and CreateIl2CppObject.
-    /// </summary>
     private void ApplyFieldOverrides(object target, JObject overrides, Type skipType = null)
     {
         var targetType = target.GetType();
 
-        // Build property map (walk inheritance chain)
         var propertyMap = new Dictionary<string, PropertyInfo>(StringComparer.OrdinalIgnoreCase);
         var currentType = targetType;
         while (currentType != null && currentType.Name != "Object" &&
@@ -1655,19 +1418,16 @@ public partial class ModpackLoaderMod
                 continue;
             }
 
-            // Skip back-references to avoid circular construction
             if (skipType != null && prop.PropertyType.IsAssignableFrom(skipType))
                 continue;
 
             try
             {
-                // Handle collection properties specially
                 var kind = ClassifyCollectionType(prop.PropertyType, out var elType);
                 if (kind != CollectionKind.None && elType != null)
                 {
                     if (value is JArray arr)
                     {
-                        // Ensure IL2CPP list exists before full replacement
                         if (kind == CollectionKind.Il2CppList)
                             EnsureListExists(target, prop);
                         TryApplyCollectionValue(target, prop, arr);
@@ -1680,14 +1440,6 @@ public partial class ModpackLoaderMod
                     continue;
                 }
 
-                // Localization types (LocalizedLine, LocalizedMultiLine): write directly to m_DefaultTranslation
-                // Use direct memory access if target is an IL2CPP object to avoid crashes
-                //
-                // Detection strategy:
-                // 1. Check C# property type (fastest, catches most cases)
-                // 2. Check runtime type of current value (catches IL2CPP type mismatches)
-                // 3. Name-based fallback: only if current value is an IL2CPP object (to avoid false positives
-                //    on plain string fields named "Name", "Description", etc.)
                 var currentValue = prop.CanRead ? prop.GetValue(target) : null;
                 bool isLocalization = IsLocalizationType(prop.PropertyType) ||
                                       IsRuntimeLocalizationType(currentValue) ||
@@ -1702,29 +1454,22 @@ public partial class ModpackLoaderMod
 
                     if (target is Il2CppObjectBase il2cppTarget)
                     {
-                        // Use safe direct memory access
                         success = WriteLocalizedFieldDirect(il2cppTarget, fieldName, stringValue);
                         if (success)
                             SdkLogger.Msg($"    {targetType.Name}.{fieldName}: set localized text (detected by {(IsLocalizationType(prop.PropertyType) ? "type" : IsRuntimeLocalizationType(currentValue) ? "runtime" : "name")})");
                     }
                     else
                     {
-                        // Fallback for managed types - create new object via reflection
                         success = WriteLocalizedFieldViaReflection(target, prop, null, fieldName, stringValue);
                     }
 
                     if (success)
                     {
-                        continue; // Localization handled successfully
+                        continue;
                     }
-                    // Fall through to normal assignment if localization write failed
                     SdkLogger.Msg($"    {targetType.Name}.{fieldName}: localization write failed, trying normal assignment");
                 }
 
-                // For everything else, use ConvertJTokenToType which handles:
-                // - Primitives, enums, strings
-                // - UnityEngine.Object references (resolved by name)
-                // - Nested IL2CPP objects (recursive construction)
                 var converted = ConvertJTokenToType(value, prop.PropertyType);
                 prop.SetValue(target, converted);
             }
@@ -1736,9 +1481,6 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Ensures an IL2CPP List property is non-null, constructing a new instance if needed.
-    /// </summary>
     private void EnsureListExists(object owner, PropertyInfo prop)
     {
         var existing = prop.GetValue(owner);
@@ -1755,10 +1497,6 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Applies incremental list operations ($remove, $update, $append) to an IL2CPP List.
-    /// Operations are applied in order: remove → update → append.
-    /// </summary>
     private bool TryApplyIncrementalList(object castObj, PropertyInfo prop, JObject ops, Type elementType)
     {
         var list = prop.GetValue(castObj);
@@ -1797,7 +1535,6 @@ public partial class ModpackLoaderMod
         // 2. $remove — uses original indices, applied highest-first
         // 3. $append — adds to end (indices don't matter)
 
-        // $update — modify fields on existing elements at specific indices (ORIGINAL indices)
         if (ops.TryGetValue("$update", out var updateToken) && updateToken is JObject updates)
         {
             var count = (int)countProp.GetValue(list);
@@ -1828,7 +1565,6 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // $remove — remove elements by index (highest-first to preserve positions during removal)
         if (ops.TryGetValue("$remove", out var removeToken) && removeToken is JArray removeIndices)
         {
             if (removeAt == null)
@@ -1855,7 +1591,6 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // $append — add new elements at the end
         if (ops.TryGetValue("$append", out var appendToken) && appendToken is JArray appendItems)
         {
             if (addMethod == null)
@@ -1872,7 +1607,6 @@ public partial class ModpackLoaderMod
                         addMethod.Invoke(list, new[] { converted });
                         opCount++;
 
-                        // Enhanced logging for ArmyEntry appends (debugging clone injection)
                         if (elementType.Name == "ArmyEntry")
                         {
                             LogArmyEntryAppend(converted, item);
@@ -1890,11 +1624,6 @@ public partial class ModpackLoaderMod
         return opCount > 0;
     }
 
-    /// <summary>
-    /// Applies incremental operations ($remove, $update, $append) to IL2CPP arrays (StructArray/ReferenceArray).
-    /// Since arrays are immutable, this creates a new array with the modifications applied.
-    /// Operations are applied in order: update → remove → append.
-    /// </summary>
     private bool TryApplyIncrementalArray(object castObj, PropertyInfo prop, JObject ops, Type elementType, CollectionKind arrayKind)
     {
         var currentArray = prop.GetValue(castObj);
@@ -1917,7 +1646,6 @@ public partial class ModpackLoaderMod
         int currentLength = (int)lengthProp.GetValue(currentArray);
         var elements = new List<object>();
 
-        // Read existing elements into list for manipulation
         for (int i = 0; i < currentLength; i++)
         {
             elements.Add(indexer.GetValue(currentArray, new object[] { i }));
@@ -1925,7 +1653,6 @@ public partial class ModpackLoaderMod
 
         int opCount = 0;
 
-        // $update — modify fields on existing elements at specific indices
         if (ops.TryGetValue("$update", out var updateToken) && updateToken is JObject updates)
         {
             foreach (var kvp in updates)
@@ -1955,7 +1682,6 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // $remove — remove elements by index (highest-first to preserve positions during removal)
         if (ops.TryGetValue("$remove", out var removeToken) && removeToken is JArray removeIndices)
         {
             var indices = removeIndices.Select(t => t.Value<int>()).OrderByDescending(i => i).ToList();
@@ -1973,7 +1699,6 @@ public partial class ModpackLoaderMod
             }
         }
 
-        // $append — add new elements at the end
         if (ops.TryGetValue("$append", out var appendToken) && appendToken is JArray appendItems)
         {
             foreach (var item in appendItems)
@@ -1984,7 +1709,6 @@ public partial class ModpackLoaderMod
                     elements.Add(converted);
                     opCount++;
 
-                    // Enhanced logging for ArmyEntry appends
                     if (elementType.Name == "ArmyEntry")
                     {
                         LogArmyEntryAppend(converted, item);
@@ -2000,7 +1724,6 @@ public partial class ModpackLoaderMod
         if (opCount == 0)
             return false;
 
-        // Create new array with modified elements
         try
         {
             var newArray = Activator.CreateInstance(arrayType, new object[] { elements.Count });
@@ -2024,17 +1747,12 @@ public partial class ModpackLoaderMod
         }
     }
 
-    /// <summary>
-    /// Log detailed information about an ArmyEntry that was appended.
-    /// Helps diagnose clone injection issues.
-    /// </summary>
     private void LogArmyEntryAppend(object armyEntry, JToken sourceItem)
     {
         try
         {
             var entryType = armyEntry.GetType();
 
-            // Get Template property
             var templateProp = entryType.GetProperty("Template", BindingFlags.Public | BindingFlags.Instance);
             var template = templateProp?.GetValue(armyEntry);
             string templateName = "(null)";
@@ -2047,7 +1765,6 @@ public partial class ModpackLoaderMod
                 }
             }
 
-            // Get Amount/Count property
             var amountProp = entryType.GetProperty("Amount", BindingFlags.Public | BindingFlags.Instance)
                           ?? entryType.GetProperty("Count", BindingFlags.Public | BindingFlags.Instance);
             int amount = 1;
@@ -2056,12 +1773,10 @@ public partial class ModpackLoaderMod
                 amount = (int)amountProp.GetValue(armyEntry);
             }
 
-            // Log the append details
             var sourceJson = sourceItem?.ToString();
             if (sourceJson?.Length > 100) sourceJson = sourceJson.Substring(0, 100) + "...";
             SdkLogger.Msg($"      ArmyEntry appended: Template='{templateName}', Amount={amount}");
 
-            // Verify the template exists in game
             if (template == null && sourceItem is JObject jObj && jObj.TryGetValue("Template", out var templateToken))
             {
                 var requestedTemplate = templateToken.Value<string>();

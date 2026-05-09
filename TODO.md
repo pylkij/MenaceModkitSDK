@@ -21,6 +21,7 @@
 - [x] Fix Directory.Build.props placement
 - [x] Fix versions.json path in GenerateVersion.targets
 - [x] Add missing System.Linq usings to ArmyGeneration.cs, Faction.cs, TileEffects.cs, Perks.cs
+- [x] Clean up GLB loading path: shared load/register flow, .gltf scan support, material/submesh fixes, and runtime asset persistence
 - [x] Configure .gitignore (third_party DLLs, obj/, bin/, .vs/, ModkitVersion.cs)
 - [x] Verify DLL builds and loads correctly in game
 - [x] Set up GitHub remote (MenaceModkitSDK)

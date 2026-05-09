@@ -818,19 +818,19 @@ public class LuaScriptEngine
         // ============================================================
         var visuals = new Table(script);
 
-        // visuals.override_glb(prefab_name, glb_asset) - Register override from GLB
+        // visuals.override_glb(prefab_name, glb_asset) uses the GLB root prefab registered with BundleLoader.
         visuals["override_glb"] = DynValue.NewCallback((ctx, args) => {
             if (args.Count < 2)
                 return DynValue.NewString("Usage: visuals.override_glb(prefab_name, glb_asset)");
 
             var prefabName = args[0].String;
-            var glbAsset = args[1].String;
+            var glbAssetName = args[1].String;
 
-            CharacterVisuals.RegisterOverrideFromGlb(prefabName, glbAsset);
-            return DynValue.NewString($"Registered visual override for '{prefabName}'");
+            CharacterVisuals.RegisterOverrideFromGlb(prefabName, glbAssetName);
+            return DynValue.NewString($"Registered GLB visual override for '{prefabName}'");
         });
 
-        // visuals.override(prefab_name, mesh_mappings, material_mappings) - Register override with mappings
+        // visuals.override(...) expects Mesh/Material assets that were registered independently, not raw GLB child assets.
         visuals["override"] = DynValue.NewCallback((ctx, args) => {
             if (args.Count < 1)
                 return DynValue.NewString("Usage: visuals.override(prefab_name, {mesh_mappings}, {material_mappings})");
