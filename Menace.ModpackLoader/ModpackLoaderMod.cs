@@ -3,9 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+
 using HarmonyLib;
 using Il2CppInterop.Runtime;
 using MelonLoader;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using UnityEngine;
+
 using Menace.SDK;
 using Menace.SDK.CustomMaps;
 using Menace.SDK.Internal;
@@ -14,9 +19,6 @@ using Menace.ModpackLoader.Mcp;
 using Menace.ModpackLoader.Diagnostics;
 using Menace.ModpackLoader.VisualEditor.Runtime;
 using Menace.ModpackLoader.TemplateLoading;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using UnityEngine;
 
 [assembly: MelonInfo(typeof(Menace.ModpackLoader.ModpackLoaderMod), "Menace Modpack Loader", Menace.ModkitVersion.MelonVersion, "Menace Modkit")]
 [assembly: MelonGame(null, null)]
@@ -37,68 +39,48 @@ public partial class ModpackLoaderMod : MelonMod
     private readonly HashSet<string> _registeredAssetPaths = new();
     private bool _templatesLoaded = false;
 
-    // Tracks which modpack+templateType combos have been successfully patched,
-    // so we don't double-apply when retrying on later scenes.
     private readonly HashSet<string> _appliedPatchKeys = new();
 
     public override void OnInitializeMelon()
     {
-        // Initialize SDK subsystems - order matters!
-        // SdkLogger must be initialized FIRST so all subsequent logs go to both MelonLoader and DevConsole
+        // SdkLogger must initialize before subsystems that log.
         SdkLogger.Initialize(LoggerInstance);
         OffsetCache.Initialize();
         DevConsole.Initialize();
         DevConsole.ApplyInputPatches(HarmonyInstance);
 
-        // Initialize TemplateSchema from schema.json (optional - provides offset lookups)
         InitializeTemplateSchema();
 
         SdkLogger.Msg($"{ModkitVersion.LoaderFull} initialized");
         ModSettings.Initialize();
 
-        // Register Modpack Loader settings
         RegisterModpackLoaderSettings();
 
         InitializeRepl();
 
-        // Initialize diagnostics (Harmony patches for template/scene loading)
         InitializeDiagnostics();
 
-        // Register SDK console commands
         RegisterSdkCommands();
 
-        // Initialize MCP HTTP server for external tooling integration
-        // Controlled via ModSettings - starts automatically if enabled
         GameMcpServer.Initialize(LoggerInstance);
 
-        // Initialize menu injection for mod settings UI
         MenuInjector.Initialize();
 
-        // Initialize GLB loader (can be disabled via settings if it causes issues)
         GlbLoader.Initialize();
 
         LoadModpacks();
         DllLoader.InitializeAllPlugins();
 
-        // Initialize early template injection (experimental - opt-in via settings)
-        // This hooks game initialization to inject templates before pools are built
         EarlyTemplateInjection.Initialize(this, HarmonyInstance);
 
-        // Initialize tactical event hooks for C# and Lua event subscriptions
-        // Patches TacticalManager.InvokeOnX methods to fire SDK events
         TacticalEventHooks.Initialize(HarmonyInstance);
 
-        // Wire EffectSystem to round end for automatic effect expiry
         TacticalEventHooks.OnRoundEnd += _ => EffectSystem.OnRoundEnd();
 
-        // Initialize coroutine system (delays, repeats for mod effects)
         SDK.Coroutine.Initialize();
 
-        // Initialize strategy event hooks for C# and Lua event subscriptions
-        // Patches Roster, StoryFaction, Squaddies, Operation, BlackMarket methods
         StrategyEventHooks.Initialize(HarmonyInstance);
 
-        // Cleanup coroutines, state machines, and once-trackers when mission ends
         StrategyEventHooks.OnMissionEnded += _ =>
         {
             SDK.Coroutine.Cleanup();
@@ -107,16 +89,12 @@ public partial class ModpackLoaderMod : MelonMod
             EffectSystem.ClearAll();
         };
 
-        // Patch bug reporter to include mod list in all reports
         BugReporterPatches.Initialize(LoggerInstance, HarmonyInstance);
 
-        // Initialize boot skip patches (splash/intro skipping in dev mode)
         BootSkip.Initialize(HarmonyInstance);
 
-        // Initialize custom maps SDK (seed/size overrides, generator config, mission pool injection)
         CustomMaps.Initialize(HarmonyInstance);
 
-        // Initialize Lua scripting engine
         try
         {
             LuaScriptEngine.Instance.Initialize(LoggerInstance);
@@ -130,11 +108,8 @@ public partial class ModpackLoaderMod : MelonMod
             SdkLogger.Error($"[LuaEngine] Stack: {ex.StackTrace}");
         }
 
-        // Load custom maps from modpacks
         LoadCustomMaps();
 
-        // Initialize visual mod graph interpreter
-        // This executes .modgraph.json files at runtime
         try
         {
             GraphInterpreter.Instance.Initialize();
@@ -145,8 +120,6 @@ public partial class ModpackLoaderMod : MelonMod
             SdkLogger.Error($"[GraphInterpreter] Failed to initialize: {ex.GetType().Name}: {ex.Message}");
         }
 
-        // Initialize multi-lingual localization system (loads all language CSVs)
-        // This enables modders to view/edit translations for all languages
         try
         {
             SdkLogger.Msg("[Localization] Initializing multi-lingual system...");
@@ -156,10 +129,8 @@ public partial class ModpackLoaderMod : MelonMod
         catch (Exception ex)
         {
             SdkLogger.Warning($"[Localization] Failed to initialize multi-lingual system: {ex.Message}");
-            // Non-critical failure - game's localization system will still work
         }
 
-        // Emit startup banner to Player.log for game dev triage
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
         PlayerLog(ModkitVersion.LoaderFull);
@@ -182,7 +153,6 @@ public partial class ModpackLoaderMod : MelonMod
 
     public override void OnSceneWasLoaded(int buildIndex, string sceneName)
     {
-        // Save any pending settings changes before scene transition
         ModSettings.Save();
 
         DevConsole.IsVisible = false;
@@ -199,7 +169,6 @@ public partial class ModpackLoaderMod : MelonMod
             MelonCoroutines.Start(WaitForTemplatesAndApply(sceneName));
         }
 
-        // Apply asset replacements after every scene load (assets get reloaded per scene)
         if (AssetReplacer.RegisteredCount > 0 || BundleLoader.LoadedAssetCount > 0)
         {
             MelonCoroutines.Start(ApplyAssetReplacementsDelayed(sceneName));
@@ -225,25 +194,18 @@ public partial class ModpackLoaderMod : MelonMod
 
     public override void OnApplicationQuit()
     {
-        // Ensure settings are saved before the game closes
         ModSettings.Save();
-
-        // Stop MCP HTTP server
         GameMcpServer.Stop();
-
-        // Cleanup save watcher
         SaveSystemPatches.Shutdown();
     }
 
     private System.Collections.IEnumerator WaitForTemplatesAndApply(string sceneName)
     {
-        // Wait a few frames for the game to initialize templates
         for (int i = 0; i < 30; i++)
         {
             yield return null;
         }
 
-        // If early injection is enabled and has already run, skip legacy injection
         if (EarlyTemplateInjection.IsEnabled && EarlyTemplateInjection.HasInjectedThisSession)
         {
             SdkLogger.Msg($"Early injection already applied, skipping legacy scene-load injection");
@@ -253,15 +215,10 @@ public partial class ModpackLoaderMod : MelonMod
 
         SdkLogger.Msg($"Applying modpack modifications (scene: {sceneName})...");
 
-        // Initialize save system watcher (tries to find saves folder)
         SaveSystemPatches.TryInitialize();
 
-        // Load compiled assets now that Unity is ready
-        // (manifest was loaded during init, actual Resources.Load happens here)
         CompiledAssetLoader.LoadAssets();
 
-        // Load any pending custom sprites asynchronously to avoid stutter
-        // This spreads the work across multiple frames (5 sprites per frame by default)
         var pendingCount = AssetReplacer.PendingSpriteCount;
         if (pendingCount > 0)
         {
@@ -287,10 +244,6 @@ public partial class ModpackLoaderMod : MelonMod
         }
     }
 
-    /// <summary>
-    /// Register settings for the Modpack Loader module.
-    /// Settings appear in the in-game Settings menu.
-    /// </summary>
     private static void RegisterModpackLoaderSettings()
     {
         ModSettings.Register("Modpack Loader", settings =>
@@ -302,7 +255,6 @@ public partial class ModpackLoaderMod : MelonMod
 
     private static void RegisterSdkCommands()
     {
-        // Register console commands from SDK wrapper classes
         Inventory.RegisterConsoleCommands();
         Operation.RegisterConsoleCommands();
         ArmyGeneration.RegisterConsoleCommands();
@@ -323,10 +275,8 @@ public partial class ModpackLoaderMod : MelonMod
         Modpacks.RegisterConsoleCommands();
         GraphInterpreter.RegisterConsoleCommands();
 
-        // Register test harness commands for automated testing
         TestHarnessCommands.Register();
 
-        // Register diagnostic commands
         DataTemplateLoaderDiagnostics.RegisterConsoleCommands();
         SceneLoadingDiagnostics.RegisterConsoleCommands();
         SdkSafetyTesting.RegisterConsoleCommands();
@@ -337,11 +287,9 @@ public partial class ModpackLoaderMod : MelonMod
     {
         try
         {
-            // Initialize diagnostic patches (for discovering issues)
             DataTemplateLoaderDiagnostics.Initialize(HarmonyInstance);
             SceneLoadingDiagnostics.Initialize(HarmonyInstance);
 
-            // Initialize fixes (for known issues)
             TemplateLoadingFixes.Initialize(HarmonyInstance);
             SceneLoadingFixes.Initialize(HarmonyInstance);
 
@@ -355,7 +303,6 @@ public partial class ModpackLoaderMod : MelonMod
 
     private void InitializeTemplateSchema()
     {
-        // Try to find schema.json in standard locations
         var baseDir = Directory.GetCurrentDirectory();
         var candidatePaths = new[]
         {
@@ -374,7 +321,6 @@ public partial class ModpackLoaderMod : MelonMod
             }
         }
 
-        // Schema not found - this is OK, SDK still works without it
         SdkLogger.Warning("[TemplateSchema] schema.json not found - schema-driven offsets unavailable");
     }
 
@@ -391,7 +337,6 @@ public partial class ModpackLoaderMod : MelonMod
 
         var modpackFiles = Directory.GetFiles(modsPath, "modpack.json", SearchOption.AllDirectories);
 
-        // Sort by load order (parse manifestVersion to determine format)
         var modpackEntries = new List<(string file, int order, int version)>();
 
         foreach (var modpackFile in modpackFiles)
@@ -410,7 +355,6 @@ public partial class ModpackLoaderMod : MelonMod
             }
         }
 
-        // Load in order
         foreach (var (modpackFile, _, manifestVersion) in modpackEntries.OrderBy(e => e.order))
         {
             try
@@ -424,7 +368,6 @@ public partial class ModpackLoaderMod : MelonMod
                     modpack.DirectoryPath = modpackDir;
                     modpack.ManifestVersion = manifestVersion;
 
-                    // Load clones from clones/*.json files if not in manifest
                     if ((modpack.Clones == null || modpack.Clones.Count == 0) && !string.IsNullOrEmpty(modpackDir))
                     {
                         var clonesDir = Path.Combine(modpackDir, "clones");
@@ -448,21 +391,18 @@ public partial class ModpackLoaderMod : MelonMod
 
                     _loadedModpacks[modpack.Name] = modpack;
 
-                    // Register with ModRegistry for save system tracking
                     ModRegistry.RegisterModpack(modpack.Name, modpack.Version, modpack.Author);
 
                     var vLabel = manifestVersion >= 2 ? "v2" : "v1 (legacy)";
                     SdkLogger.Msg($"  Loaded [{vLabel}]: {modpack.Name} v{modpack.Version} (order: {modpack.LoadOrder})");
 
-                    // V2: Load mod DLLs, bundles, and models
                     if (manifestVersion >= 2 && !string.IsNullOrEmpty(modpackDir))
                     {
                         BundleLoader.LoadBundles(modpackDir, modpack.Name);
-                        GlbLoader.LoadModpackModels(modpackDir);
+                        GlbLoader.LoadModpackModels(modpackDir, modpack.Name);
                         DllLoader.LoadModDlls(modpackDir, modpack.Name, modpack.SecurityStatus ?? "Unreviewed");
                     }
 
-                    // Load asset replacements (both V1 and V2)
                     // Textures are NOT compiled into assets due to ColorSpace issues,
                     // so replacements are applied at runtime via ImageConversion.LoadImage
                     if (modpack.Assets != null)
@@ -479,8 +419,6 @@ public partial class ModpackLoaderMod : MelonMod
 
         SdkLogger.Msg($"Loaded {_loadedModpacks.Count} modpack(s)");
 
-        // Load compiled asset manifest (actual asset loading deferred until Unity is ready)
-        // Assets are embedded in resources.assets and registered with ResourceManager.
         var compiledDir = Path.Combine(modsPath, "compiled");
         if (Directory.Exists(compiledDir))
         {
@@ -488,10 +426,6 @@ public partial class ModpackLoaderMod : MelonMod
         }
     }
 
-    /// <summary>
-    /// Load Lua scripts from all modpacks.
-    /// Scripts are loaded from the scripts/ directory within each modpack.
-    /// </summary>
     private void LoadLuaScripts()
     {
         int scriptCount = 0;
@@ -517,10 +451,6 @@ public partial class ModpackLoaderMod : MelonMod
             SdkLogger.Msg($"Loaded {scriptCount} Lua script(s)");
     }
 
-    /// <summary>
-    /// Load custom map configurations from all modpacks.
-    /// Maps are loaded from the custom_maps/ directory within each modpack.
-    /// </summary>
     private void LoadCustomMaps()
     {
         int mapCount = 0;
@@ -546,10 +476,6 @@ public partial class ModpackLoaderMod : MelonMod
             SdkLogger.Msg($"Loaded {mapCount} custom map(s) total");
     }
 
-    /// <summary>
-    /// Load visual mod graphs (.modgraph.json) from all modpacks.
-    /// These are executed at runtime via the GraphInterpreter.
-    /// </summary>
     private void LoadVisualMods()
     {
         int graphCount = 0;
@@ -559,7 +485,6 @@ public partial class ModpackLoaderMod : MelonMod
             if (string.IsNullOrEmpty(modpack.DirectoryPath))
                 continue;
 
-            // Look for .modgraph.json files in the visual_mods directory
             var modsDir = Path.Combine(modpack.DirectoryPath, "visual_mods");
             if (!Directory.Exists(modsDir))
                 continue;
@@ -581,7 +506,6 @@ public partial class ModpackLoaderMod : MelonMod
         if (modpack.Assets == null || string.IsNullOrEmpty(modpack.DirectoryPath))
             return;
 
-        // Register preload assets first (these load immediately for loading screens, etc.)
         if (modpack.PreloadAssets != null)
         {
             foreach (var preloadName in modpack.PreloadAssets)
@@ -596,7 +520,6 @@ public partial class ModpackLoaderMod : MelonMod
         {
             try
             {
-                // Validate path stays within modpack directory to prevent traversal attacks
                 var fullPath = ValidatePathWithinModpack(modpack.DirectoryPath, replacementFile);
                 if (fullPath == null)
                 {
@@ -610,30 +533,25 @@ public partial class ModpackLoaderMod : MelonMod
                     var ext = Path.GetExtension(assetPath).ToLowerInvariant();
                     var assetName = Path.GetFileNameWithoutExtension(assetPath);
 
-                    // For texture files, also load as a custom Sprite so template patches
-                    // can reference them by name (e.g., Icon fields on WeaponTemplate)
                     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga" || ext == ".bmp")
                     {
                         AssetReplacer.RegisterAssetReplacement(assetPath, fullPath);
                         SdkLogger.Msg($"  Registered asset replacement: {assetPath}");
 
-                        // LoadCustomSprite returns null for non-preload assets (they're queued)
-                        // Preload assets return the sprite immediately
                         var sprite = AssetReplacer.LoadCustomSprite(fullPath, assetName);
                         if (sprite != null)
                             SdkLogger.Msg($"  Preloaded sprite ready: '{assetName}'");
-                        // Non-preload sprites are queued - no warning needed
                     }
-                    // For GLB/GLTF files, load as custom 3D model
                     else if (ext == ".glb" || ext == ".gltf")
                     {
-                        var model = GlbLoader.LoadGlb(fullPath);
+                        var model = GlbLoader.LoadAndRegisterGlb(fullPath, modpack.Name);
                         if (model != null)
                             SdkLogger.Msg($"  Custom model loaded: '{assetName}' ({model.Meshes.Count} meshes)");
+                        else if (!GlbLoader.IsEnabled)
+                            SdkLogger.Msg($"  Skipped custom model: '{assetName}' (GLB loading disabled)");
                         else
                             SdkLogger.Warning($"  Failed to load custom model: '{assetName}'");
                     }
-                    // For audio files, load as custom AudioClip
                     else if (ext == ".wav" || ext == ".ogg")
                     {
                         var clip = AssetReplacer.LoadCustomAudio(fullPath, assetName);
@@ -644,7 +562,6 @@ public partial class ModpackLoaderMod : MelonMod
                     }
                     else
                     {
-                        // Other asset types - just register for replacement
                         AssetReplacer.RegisterAssetReplacement(assetPath, fullPath);
                         SdkLogger.Msg($"  Registered asset replacement: {assetPath}");
                     }
@@ -660,16 +577,11 @@ public partial class ModpackLoaderMod : MelonMod
             }
         }
 
-        // Log how many sprites are queued for async loading
         var pendingCount = AssetReplacer.PendingSpriteCount;
         if (pendingCount > 0)
             SdkLogger.Msg($"  {pendingCount} sprite(s) queued for async loading");
     }
 
-    /// <summary>
-    /// Validates that a relative path stays within the modpack directory.
-    /// Returns the full path if valid, null if path traversal was attempted.
-    /// </summary>
     private static string ValidatePathWithinModpack(string modpackDir, string relativePath)
     {
         try
@@ -677,7 +589,6 @@ public partial class ModpackLoaderMod : MelonMod
             var fullPath = Path.GetFullPath(Path.Combine(modpackDir, relativePath));
             var baseFullPath = Path.GetFullPath(modpackDir);
 
-            // Ensure base path ends with directory separator for proper prefix matching
             if (!baseFullPath.EndsWith(Path.DirectorySeparatorChar))
                 baseFullPath += Path.DirectorySeparatorChar;
 
@@ -695,10 +606,6 @@ public partial class ModpackLoaderMod : MelonMod
         }
     }
 
-    /// <summary>
-    /// Apply all modpack template patches. Returns true if all template types were found
-    /// and patched, false if some types had no instances (need to retry on later scene).
-    /// </summary>
     internal bool ApplyAllModpacks()
     {
         if (_loadedModpacks.Count == 0)
@@ -707,8 +614,6 @@ public partial class ModpackLoaderMod : MelonMod
             return true;
         }
 
-        // First, register any bundle-loaded clone templates with DataTemplateLoader
-        // This handles clones that were compiled into the templates.bundle
         RegisterBundleClones();
 
         var allSucceeded = true;
@@ -716,7 +621,6 @@ public partial class ModpackLoaderMod : MelonMod
         foreach (var modpack in _loadedModpacks.Values.OrderBy(m => m.LoadOrder))
         {
             var hasClones = modpack.Clones != null && modpack.Clones.Count > 0;
-            // Use "patches" for V2, "templates" for V1
             var hasPatches = modpack.Patches != null && modpack.Patches.Count > 0;
             var hasTemplates = modpack.Templates != null && modpack.Templates.Count > 0;
 
@@ -731,7 +635,6 @@ public partial class ModpackLoaderMod : MelonMod
                 if (!ApplyClones(modpack))
                     allSucceeded = false;
 
-                // Clear name lookup cache so patches can find the new clones
                 InvalidateNameLookupCache();
             }
 
@@ -762,11 +665,6 @@ public partial class ModpackLoaderMod : MelonMod
         return allSucceeded;
     }
 
-    /// <summary>
-    /// Apply template modifications from a dictionary of templateType → instances → fields.
-    /// Tracks success per modpack+type via _appliedPatchKeys to avoid double-patching on retry.
-    /// Returns true if all template types had instances, false if some were missing.
-    /// </summary>
     private bool ApplyTemplateData(
         Modpack modpack,
         Dictionary<string, Dictionary<string, Dictionary<string, object>>> data,
@@ -789,7 +687,6 @@ public partial class ModpackLoaderMod : MelonMod
         {
             var patchKey = $"{modpack.Name}:{templateTypeName}";
 
-            // Skip types we've already successfully patched
             if (_appliedPatchKeys.Contains(patchKey))
                 continue;
 
@@ -805,8 +702,6 @@ public partial class ModpackLoaderMod : MelonMod
                     continue;
                 }
 
-                // Force-load templates via DataTemplateLoader before FindObjectsOfTypeAll
-                // This ensures templates are in memory even if the game hasn't loaded them yet
                 EnsureTemplatesLoaded(gameAssembly, templateType);
 
                 var il2cppType = Il2CppType.From(templateType);
@@ -820,11 +715,9 @@ public partial class ModpackLoaderMod : MelonMod
                 }
 
                 int appliedCount = 0;
-                // Cache GetID method lookup for this template type
                 var getIdMethod = templateType.GetMethod("GetID",
                     System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
-                // Debug: Log GetID availability and patch keys we're looking for
                 var patchKeys = string.Join(", ", templateInstances.Keys.Take(5));
                 SdkLogger.Msg($"  [Debug] {templateTypeName}: {objects.Length} instances, GetID={getIdMethod != null}, patches=[{patchKeys}]");
 
@@ -833,7 +726,6 @@ public partial class ModpackLoaderMod : MelonMod
                     if (obj == null) continue;
                     var templateName = obj.name;
 
-                    // First try matching by obj.name (m_Name)
                     if (templateInstances.ContainsKey(templateName))
                     {
                         SdkLogger.Msg($"    [Debug] obj.name matched: '{templateName}'");
@@ -847,7 +739,6 @@ public partial class ModpackLoaderMod : MelonMod
                     {
                         try
                         {
-                            // Need to cast to the proxy type first
                             var genericTryCast = TryCastMethod.MakeGenericMethod(templateType);
                             var castObj = genericTryCast.Invoke(obj, null);
                             if (castObj != null)
@@ -884,17 +775,11 @@ public partial class ModpackLoaderMod : MelonMod
         return allFound;
     }
 
-    /// <summary>
-    /// Apply V2-format patches. Returns true if all template types were found.
-    /// </summary>
     private bool ApplyModpackPatches(Modpack modpack)
     {
         return ApplyTemplateData(modpack, modpack.Patches, "patches");
     }
 
-    /// <summary>
-    /// Apply V1-format template modifications. Returns true if all template types were found.
-    /// </summary>
     private bool ApplyModpackTemplates(Modpack modpack)
     {
         return ApplyTemplateData(modpack, modpack.Templates, "modifications");
@@ -904,7 +789,6 @@ public partial class ModpackLoaderMod : MelonMod
     {
         SdkLogger.Msg($"Asset replacement queued for scene: {sceneName} ({AssetReplacer.RegisteredCount} disk, {BundleLoader.LoadedAssetCount} bundle)");
 
-        // Wait frames for textures to finish loading
         for (int i = 0; i < 15; i++)
             yield return null;
 
@@ -912,8 +796,6 @@ public partial class ModpackLoaderMod : MelonMod
         AssetReplacer.ApplyAllReplacements();
         PlayerLog($"Asset replacements applied for scene: {sceneName}");
     }
-
-    // ApplyTemplateModifications is implemented in TemplateInjection.cs (partial class)
 
     private void InitializeRepl()
     {
@@ -986,15 +868,9 @@ public class Modpack
     [JsonProperty("loadOrder")]
     public int LoadOrder { get; set; } = 100;
 
-    /// <summary>
-    /// V1 format: template modifications
-    /// </summary>
     [JsonProperty("templates")]
     public Dictionary<string, Dictionary<string, Dictionary<string, object>>> Templates { get; set; }
 
-    /// <summary>
-    /// V2 format: data patches (same structure as templates, preferred in V2)
-    /// </summary>
     [JsonProperty("patches")]
     public Dictionary<string, Dictionary<string, Dictionary<string, object>>> Patches { get; set; }
 
@@ -1007,30 +883,15 @@ public class Modpack
     [JsonProperty("securityStatus")]
     public string SecurityStatus { get; set; }
 
-    /// <summary>
-    /// Clone definitions: templateType → { newName → sourceName }
-    /// </summary>
     [JsonProperty("clones")]
     public Dictionary<string, Dictionary<string, string>> Clones { get; set; }
 
-    /// <summary>
-    /// Assets that should load immediately (synchronously) at startup.
-    /// Use for loading screen backgrounds, critical UI elements, etc.
-    /// Other assets load asynchronously across frames to avoid stutter.
-    /// </summary>
     [JsonProperty("preloadAssets")]
     public List<string> PreloadAssets { get; set; }
 
-    // -- Repository / Updates --
-    /// <summary>
-    /// Repository type for update checking (github, nexus, gamebanana, etc.)
-    /// </summary>
     [JsonProperty("repositoryType")]
     public string RepositoryType { get; set; }
 
-    /// <summary>
-    /// Repository URL for update checking and mod homepage.
-    /// </summary>
     [JsonProperty("repositoryUrl")]
     public string RepositoryUrl { get; set; }
 

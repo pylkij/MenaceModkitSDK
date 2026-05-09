@@ -2,50 +2,31 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+
 using Il2CppInterop.Runtime;
 using Menace.SDK;
 using UnityEngine;
 
 namespace Menace.ModpackLoader;
 
-/// <summary>
-/// Loads .bundle files from deployed modpacks via AssetBundle.LoadFromFile and
-/// maintains a registry of all loaded assets. Mod code can query loaded assets
-/// by name and type, enabling both replacement of existing game content and
-/// injection of entirely new content (new templates, textures, prefabs, etc.).
-///
-/// Assets remain in memory as long as their source AssetBundle is loaded.
-/// </summary>
+// AssetBundle loader and runtime asset registry.
 public static class BundleLoader
 {
     private static readonly List<AssetBundle> _loadedBundles = new();
 
-    // Asset registry: name → list of loaded UnityEngine.Object (multiple bundles may have same-named assets)
     private static readonly Dictionary<string, List<UnityEngine.Object>> _assetsByName
         = new(StringComparer.OrdinalIgnoreCase);
 
-    // Type+name registry for precise lookups: "TypeName:assetName" → Object
     private static readonly Dictionary<string, UnityEngine.Object> _assetsByTypeAndName
         = new(StringComparer.OrdinalIgnoreCase);
 
-    // Track which modpack each asset came from
     private static readonly Dictionary<string, string> _assetSourceModpack
         = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>
-    /// Number of loaded bundles.
-    /// </summary>
     public static int LoadedBundleCount => _loadedBundles.Count;
 
-    /// <summary>
-    /// Total number of registered assets across all loaded bundles.
-    /// </summary>
     public static int LoadedAssetCount => _assetsByTypeAndName.Count;
 
-    /// <summary>
-    /// Load all .bundle files found in a modpack's directory.
-    /// Assets from each bundle are registered in the asset registry.
-    /// </summary>
     public static void LoadBundles(string modpackDir, string modpackName)
     {
         if (!Directory.Exists(modpackDir))
@@ -78,7 +59,6 @@ public static class BundleLoader
             _loadedBundles.Add(bundle);
             SdkLogger.Msg($"  [{modpackName}] Loaded bundle: {bundleFileName}");
 
-            // Try GetAllAssetNames first (may not work for all bundle types)
             string[] assetNames = null;
             try
             {
@@ -109,7 +89,6 @@ public static class BundleLoader
             }
             else
             {
-                // Fallback: try LoadAllAssets for bundles without asset names
                 SdkLogger.Msg($"    No asset names, trying LoadAllAssets fallback...");
                 try
                 {
@@ -132,9 +111,6 @@ public static class BundleLoader
         }
     }
 
-    /// <summary>
-    /// Register a loaded asset in the name and type+name registries.
-    /// </summary>
     private static void RegisterAsset(UnityEngine.Object asset, string modpackName)
     {
         var assetName = asset.name;
@@ -144,9 +120,6 @@ public static class BundleLoader
         RegisterAssetInternal(assetName, asset, typeName, modpackName);
     }
 
-    /// <summary>
-    /// Register an asset created outside of bundle loading (e.g., from GlbLoader).
-    /// </summary>
     public static void RegisterAsset(string name, UnityEngine.Object asset, string typeName, string modpackName = "Runtime")
     {
         SdkLogger.Msg($"  [BundleLoader] RegisterAsset: '{name}' type={typeName} asset={asset?.name ?? "null"} from={modpackName}");
@@ -155,7 +128,6 @@ public static class BundleLoader
 
     private static void RegisterAssetInternal(string assetName, UnityEngine.Object asset, string typeName, string modpackName)
     {
-        // Name-only registry (may have multiple assets with same name but different types)
         if (!_assetsByName.TryGetValue(assetName, out var list))
         {
             list = new List<UnityEngine.Object>();
@@ -163,16 +135,11 @@ public static class BundleLoader
         }
         list.Add(asset);
 
-        // Type+name registry (last loaded wins for same type+name — load order matters)
         var key = $"{typeName}:{assetName}";
         _assetsByTypeAndName[key] = asset;
         _assetSourceModpack[key] = modpackName;
     }
 
-    /// <summary>
-    /// Get a loaded asset by name. Returns the first match regardless of type.
-    /// Returns null if no asset with that name was loaded from any bundle.
-    /// </summary>
     public static UnityEngine.Object GetAsset(string name)
     {
         if (_assetsByName.TryGetValue(name, out var list) && list.Count > 0)
@@ -180,10 +147,6 @@ public static class BundleLoader
         return null;
     }
 
-    /// <summary>
-    /// Get a loaded asset by name, cast to the specified IL2CPP type.
-    /// Returns null if not found or if the cast fails.
-    /// </summary>
     public static T GetAsset<T>(string name) where T : UnityEngine.Object
     {
         var typeName = Il2CppType.From(typeof(T)).Name;
@@ -194,7 +157,6 @@ public static class BundleLoader
             catch { return null; }
         }
 
-        // Fallback: search by name, try casting each match
         if (_assetsByName.TryGetValue(name, out var list))
         {
             foreach (var item in list)
@@ -207,9 +169,6 @@ public static class BundleLoader
         return null;
     }
 
-    /// <summary>
-    /// Get all loaded assets with the given name (may be multiple types).
-    /// </summary>
     public static List<UnityEngine.Object> GetAllAssets(string name)
     {
         if (_assetsByName.TryGetValue(name, out var list))
@@ -217,9 +176,6 @@ public static class BundleLoader
         return new List<UnityEngine.Object>();
     }
 
-    /// <summary>
-    /// Get all loaded assets of a specific IL2CPP type name (e.g. "Texture2D", "EntityTemplate").
-    /// </summary>
     public static List<UnityEngine.Object> GetAssetsByType(string typeName)
     {
         var results = new List<UnityEngine.Object>();
@@ -230,30 +186,14 @@ public static class BundleLoader
                 results.Add(kvp.Value);
         }
 
-        // Debug logging for GameObject lookups
-        if (typeName.Equals("GameObject", StringComparison.OrdinalIgnoreCase))
-        {
-            SdkLogger.Msg($"    [BundleLoader] GetAssetsByType(GameObject): found {results.Count} assets");
-            foreach (var asset in results)
-            {
-                SdkLogger.Msg($"      - {asset?.name ?? "null"}");
-            }
-        }
-
         return results;
     }
 
-    /// <summary>
-    /// Check whether any bundle has loaded an asset with the given name.
-    /// </summary>
     public static bool HasAsset(string name)
     {
         return _assetsByName.ContainsKey(name);
     }
 
-    /// <summary>
-    /// Unload all loaded bundles and clear the asset registry.
-    /// </summary>
     public static void UnloadAll()
     {
         foreach (var bundle in _loadedBundles)
