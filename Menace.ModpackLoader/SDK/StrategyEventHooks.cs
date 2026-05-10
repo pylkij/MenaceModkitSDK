@@ -83,33 +83,21 @@ public static class StrategyEventHooks
             int patchCount = 0;
 
             // Roster patches
-            if (rosterType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, rosterType, "HireLeader", hooks.GetMethod(nameof(HireLeader_Postfix), flags)) ? 1 : 0;
-                patchCount += GamePatch.Postfix(harmony, rosterType, "TryDismissLeader", hooks.GetMethod(nameof(DismissLeader_Postfix), flags)) ? 1 : 0;
-                patchCount += GamePatch.Postfix(harmony, rosterType, "OnPermanentDeath", hooks.GetMethod(nameof(OnPermanentDeath_Postfix), flags)) ? 1 : 0;
-            }
+            patchCount += GamePatch.Postfix(harmony, rosterType, "HireLeader", hooks.GetMethod(nameof(HireLeader_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, rosterType, "TryDismissLeader", hooks.GetMethod(nameof(DismissLeader_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, rosterType, "OnPermanentDeath", hooks.GetMethod(nameof(OnPermanentDeath_Postfix), flags)) ? 1 : 0;
 
             // Leader patches
-            if (baseUnitLeaderType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, baseUnitLeaderType, "AddPerk", hooks.GetMethod(nameof(AddPerk_Postfix), flags)) ? 1 : 0;
-            }
+            patchCount += GamePatch.Postfix(harmony, baseUnitLeaderType, "AddPerk", hooks.GetMethod(nameof(AddPerk_Postfix), flags)) ? 1 : 0;
 
             // Faction patches
-            if (storyFactionType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, storyFactionType, "ChangeTrust", hooks.GetMethod(nameof(ChangeTrust_Postfix), flags)) ? 1 : 0;
-                patchCount += GamePatch.Postfix(harmony, storyFactionType, "SetStatus", hooks.GetMethod(nameof(SetStatus_Postfix), flags)) ? 1 : 0;
-                patchCount += GamePatch.Postfix(harmony, storyFactionType, "UnlockUpgrade", hooks.GetMethod(nameof(UnlockUpgrade_Postfix), flags)) ? 1 : 0;
-            }
+            patchCount += GamePatch.Postfix(harmony, storyFactionType, "ChangeTrust", hooks.GetMethod(nameof(ChangeTrust_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, storyFactionType, "SetStatus", hooks.GetMethod(nameof(SetStatus_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, storyFactionType, "UnlockUpgrade", hooks.GetMethod(nameof(UnlockUpgrade_Postfix), flags)) ? 1 : 0;
 
             // Squaddie patches
-            if (squaddiesType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, squaddiesType, "Kill", hooks.GetMethod(nameof(SquaddieKill_Postfix), flags)) ? 1 : 0;
-                patchCount += GamePatch.Postfix(harmony, squaddiesType, "AddAlive", hooks.GetMethod(nameof(SquaddieAddAlive_Postfix), flags)) ? 1 : 0;
-            }
+            patchCount += GamePatch.Postfix(harmony, squaddiesType, "Kill", hooks.GetMethod(nameof(SquaddieKill_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, squaddiesType, "AddAlive", hooks.GetMethod(nameof(SquaddieAddAlive_Postfix), flags)) ? 1 : 0;
 
             // Operation patches
             patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationStarted", hooks.GetMethod(nameof(OnOperationStarted_Postfix), flags)) ? 1 : 0;
@@ -332,26 +320,15 @@ public static class StrategyEventHooks
         });
     }
 
-    private static void SquaddieAddAlive_Postfix(object __instance, object squaddie)
+    private static void SquaddieAddAlive_Postfix(object __instance, string _name)
     {
-        // Get alive count from the Squaddies instance
-        int count = 0;
-        try
-        {
-            var countMethod = __instance.GetType().GetMethod("GetAliveCount",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (countMethod != null)
-            {
-                count = (int)countMethod.Invoke(__instance, null);
-            }
-        }
-        catch { }
+        int count = GameMethod.CallInt(__instance, "Squaddies", "GetAliveCount");
 
         OnSquaddieAdded?.Invoke(count);
 
         FireLuaEvent("squaddie_added", new Dictionary<string, object>
         {
-            ["squaddie"] = GetName(squaddie),
+            ["squaddie"] = _name,
             ["alive_count"] = count
         });
     }
@@ -364,7 +341,11 @@ public static class StrategyEventHooks
 
         OnOperationStarted?.Invoke(operationPtr);
 
-        FireLuaEvent("operation_started", new Dictionary<string, object>());
+        FireLuaEvent("operation_started", new Dictionary<string, object>
+        {
+            ["operation"] = GetName(operation),
+            ["operation_ptr"] = operationPtr.ToInt64()
+        });
     }
 
     private static void OnOperationFinished_Postfix(object __instance, object operation)
@@ -373,7 +354,11 @@ public static class StrategyEventHooks
         
         OnOperationFinished?.Invoke(operationPtr);
 
-        FireLuaEvent("operation_finished", new Dictionary<string, object>());
+        FireLuaEvent("operation_finished", new Dictionary<string, object>
+        {
+            ["operation"] = GetName(operation),
+            ["operation_ptr"] = operationPtr.ToInt64()
+        });
     }
 
     private static void OnMissionStarted_Postfix(object __instance, object operation, object mission)
@@ -383,7 +368,13 @@ public static class StrategyEventHooks
 
         OnMissionStarted?.Invoke(operationPtr, missionPtr);
 
-        FireLuaEvent("mission_started", new Dictionary<string, object>());
+        FireLuaEvent("mission_started", new Dictionary<string, object>
+        {
+            ["operation"] = GetName(operation),
+            ["operation_ptr"] = operationPtr.ToInt64(),
+            ["mission"] = GetName(mission),
+            ["mission_ptr"] = missionPtr.ToInt64()
+        });
     }
 
     private static void OnMissionFinished_Postfix(object __instance, object operation, object mission, object missionResult)
@@ -394,7 +385,15 @@ public static class StrategyEventHooks
 
         OnMissionFinished?.Invoke(operationPtr, missionPtr, missionResultPtr);
 
-        FireLuaEvent("mission_finished", new Dictionary<string, object>());
+        FireLuaEvent("mission_finished", new Dictionary<string, object>
+        {
+            ["operation"] = GetName(operation),
+            ["operation_ptr"] = operationPtr.ToInt64(),
+            ["mission"] = GetName(mission),
+            ["mission_ptr"] = missionPtr.ToInt64(),
+            ["mission_result"] = GetName(missionResult),
+            ["mission_result_ptr"] = missionResultPtr.ToInt64()
+        });
     }
 
     // --- Black Market Events ---
@@ -428,5 +427,15 @@ public static class StrategyEventHooks
         var missionPtr = Il2CppUtils.GetPointer(mission);
 
         OnTriggerEmotion?.Invoke(triggerPtr, targetPtr, randomPtr, missionPtr);
+
+        FireLuaEvent("emotion_triggered", new Dictionary<string, object>
+        {
+            ["trigger"] = GetName(trigger),
+            ["trigger_ptr"] = triggerPtr.ToInt64(),
+            ["target"] = GetName(target),
+            ["target_ptr"] = targetPtr.ToInt64(),
+            ["mission"] = GetName(mission),
+            ["mission_ptr"] = missionPtr.ToInt64()
+        });
     }
 }
