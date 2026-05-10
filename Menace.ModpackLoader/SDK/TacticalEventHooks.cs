@@ -71,6 +71,7 @@ public static class TacticalEventHooks
     public static event Action OnPlayerTurn;                                 // no args
     public static event Action OnAITurn;                                     // no args
     public static event Action<int> OnRoundStart;                            // roundNumber
+    public static event Action<int> OnRoundEnd;                              // roundNumber (fires before round increments)
 
     // Mission Events
     public static event Action<IntPtr, int, int> OnObjectiveStateChanged;    // objective, oldState, newState
@@ -143,6 +144,10 @@ public static class TacticalEventHooks
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnEntitySpawned", hooks.GetMethod(nameof(OnEntitySpawned_Postfix), flags)) ? 1 : 0;
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnElementDeath", hooks.GetMethod(nameof(OnElementDeath_Postfix), flags)) ? 1 : 0;
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnElementMalfunction", hooks.GetMethod(nameof(OnElementMalfunction_Postfix), flags)) ? 1 : 0;
+
+            // Prefix/Postfix - this is for ModpackLoader.cs - it tracks round ends. It probably shouldn't be wired this way.
+            patchCount += GamePatch.Prefix(harmony, tacticalManager, "NextRound", hooks.GetMethod(nameof(OnNextRound_Prefix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "NextRound", hooks.GetMethod(nameof(OnNextRound_Postfix), flags)) ? 1 : 0;
 
             _initialized = true;
             SdkLogger.Msg($"[TacticalEventHooks] Initialized with {patchCount} event hooks");
@@ -635,6 +640,34 @@ public static class TacticalEventHooks
         FireLuaEvent("round_start", new Dictionary<string, object>
         {
             ["round"] = round
+        });
+    }
+
+    // This is required by the SDK - ModpackLoaderMod.cs - do not touch
+    private static void OnNextRound_Prefix(object __instance)
+    {
+        // Fire round_end BEFORE the round number increments
+        int roundNumber = TacticalController.GetCurrentRound();
+
+        OnRoundEnd?.Invoke(roundNumber);
+
+        FireLuaEvent("round_end", new Dictionary<string, object>
+        {
+            ["round"] = roundNumber
+        });
+    }
+
+    // This is required by the SDK - ModpackLoaderMod.cs - do not touch
+    private static void OnNextRound_Postfix(object __instance)
+    {
+        // Fire round_start AFTER the round number has incremented
+        int roundNumber = TacticalController.GetCurrentRound();
+
+        OnRoundStart?.Invoke(roundNumber);
+
+        FireLuaEvent("round_start", new Dictionary<string, object>
+        {
+            ["round"] = roundNumber
         });
     }
 
