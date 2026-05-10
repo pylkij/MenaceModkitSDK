@@ -3,10 +3,6 @@
 ## In Progress
 - [ ] Investigate schema.json warning on startup
 - [ ] Expand GameType coverage
-- [ ] Add caching to GamePatch
-- [ ] Port Il2CppUtils
-- [ ] Implement proposed new class `GameMethods`
-- [ ] Use improved API coverage to repair `TacticalEventHooks`
 
 ## Under Review
 <!-- Items being tested or evaluated before closing out -->
@@ -22,10 +18,10 @@
 - [x] Fix versions.json path in GenerateVersion.targets
 - [x] Add missing System.Linq usings to ArmyGeneration.cs, Faction.cs, TileEffects.cs, Perks.cs
 - [x] Clean up GLB loading path: shared load/register flow, .gltf scan support, material/submesh fixes, and runtime asset persistence
-- [x] Configure .gitignore (third_party DLLs, obj/, bin/, .vs/, ModkitVersion.cs)
-- [x] Verify DLL builds and loads correctly in game
-- [x] Set up GitHub remote (MenaceModkitSDK)
-- [x] Write README.md
+- [x] Port Il2CppUtils
+- [x] New class `GameMethods`, mirroring GameObj utility for methods
+- [x] `TacticalEventHooks` refactored and repaired.
+
 
 ## Notes
 <!-- Anything that doesn't fit above -->

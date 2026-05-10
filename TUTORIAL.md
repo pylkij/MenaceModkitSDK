@@ -1,24 +1,20 @@
-# Forking Menace.ModpackLoader — Complete Setup Tutorial
+# Menace.ModpackLoader — Build from Source Tutorial
 
 **Who this is for:** programmers comfortable editing files but new to C# build tooling.
-**What you end up with:** a minimal repo that produces a drop-in `Menace.ModpackLoader.dll` with one command.
+**What you end up with:** a compiled `Menace.ModpackLoader.dll` you can drop into your game, built from the MenaceModkitSDK source with one command.
 
 ---
 
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
-2. [Get the Original Source Code](#2-get-the-original-source-code)
-3. [Create Your Fork Repository](#3-create-your-fork-repository)
-4. [Copy the Required Files](#4-copy-the-required-files)
-5. [Gather the External Dependencies](#5-gather-the-external-dependencies)
-6. [Edit the Project Files](#6-edit-the-project-files)
-7. [Create the Minimal versions.json](#7-create-the-minimal-versionsjson)
-8. [Verify Your Folder Structure](#8-verify-your-folder-structure)
-9. [Build the DLL](#9-build-the-dll)
-10. [Troubleshooting Common Errors](#10-troubleshooting-common-errors)
-11. [Making and Testing Your Changes](#11-making-and-testing-your-changes)
-12. [Deploying Your DLL](#12-deploying-your-dll)
+2. [Clone the Repository](#2-clone-the-repository)
+3. [Gather the External Dependencies](#3-gather-the-external-dependencies)
+4. [Verify Your Folder Structure](#4-verify-your-folder-structure)
+5. [Build the DLL](#5-build-the-dll)
+6. [Troubleshooting Common Errors](#6-troubleshooting-common-errors)
+7. [Making and Testing Your Changes](#7-making-and-testing-your-changes)
+8. [Deploying Your DLL](#8-deploying-your-dll)
 
 ---
 
@@ -28,7 +24,7 @@ You need three tools installed before anything else. All are free.
 
 ### 1.1 — Git
 
-Git is used to download source code and track your changes.
+Git is used to download the source code and track your changes.
 
 - **Windows:** Download from https://git-scm.com/download/win and run the installer. Accept all defaults.
 - **Linux (Ubuntu/Debian):**
@@ -73,91 +69,31 @@ You should see `6.0.x`. If you only see `7.x` or `8.x`, you still need to instal
 
 ---
 
-## 2. Get the Original Source Code
+## 2. Clone the Repository
 
-Clone the original repo so you have the source files to copy from. Do **not** try to recreate any files manually.
+Clone the MenaceModkitSDK repository to your machine:
 
 ```
-git clone https://github.com/ORIGINAL-OWNER/ORIGINAL-REPO.git original-menace
+git clone https://github.com/pylkij/MenaceModkitSDK.git
+cd MenaceModkitSDK
 ```
 
-> Replace the URL with the actual Menace repository URL — click the green **Code** button on GitHub and copy the HTTPS link.
-
-This creates an `original-menace/` folder. You will not build it directly; it's just a source to copy from.
+This creates a `MenaceModkitSDK/` folder with all the source files. All subsequent steps happen inside it unless stated otherwise.
 
 ---
 
-## 3. Create Your Fork Repository
+## 3. Gather the External Dependencies
+
+The project references DLLs from MelonLoader and from the game itself. These cannot be included in the repository for licensing reasons, so you need to supply them from your own game installation.
+
+The folders to place them in already exist in the repo:
 
 ```
-mkdir my-modpackloader-fork
-cd my-modpackloader-fork
-git init
+third_party/MelonLoader/
+third_party/GameAssemblies/
 ```
 
-All subsequent steps happen inside `my-modpackloader-fork/` unless stated otherwise.
-
----
-
-## 4. Copy the Required Files
-
-You need exactly three things from the original project.
-
-### 4.1 — The project directory
-
-**Mac/Linux:**
-```
-cp -r ../original-menace/Menace.ModpackLoader ./Menace.ModpackLoader
-```
-**Windows:**
-```
-xcopy /E /I ..\original-menace\Menace.ModpackLoader Menace.ModpackLoader
-```
-
-### 4.2 — The Shared directory
-
-**Mac/Linux:**
-```
-cp -r ../original-menace/Shared ./Shared
-```
-**Windows:**
-```
-xcopy /E /I ..\original-menace\Shared Shared
-```
-
-### 4.3 — The root Directory.Build.props
-
-The child `Directory.Build.props` inside `Menace.ModpackLoader/` imports a **parent** one from the repo root. You need that parent.
-
-**Mac/Linux:**
-```
-cp ../original-menace/Directory.Build.props ./Directory.Build.props
-```
-**Windows:**
-```
-copy ..\original-menace\Directory.Build.props Directory.Build.props
-```
-
-> **What is this file?** MSBuild automatically searches up the folder tree for `Directory.Build.props` files. The one you place at your repo root satisfies the import in the child project with no code changes needed.
-
----
-
-## 5. Gather the External Dependencies
-
-The project references DLLs from MelonLoader and from the game itself. Create the folders to hold them:
-
-**Mac/Linux:**
-```
-mkdir -p third_party/MelonLoader
-mkdir -p third_party/GameAssemblies
-```
-**Windows:**
-```
-mkdir third_party\MelonLoader
-mkdir third_party\GameAssemblies
-```
-
-### 5.1 — MelonLoader DLLs
+### 3.1 — MelonLoader DLLs
 
 You need version **0.7.2** to match the project.
 
@@ -170,7 +106,7 @@ You need version **0.7.2** to match the project.
 
 **If not yet installed:** download from https://github.com/LavaGang/MelonLoader/releases/tag/v0.7.2, run the installer pointed at your game, then copy the four files above.
 
-### 5.2 — Game Assembly DLLs
+### 3.2 — Game Assembly DLLs
 
 MelonLoader generates these the first time it runs. Launch your game with MelonLoader installed, let it reach the main menu, then quit. Look for:
 
@@ -196,60 +132,18 @@ Copy all of the following into `third_party/GameAssemblies/`:
 
 ---
 
-## 6. Edit the Project Files
+## 4. Verify Your Folder Structure
 
-One block needs to be removed from the `.csproj` — a post-build step that only makes sense inside the original full repository.
-
-Open `Menace.ModpackLoader/Menace.ModpackLoader.csproj` in your editor and find this block near the bottom:
-
-```xml
-<!-- Auto-sync built DLL to bundled directory after successful build -->
-<Target Name="SyncToBundled" AfterTargets="Build">
-  <PropertyGroup>
-    <BundledDestination>$(MSBuildThisFileDirectory)..\..\third_party\bundled\ModpackLoader\</BundledDestination>
-  </PropertyGroup>
-  <Copy
-    SourceFiles="$(TargetPath)"
-    DestinationFolder="$(BundledDestination)"
-    SkipUnchangedFiles="false" />
-  <Message Importance="high" Text="✓ Synced $(TargetFileName) to bundled directory" />
-</Target>
-```
-
-Delete this entire block from the opening comment through the closing `</Target>` tag. Save the file.
-
-> **Why?** This step tries to copy your DLL to `third_party/bundled/` — a folder used by the original repo's release packaging. That folder doesn't exist in your fork, causing the build to fail even after a successful compile.
-
----
-
-## 7. Create the Minimal versions.json
-
-The build reads a `versions.json` to stamp version numbers into the compiled code. You only need the one entry it actually uses.
-
-Create `third_party/versions.json` with exactly this content:
-
-```json
-{
-  "ModpackLoader": {
-    "version": "35.0.0"
-  }
-}
-```
-
-> **Customising:** This value gets compiled into constants like `BuildNumber` and `LoaderFull` inside the DLL. To make your fork's builds distinguishable, consider `"35.0.0-fork"` — it will appear in log output and version checks.
-
----
-
-## 8. Verify Your Folder Structure
+Before building, confirm the repo looks like this:
 
 ```
-my-modpackloader-fork/
+MenaceModkitSDK/
 │
-├── Directory.Build.props                  ← copied from original repo root
+├── Directory.Build.props
 │
 ├── Menace.ModpackLoader/
-│   ├── Directory.Build.props              ← already present in the source copy
-│   ├── Menace.ModpackLoader.csproj        ← edited: SyncToBundled removed
+│   ├── Directory.Build.props
+│   ├── Menace.ModpackLoader.csproj
 │   └── (all .cs source files)
 │
 ├── Shared/
@@ -257,7 +151,7 @@ my-modpackloader-fork/
 │   └── ModkitVersion.cs
 │
 └── third_party/
-    ├── versions.json                      ← 5-line file you created
+    ├── versions.json
     ├── MelonLoader/
     │   ├── MelonLoader.dll
     │   ├── 0Harmony.dll
@@ -271,15 +165,13 @@ my-modpackloader-fork/
 ```
 
 **Pre-build checklist:**
-- [ ] `Directory.Build.props` exists at the repo root (not only inside `Menace.ModpackLoader/`)
-- [ ] `Menace.ModpackLoader.csproj` no longer contains the `SyncToBundled` target
 - [ ] All four MelonLoader DLLs are in `third_party/MelonLoader/`
 - [ ] All eleven game assembly DLLs are in `third_party/GameAssemblies/`
-- [ ] `third_party/versions.json` exists with a `ModpackLoader.version` entry
+- [ ] `third_party/versions.json` is present (it should already be; do not delete it)
 
 ---
 
-## 9. Build the DLL
+## 5. Build the DLL
 
 Navigate into the project directory and build:
 
@@ -316,13 +208,13 @@ Menace.ModpackLoader/bin/Release/net6.0/Menace.ModpackLoader.dll
 
 ---
 
-## 10. Troubleshooting Common Errors
+## 6. Troubleshooting Common Errors
 
 **"Could not find file '...versions.json'"**
-The file is missing or misplaced. It must be at `third_party/versions.json` relative to your repo root — not inside `Menace.ModpackLoader/`. Also check the filename has an `s` (`versions`, not `version`).
+The file is missing or has been accidentally deleted. It should already be present in the repo at `third_party/versions.json`. Check the filename has an `s` (`versions`, not `version`). If it's gone, restore it with `git checkout third_party/versions.json`.
 
 **"Could not extract version from versions.json"**
-The file exists but parsing failed. Common causes: a trailing comma after the version string, lowercase `"modpackloader"` key (must be `"ModpackLoader"`), or extra content that broke the JSON structure.
+The file exists but parsing failed. Common causes: a trailing comma after the version string, lowercase `"modpackloader"` key (must be `"ModpackLoader"`), or extra content that broke the JSON structure. Restore the original with `git checkout third_party/versions.json`.
 
 **"The referenced component '...' could not be found" — MelonLoader DLLs**
 A DLL is missing from `third_party/MelonLoader/`. On Linux filenames are case-sensitive — confirm `0Harmony.dll` starts with the digit `0` not the letter `O`, and `MelonLoader.dll` has capital M and L.
@@ -334,14 +226,14 @@ A DLL is missing from `third_party/GameAssemblies/`. If the `Il2CppAssemblies/` 
 A source file references a type the compiler can't find. This usually means game assembly DLLs from the wrong game version. Make sure you're copying from the correct game installation and that MelonLoader has fully processed it.
 
 **"Could not import project '..\Shared\GenerateVersion.targets'"**
-The `Shared/` directory is missing or in the wrong location. It must be at the same level as `Menace.ModpackLoader/`, not nested inside it.
+The `Shared/` directory is missing or has been moved. It must be at the same level as `Menace.ModpackLoader/`. Restore it with `git checkout Shared/`.
 
 **Build succeeds with a warning about `InternalsVisibleTo`**
-Harmless. The `.csproj` grants internal access to a test project you didn't copy. It has no effect on the built DLL.
+Harmless. The `.csproj` grants internal access to a test project. It has no effect on the built DLL.
 
 ---
 
-## 11. Making and Testing Your Changes
+## 7. Making and Testing Your Changes
 
 ### Editing source files
 
@@ -352,9 +244,20 @@ code .
 
 Make your changes, then rebuild with `dotnet build` from inside `Menace.ModpackLoader/`. The compiler reports errors with exact filenames and line numbers.
 
-### Saving your work with Git
+### Pulling upstream updates
 
-From your repo root:
+To incorporate new changes from the repository:
+
+```
+git pull
+```
+
+Then rebuild. If new game assembly DLLs are required after an upstream update, the build will tell you which are missing.
+
+### Saving your own changes with Git
+
+If you're maintaining a personal set of modifications, commit them after each logical change:
+
 ```
 git add .
 git commit -m "Short description of what you changed"
@@ -362,13 +265,9 @@ git commit -m "Short description of what you changed"
 
 Write specific commit messages — e.g. `"Fix null reference in ModpackManager.LoadAsync"` rather than `"fix stuff"`. You will thank yourself when tracking down a bug introduced three weeks ago.
 
-### Keep a changelog
-
-Create a `CHANGES.md` at your repo root listing what you changed from the original and why. When the upstream project updates and you need to re-apply your fixes to new source code, this file is your roadmap.
-
 ---
 
-## 12. Deploying Your DLL
+## 8. Deploying Your DLL
 
 1. Build for release from inside `Menace.ModpackLoader/`:
    ```
@@ -398,10 +297,10 @@ Create a `CHANGES.md` at your repo root listing what you changed from the origin
 
 6. Launch the game and watch the MelonLoader console (the terminal window that appears at startup) for any loading errors.
 
-> **Rolling back:** If something goes wrong, rename `Menace.ModpackLoader.dll.backup` to `Menace.ModpackLoader.dll` to instantly restore the original.
+> **Rolling back:** If something goes wrong, rename `Menace.ModpackLoader.dll.backup` to `Menace.ModpackLoader.dll` to instantly restore the previous version.
 
 ---
 
 ## Summary
 
-Your fork requires no other part of the original project to build, produces a drop-in DLL with a single command, and is tracked in its own Git repository. The only ongoing maintenance is keeping `third_party/MelonLoader/` and `third_party/GameAssemblies/` current if the game or MelonLoader updates — just copy fresh DLLs from your game installation and rebuild.
+Cloning MenaceModkitSDK gives you everything needed to build except the game-specific DLLs, which cannot be redistributed. Once you've dropped those into `third_party/`, the project builds to a drop-in DLL with a single command. The only ongoing maintenance is keeping `third_party/MelonLoader/` and `third_party/GameAssemblies/` current if the game or MelonLoader updates — just copy fresh DLLs from your game installation and rebuild.
