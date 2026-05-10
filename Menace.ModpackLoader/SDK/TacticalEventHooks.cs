@@ -22,6 +22,7 @@ namespace Menace.SDK;
 public static class TacticalEventHooks
 {
     private static bool _initialized;
+    private const int OffsetActorFactionId = 0xBC;
 
     // ═══════════════════════════════════════════════════════════════════
     //  C# Events - Subscribe from plugins
@@ -50,7 +51,7 @@ public static class TacticalEventHooks
     public static event Action<IntPtr> OnHiddenToPlayer;                     // actor
 
     // Movement Events
-    public static event Action<IntPtr, IntPtr, IntPtr, int, IntPtr> OnMovementStarted; // actor, fromTile, toTile, movementAction, container
+    public static event Action<IntPtr, IntPtr, IntPtr, IntPtr, IntPtr> OnMovementStarted; // actor, fromTile, toTile, movementAction, container
     public static event Action<IntPtr, IntPtr> OnMovementFinished;                   // actor, tile
 
     // Skill Events
@@ -164,8 +165,9 @@ public static class TacticalEventHooks
             var gameObj = new GameObj(Il2CppUtils.GetPointer(obj));
             return gameObj.GetName() ?? "<unnamed>";
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.WarnInternal("TacticalEventHooks", $"GetName failed for {obj.GetType().Name}: {ex.Message}");
             return "<unknown>";
         }
     }
@@ -239,7 +241,9 @@ public static class TacticalEventHooks
             ["attacker"] = GetName(attacker),
             ["attacker_ptr"] = attackerPtr.ToInt64(),
             ["target"] = GetName(target),
-            ["target_ptr"] = targetPtr.ToInt64()
+            ["target_ptr"] = targetPtr.ToInt64(),
+            ["skill"] = GetName(skill),
+            ["skill_ptr"] = skillPtr.ToInt64()
         });
     }
 
@@ -271,7 +275,8 @@ public static class TacticalEventHooks
         FireLuaEvent("bleeding_out", new Dictionary<string, object>
         {
             ["actor"] = GetName(actor),
-            ["actor_ptr"] = actorPtr.ToInt64()
+            ["actor_ptr"] = actorPtr.ToInt64(),
+            ["remaining_rounds"] = remainingRounds
         });
     }
 
@@ -285,7 +290,9 @@ public static class TacticalEventHooks
         FireLuaEvent("stabilized", new Dictionary<string, object>
         {
             ["actor"] = GetName(actor),
-            ["actor_ptr"] = actorPtr.ToInt64()
+            ["actor_ptr"] = actorPtr.ToInt64(),
+            ["savior"] = GetName(savior),
+            ["savior_ptr"] = saviorPtr.ToInt64()
         });
     }
 
@@ -302,20 +309,20 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnSuppressionApplied_Postfix(object __instance, object target, object suppressor, float amount)
+    private static void OnSuppressionApplied_Postfix(object __instance, object _actor, float _change, object _suppressor)
     {
-        var targetPtr = Il2CppUtils.GetPointer(target);
-        var suppressorPtr = Il2CppUtils.GetPointer(suppressor);
+        var targetPtr = Il2CppUtils.GetPointer(_actor);
+        var suppressorPtr = Il2CppUtils.GetPointer(_suppressor);
 
-        OnSuppressionApplied?.Invoke(targetPtr, amount, suppressorPtr);
+        OnSuppressionApplied?.Invoke(targetPtr, _change, suppressorPtr);
 
         FireLuaEvent("suppression_applied", new Dictionary<string, object>
         {
-            ["target"] = GetName(target),
+            ["target"] = GetName(_actor),
             ["target_ptr"] = targetPtr.ToInt64(),
-            ["attacker"] = GetName(suppressor),
+            ["attacker"] = GetName(_suppressor),
             ["attacker_ptr"] = suppressorPtr.ToInt64(),
-            ["amount"] = amount
+            ["amount"] = _change
         });
     }
 
@@ -448,9 +455,10 @@ public static class TacticalEventHooks
         var actorPtr = Il2CppUtils.GetPointer(_actor);
         var fromPtr = Il2CppUtils.GetPointer(_from);
         var toPtr = Il2CppUtils.GetPointer(_to);
+        var actionPtr = Il2CppUtils.GetPointer(_action);
         var containerPtr = Il2CppUtils.GetPointer(_container);
 
-        OnMovementStarted?.Invoke(actorPtr, fromPtr, toPtr, (int)_action, containerPtr);
+        OnMovementStarted?.Invoke(actorPtr, fromPtr, toPtr, actionPtr, containerPtr);
 
         FireLuaEvent("movement_started", new Dictionary<string, object>
         {
@@ -458,7 +466,7 @@ public static class TacticalEventHooks
             ["actor_ptr"] = actorPtr.ToInt64(),
             ["from_ptr"] = fromPtr.ToInt64(),
             ["to_ptr"] = toPtr.ToInt64(),
-            ["action"] = (int)_action,
+            ["action_ptr"] = actionPtr.ToInt64(),
             ["container_ptr"] = containerPtr.ToInt64()
         });
     }
@@ -482,7 +490,11 @@ public static class TacticalEventHooks
 
     private static void OnSkillUsed_Postfix(object __instance, object _actor, object _skill, object _targetTile)
     {
-        OnSkillUsed?.Invoke(Il2CppUtils.GetPointer(_actor), Il2CppUtils.GetPointer(_skill), Il2CppUtils.GetPointer(_targetTile));
+        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        var skillPtr = Il2CppUtils.GetPointer(_skill);
+        var targetTilePtr = Il2CppUtils.GetPointer(_targetTile);
+
+        OnSkillUsed?.Invoke(actorPtr, skillPtr, targetTilePtr);
 
         // Fire Lua event with Actor and Skill objects directly
         // Usage: on("skill_used", function(actor, skill)
@@ -492,9 +504,6 @@ public static class TacticalEventHooks
         //        end)
         try
         {
-            // FIXED
-            var actorPtr = Il2CppUtils.GetPointer(_actor);
-            var skillPtr = Il2CppUtils.GetPointer(_skill);
             LuaScriptEngine.Instance?.FireEventWithActorAndSkill("skill_used", actorPtr.ToInt64(), skillPtr.ToInt64());
         }
         catch (Exception ex)
@@ -581,22 +590,13 @@ public static class TacticalEventHooks
         {
             OnTurnStart?.Invoke(actorPtr);
 
-            // Derive player/AI turn from game state
-            try
-            {
-                // UNVERIFIED: TacticalManager.Get() and IsPlayerTurn() - verify against dump.cs
-                var tm = typeof(Il2CppMenace.Tactical.TacticalManager);
-                var get = tm.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-                var instance = get?.Invoke(null, null);
-                var isPlayerTurn = (bool?)tm.GetMethod("IsPlayerTurn",
-                    BindingFlags.Public | BindingFlags.Instance)?.Invoke(instance, null);
+            var result = GameMethod.Call(__instance, "Il2CppMenace.Tactical.TacticalManager", "IsPlayerTurn");
+            if (result == null) return;
 
-                if (isPlayerTurn == true)
-                    OnPlayerTurn?.Invoke();
-                else
-                    OnAITurn?.Invoke();
-            }
-            catch { }
+            if ((bool)result)
+                OnPlayerTurn?.Invoke();
+            else
+                OnAITurn?.Invoke();
         }
     }
 
@@ -606,16 +606,21 @@ public static class TacticalEventHooks
 
         OnTurnEnd?.Invoke(actorPtr);
 
+        if (actorPtr == IntPtr.Zero) return;
+
         // Get faction info
         int faction = 0;
         string factionName = "";
         try
         {
             var gameObj = new GameObj(actorPtr);
-            faction = gameObj.ReadInt(0xBC); // OFFSET_ACTOR_FACTION_ID
+            faction = gameObj.ReadInt(OffsetActorFactionId);
             factionName = TacticalController.GetFactionName((FactionType)faction);
         }
-        catch { }
+        catch (Exception ex)
+        {
+            ModError.WarnInternal("TacticalEventHooks", $"OnTurnEnd faction lookup failed: {ex.Message}");
+        }
 
         // Fire existing turn_end event for compatibility
         LuaScriptEngine.Instance?.OnTurnEnd(faction, factionName);
