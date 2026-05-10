@@ -1,8 +1,7 @@
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -32,7 +31,7 @@ public static class StrategyEventHooks
     public static event Action<IntPtr> OnLeaderHired;                    // leader
     public static event Action<IntPtr> OnLeaderDismissed;                // leader
     public static event Action<IntPtr> OnLeaderPermadeath;               // leader
-    public static event Action<IntPtr> OnLeaderLevelUp;                  // leader
+    public static event Action<IntPtr, IntPtr> OnLeaderLevelUp;          // leader, perk
 
     // Faction Events
     public static event Action<IntPtr, int> OnFactionTrustChanged;       // faction, delta
@@ -44,12 +43,17 @@ public static class StrategyEventHooks
     public static event Action<int> OnSquaddieAdded;                     // count
 
     // Operation/Mission Events
-    public static event Action<IntPtr> OnMissionEnded;                   // mission
-    public static event Action OnOperationFinished;
+    public static event Action<IntPtr> OnOperationStarted;               // operation
+    public static event Action<IntPtr> OnOperationFinished;              // operation
+    public static event Action<IntPtr, IntPtr> OnMissionStarted;         // operation, mission
+    public static event Action<IntPtr, IntPtr, IntPtr> OnMissionFinished; // operation, mission, missionResult
 
     // Black Market Events
     public static event Action<IntPtr> OnBlackMarketItemAdded;           // item
     public static event Action OnBlackMarketRestocked;
+
+    // Emotional State Events
+    public static event Action<IntPtr, IntPtr, IntPtr, IntPtr> OnTriggerEmotion; // trigger, target, random, mission
 
     // ═══════════════════════════════════════════════════════════════════
     //  Initialization
@@ -68,10 +72,10 @@ public static class StrategyEventHooks
             const string rosterType = "Il2CppMenace.Strategy.Roster";
             const string storyFactionType = "Il2CppMenace.Strategy.StoryFaction";
             const string squaddiesType = "Il2CppMenace.Strategy.Squaddies";
-            const string operationType = "Il2CppMenace.Strategy.Operation";
-            const string blackMarketType = "Il2CppMenace.Strategy.BlackMarket";
-            const string eventManagerType = "Il2CppMenace.Strategy.EventManager";
+            const string baseGameEffect = "Il2CppMenace.Strategy.BaseGameEffect";
             const string baseUnitLeaderType = "Il2CppMenace.Strategy.BaseUnitLeader";
+            const string blackMarketType = "Il2CppMenace.Strategy.BlackMarket";
+            const string emotionalStatesType = "Il2CppMenace.Strategy.EmotionalStates";
 
             var hooks = typeof(StrategyEventHooks);
             var flags = BindingFlags.Static | BindingFlags.NonPublic;
@@ -108,23 +112,17 @@ public static class StrategyEventHooks
             }
 
             // Operation patches
-            if (operationType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, operationType, "EndMission", hooks.GetMethod(nameof(EndMission_Postfix), flags)) ? 1 : 0;
-            }
-
-            // EventManager patches
-            if (eventManagerType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, eventManagerType, "OnOperationFinished", hooks.GetMethod(nameof(OnOperationFinished_Postfix), flags)) ? 1 : 0;
-            }
+            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationStarted", hooks.GetMethod(nameof(OnOperationStarted_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationFinished", hooks.GetMethod(nameof(OnOperationFinished_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnMissionStarted", hooks.GetMethod(nameof(OnMissionStarted_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnMissionFinished", hooks.GetMethod(nameof(OnMissionFinished_Postfix), flags)) ? 1 : 0;
 
             // BlackMarket patches
-            if (blackMarketType != null)
-            {
-                patchCount += GamePatch.Postfix(harmony, blackMarketType, "AddItem", hooks.GetMethod(nameof(BlackMarketAddItem_Postfix), flags)) ? 1 : 0;
-                patchCount += GamePatch.Postfix(harmony, blackMarketType, "FillUp", hooks.GetMethod(nameof(BlackMarketFillUp_Postfix), flags)) ? 1 : 0;
-            }
+            patchCount += GamePatch.Postfix(harmony, blackMarketType, "AddItem", hooks.GetMethod(nameof(BlackMarketAddItem_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, blackMarketType, "FillUp", hooks.GetMethod(nameof(BlackMarketFillUp_Postfix), flags)) ? 1 : 0;
+
+            // EmotionalStates patches
+            patchCount += GamePatch.Postfix(harmony, emotionalStatesType, "TriggerEmotion", hooks.GetMethod(nameof(TriggerEmotion_Postfix), flags)) ? 1 : 0;
 
             _initialized = true;
             SdkLogger.Msg($"[StrategyEventHooks] Initialized with {patchCount} event hooks");
@@ -222,7 +220,7 @@ public static class StrategyEventHooks
     {
         if (__result == null) return; // Hire failed
 
-        var leaderPtr = Il2CppUtils.GetPointer(__result);
+        var leaderPtr = Il2CppUtils.GetPointer(template);
         OnLeaderHired?.Invoke(leaderPtr);
 
         FireLuaEvent("leader_hired", new Dictionary<string, object>
@@ -262,7 +260,9 @@ public static class StrategyEventHooks
     private static void AddPerk_Postfix(object __instance, object perk)
     {
         var leaderPtr = Il2CppUtils.GetPointer(__instance);
-        OnLeaderLevelUp?.Invoke(leaderPtr);
+        var perkPtr = Il2CppUtils.GetPointer(perk);
+
+        OnLeaderLevelUp?.Invoke(leaderPtr, perkPtr);
 
         FireLuaEvent("leader_levelup", new Dictionary<string, object>
         {
@@ -358,38 +358,43 @@ public static class StrategyEventHooks
 
     // --- Operation/Mission Events ---
 
-    private static void EndMission_Postfix(object __instance, object mission)
+    private static void OnOperationStarted_Postfix(object __instance, object operation)
     {
-        var missionPtr = Il2CppUtils.GetPointer(mission);
-        OnMissionEnded?.Invoke(missionPtr);
+        var operationPtr = Il2CppUtils.GetPointer(operation);
 
-        // Get mission result info if available
-        string status = "unknown";
-        try
-        {
-            // mission is MissionState, get result
-            var statusProp = mission?.GetType().GetProperty("Status",
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-            if (statusProp != null)
-            {
-                var statusVal = statusProp.GetValue(mission);
-                status = statusVal?.ToString() ?? "unknown";
-            }
-        }
-        catch { }
+        OnOperationStarted?.Invoke(operationPtr);
 
-        FireLuaEvent("mission_ended", new Dictionary<string, object>
-        {
-            ["mission_ptr"] = missionPtr.ToInt64(),
-            ["status"] = status
-        });
+        FireLuaEvent("operation_started", new Dictionary<string, object>());
     }
 
-    private static void OnOperationFinished_Postfix(object __instance)
+    private static void OnOperationFinished_Postfix(object __instance, object operation)
     {
-        OnOperationFinished?.Invoke();
+        var operationPtr = Il2CppUtils.GetPointer(operation);
+        
+        OnOperationFinished?.Invoke(operationPtr);
 
         FireLuaEvent("operation_finished", new Dictionary<string, object>());
+    }
+
+    private static void OnMissionStarted_Postfix(object __instance, object operation, object mission)
+    {
+        var operationPtr = Il2CppUtils.GetPointer(operation);
+        var missionPtr = Il2CppUtils.GetPointer(mission);
+
+        OnMissionStarted?.Invoke(operationPtr, missionPtr);
+
+        FireLuaEvent("mission_started", new Dictionary<string, object>());
+    }
+
+    private static void OnMissionFinished_Postfix(object __instance, object operation, object mission, object missionResult)
+    {
+        var operationPtr = Il2CppUtils.GetPointer(operation);
+        var missionPtr = Il2CppUtils.GetPointer(mission);
+        var missionResultPtr = Il2CppUtils.GetPointer(missionResult);
+
+        OnMissionFinished?.Invoke(operationPtr, missionPtr, missionResultPtr);
+
+        FireLuaEvent("mission_finished", new Dictionary<string, object>());
     }
 
     // --- Black Market Events ---
@@ -411,5 +416,17 @@ public static class StrategyEventHooks
         OnBlackMarketRestocked?.Invoke();
 
         FireLuaEvent("blackmarket_restocked", new Dictionary<string, object>());
+    }
+
+    // --- Emotion State Events ---
+
+    private static void TriggerEmotion_Postfix(object __instance, object trigger, object target, object random, object mission)
+    {
+        var triggerPtr = Il2CppUtils.GetPointer(trigger);
+        var targetPtr = Il2CppUtils.GetPointer(target);
+        var randomPtr = Il2CppUtils.GetPointer(random);
+        var missionPtr = Il2CppUtils.GetPointer(mission);
+
+        OnTriggerEmotion?.Invoke(triggerPtr, targetPtr, randomPtr, missionPtr);
     }
 }
