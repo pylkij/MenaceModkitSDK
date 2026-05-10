@@ -1,10 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using HarmonyLib;
-using Il2CppInterop.Runtime.InteropTypes;
+
+using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -25,62 +24,63 @@ namespace Menace.SDK;
 public static class TacticalEventHooks
 {
     private static bool _initialized;
-    private static Type _tacticalManagerType;
-    private static Type _actorType;
-    private static Type _entityType;
-    private static Type _skillType;
-    private static Type _tileType;
 
     // ═══════════════════════════════════════════════════════════════════
     //  C# Events - Subscribe from plugins
     // ═══════════════════════════════════════════════════════════════════
 
     // Combat Events
-    public static event Action<IntPtr, IntPtr, int> OnActorKilled;           // actor, killer, faction
-    public static event Action<IntPtr, IntPtr, IntPtr> OnDamageReceived;     // target, attacker, skill
-    public static event Action<IntPtr, IntPtr> OnAttackMissed;               // attacker, target
+    public static event Action<IntPtr, IntPtr, int> OnActorKilled;           // actor, killer, killerFaction
+    public static event Action<IntPtr, IntPtr, IntPtr> OnDamageReceived;     // entity, attacker, skill
+    public static event Action<IntPtr, IntPtr, IntPtr> OnAttackMissed;       // entity, attacker, skill
     public static event Action<IntPtr, IntPtr> OnAttackTileStart;            // attacker, tile
-    public static event Action<IntPtr> OnBleedingOut;                        // actor
-    public static event Action<IntPtr> OnStabilized;                         // actor
+    public static event Action<IntPtr, int> OnBleedingOut;                   // leader, remainingRounds
+    public static event Action<IntPtr, IntPtr> OnStabilized;                 // leader, savior
     public static event Action<IntPtr> OnSuppressed;                         // actor
-    public static event Action<IntPtr, IntPtr, float> OnSuppressionApplied;  // target, attacker, amount
+    public static event Action<IntPtr, float, IntPtr> OnSuppressionApplied;  // actor, change, suppressor
 
     // Actor State Events
     public static event Action<IntPtr> OnActorStateChanged;                  // actor
-    public static event Action<IntPtr, int> OnMoraleStateChanged;            // actor, newState
-    public static event Action<IntPtr, int, int> OnHitpointsChanged;         // actor, oldHp, newHp
-    public static event Action<IntPtr> OnArmorChanged;                       // actor
+    public static event Action<IntPtr, int> OnMoraleStateChanged;            // actor, moraleState
+    public static event Action<IntPtr, float> OnHitpointsChanged;            // entity, hitpointsPct
+    public static event Action<IntPtr, float, int> OnArmorChanged;           // entity, armorDurability, armor
     public static event Action<IntPtr, int, int> OnActionPointsChanged;      // actor, oldAp, newAp
 
     // Visibility Events
-    public static event Action<IntPtr, IntPtr> OnDiscovered;                 // discovered, discoverer
-    public static event Action<IntPtr> OnVisibleToPlayer;                    // entity
-    public static event Action<IntPtr> OnHiddenToPlayer;                     // entity
+    public static event Action<IntPtr, IntPtr> OnDiscovered;                 // entity, discoverer
+    public static event Action<IntPtr> OnVisibleToPlayer;                    // actor
+    public static event Action<IntPtr> OnHiddenToPlayer;                     // actor
 
     // Movement Events
     public static event Action<IntPtr, IntPtr, IntPtr> OnMovementStarted;    // actor, fromTile, toTile
-    public static event Action<IntPtr, IntPtr> OnMovementFinished;           // actor, tile
+    public static event Action<IntPtr, IntPtr> OnMovementFinished;                   // actor, tile
 
     // Skill Events
-    public static event Action<IntPtr, IntPtr, IntPtr> OnSkillUsed;          // user, skill, target
+    public static event Action<IntPtr, IntPtr, IntPtr> OnSkillUsed;          // actor, skill, targetTile
     public static event Action<IntPtr> OnSkillCompleted;                     // skill
-    public static event Action<IntPtr, IntPtr> OnSkillAdded;                 // actor, skill
-    public static event Action<IntPtr> OnOffmapAbilityUsed;                  // ability
+    public static event Action<IntPtr, IntPtr> OnSkillAdded;                 // receiver, skill
+
+    // Offmap Events
+    public static event Action<IntPtr, IntPtr> OnOffmapAbilityUsed;          // ability, targetTile
     public static event Action<IntPtr> OnOffmapAbilityCanceled;              // ability
+    public static event Action OnOffmapAbilityUpdateUsability;               // no args
 
     // Turn/Round Events
-    public static event Action<IntPtr> OnTurnStart;                          // actor (fires when actor becomes active)
+    public static event Action<IntPtr> OnActiveActorChanged;                 // actor
+    public static event Action<IntPtr> OnTurnStart;                          // actor
     public static event Action<IntPtr> OnTurnEnd;                            // actor
-    public static event Action<int> OnRoundEnd;                              // roundNumber (fires before round increments)
-    public static event Action<int> OnRoundStart;                            // roundNumber (fires after round increments)
+    public static event Action OnPlayerTurn;                                 // no args
+    public static event Action OnAITurn;                                     // no args
+    public static event Action<int> OnRoundEnd;                              // roundNumber
+    public static event Action<int> OnRoundStart;                            // roundNumber
 
-    // Entity Events
+    // Mission Events
+    public static event Action<IntPtr, int, int> OnObjectiveStateChanged;    // objective, oldState, newState
     public static event Action<IntPtr> OnEntitySpawned;                      // entity
     public static event Action<IntPtr> OnElementDeath;                       // element
     public static event Action<IntPtr> OnElementMalfunction;                 // element
-
-    // Mission Events
-    public static event Action<IntPtr, int> OnObjectiveStateChanged;         // objective, newState
+    public static event Action OnPreFinished;                                // no args
+    public static event Action OnFinished;                                   // no args
 
     // ═══════════════════════════════════════════════════════════════════
     //  Initialization
@@ -95,71 +95,59 @@ public static class TacticalEventHooks
 
         try
         {
-            var gameAssembly = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
+            const string tacticalManager = "Il2CppMenace.Tactical.TacticalManager";
+            var hooks = typeof(TacticalEventHooks);
+            var flags = BindingFlags.Static | BindingFlags.NonPublic;
 
-            if (gameAssembly == null)
-            {
-                SdkLogger.Warning("[TacticalEventHooks] Assembly-CSharp not found");
-                return;
-            }
-
-            // Cache types
-            _tacticalManagerType = gameAssembly.GetType("Menace.Tactical.TacticalManager");
-            _actorType = gameAssembly.GetType("Menace.Tactical.Actor");
-            _entityType = gameAssembly.GetType("Menace.Tactical.Entity");
-            _skillType = gameAssembly.GetType("Menace.Tactical.Skills.Skill");
-            _tileType = gameAssembly.GetType("Menace.Tactical.Tile");
-
-            if (_tacticalManagerType == null)
-            {
-                SdkLogger.Warning("[TacticalEventHooks] TacticalManager type not found");
-                return;
-            }
-
-            // Apply all patches
             int patchCount = 0;
-            patchCount += PatchMethod(harmony, "InvokeOnDeath", nameof(OnDeath_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnDamageReceived", nameof(OnDamageReceived_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnAttackMissed", nameof(OnAttackMissed_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnAttackTileStart", nameof(OnAttackTileStart_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnBleedingOut", nameof(OnBleedingOut_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnStabilized", nameof(OnStabilized_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnSuppressed", nameof(OnSuppressed_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnSuppressionApplied", nameof(OnSuppressionApplied_Postfix));
 
-            patchCount += PatchMethod(harmony, "InvokeOnActorStateChanged", nameof(OnActorStateChanged_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnMoraleStateChanged", nameof(OnMoraleStateChanged_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnHitpointsChanged", nameof(OnHitpointsChanged_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnArmorChanged", nameof(OnArmorChanged_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnActionPointsChanged", nameof(OnActionPointsChanged_Postfix));
+            // Combat Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnDeath", hooks.GetMethod(nameof(OnActorKilled_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnDamageReceived", hooks.GetMethod(nameof(OnDamageReceived_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnAttackMissed", hooks.GetMethod(nameof(OnAttackMissed_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnAttackTileStart", hooks.GetMethod(nameof(OnAttackTileStart_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnBleedingOut", hooks.GetMethod(nameof(OnBleedingOut_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnStabilized", hooks.GetMethod(nameof(OnStabilized_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnSuppressed", hooks.GetMethod(nameof(OnSuppressed_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnSuppressionApplied", hooks.GetMethod(nameof(OnSuppressionApplied_Postfix), flags)) ? 1 : 0;
 
-            patchCount += PatchMethod(harmony, "InvokeOnDiscovered", nameof(OnDiscovered_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnVisibleToPlayer", nameof(OnVisibleToPlayer_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnHiddenToPlayer", nameof(OnHiddenToPlayer_Postfix));
+            // Actor State Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnActorStateChanged", hooks.GetMethod(nameof(OnActorStateChanged_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnMoraleStateChanged", hooks.GetMethod(nameof(OnMoraleStateChanged_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnHitpointsChanged", hooks.GetMethod(nameof(OnHitpointsChanged_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnArmorChanged", hooks.GetMethod(nameof(OnArmorChanged_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnActionPointsChanged", hooks.GetMethod(nameof(OnActionPointsChanged_Postfix), flags)) ? 1 : 0;
 
-            patchCount += PatchMethod(harmony, "InvokeOnMovement", nameof(OnMovement_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnMovementFinished", nameof(OnMovementFinished_Postfix));
+            // Visibility Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnDiscovered", hooks.GetMethod(nameof(OnDiscovered_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnVisibleToPlayer", hooks.GetMethod(nameof(OnVisibleToPlayer_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnHiddenToPlayer", hooks.GetMethod(nameof(OnHiddenToPlayer_Postfix), flags)) ? 1 : 0;
 
-            patchCount += PatchMethod(harmony, "InvokeOnSkillUse", nameof(OnSkillUse_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnAfterSkillUse", nameof(OnAfterSkillUse_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnSkillAdded", nameof(OnSkillAdded_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnOffmapAbilityUsed", nameof(OnOffmapAbilityUsed_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnOffmapAbilityCanceled", nameof(OnOffmapAbilityCanceled_Postfix));
+            // Movement Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnMovement", hooks.GetMethod(nameof(OnMovementStarted_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnMovementFinished", hooks.GetMethod(nameof(OnMovementFinished_Postfix), flags)) ? 1 : 0;
 
-            patchCount += PatchMethod(harmony, "InvokeOnTurnEnd", nameof(OnTurnEnd_Postfix));
+            // Skill Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnSkillUse", hooks.GetMethod(nameof(OnSkillUsed_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnAfterSkillUse", hooks.GetMethod(nameof(OnSkillCompleted_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnSkillAdded", hooks.GetMethod(nameof(OnSkillAdded_Postfix), flags)) ? 1 : 0;
 
-            // OnTurnStart fires when SetActiveActor is called with a new actor
-            patchCount += PatchMethod(harmony, "SetActiveActor", nameof(OnSetActiveActor_Postfix));
+            // Offmap Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnOffmapAbilityUsed", hooks.GetMethod(nameof(OnOffmapAbilityUsed_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnOffmapAbilityCanceled", hooks.GetMethod(nameof(OnOffmapAbilityCanceled_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnOffmapAbilityRefreshUsability", hooks.GetMethod(nameof(OnOffmapAbilityUpdateUsability_Postfix), flags)) ? 1 : 0;
 
-            patchCount += PatchMethod(harmony, "InvokeOnEntitySpawned", nameof(OnEntitySpawned_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnElementDeath", nameof(OnElementDeath_Postfix));
-            patchCount += PatchMethod(harmony, "InvokeOnElementMalfunction", nameof(OnElementMalfunction_Postfix));
+            // Turn/Round Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "SetActiveActor", hooks.GetMethod(nameof(OnActiveActorChanged_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnTurnEnd", hooks.GetMethod(nameof(OnTurnEnd_Postfix), flags)) ? 1 : 0;
+            //patchCount += GamePatch.Prefix(harmony, tacticalManager, "NextRound", hooks.GetMethod(nameof(OnRoundEnd_Prefix), flags)) ? 1 : 0; // Commented out pending GameMethod addition to API
+            //patchCount += GamePatch.Postfix(harmony, tacticalManager, "NextRound", hooks.GetMethod(nameof(OnRoundStart_Postfix), flags)) ? 1 : 0; // Commented out pending GameMethod additon to API
 
-            patchCount += PatchMethod(harmony, "InvokeOnObjectiveStateChanged", nameof(OnObjectiveStateChanged_Postfix));
-
-            // Additional hooks for turn/round that don't have InvokeOn methods
-            patchCount += PatchMethodPrefixPostfix(harmony, "NextRound", nameof(OnNextRound_Prefix), nameof(OnNextRound_Postfix));
+            // Mission Events
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnObjectiveStateChanged", hooks.GetMethod(nameof(OnObjectiveStateChanged_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnEntitySpawned", hooks.GetMethod(nameof(OnEntitySpawned_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnElementDeath", hooks.GetMethod(nameof(OnElementDeath_Postfix), flags)) ? 1 : 0;
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnElementMalfunction", hooks.GetMethod(nameof(OnElementMalfunction_Postfix), flags)) ? 1 : 0;
 
             _initialized = true;
             SdkLogger.Msg($"[TacticalEventHooks] Initialized with {patchCount} event hooks");
@@ -170,86 +158,16 @@ public static class TacticalEventHooks
         }
     }
 
-    private static int PatchMethod(HarmonyLib.Harmony harmony, string methodName, string patchMethodName)
-    {
-        try
-        {
-            var targetMethod = _tacticalManagerType.GetMethod(methodName,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-            if (targetMethod == null)
-            {
-                SdkLogger.Warning($"[TacticalEventHooks] Method not found: {methodName}");
-                return 0;
-            }
-
-            var patchMethod = typeof(TacticalEventHooks).GetMethod(patchMethodName,
-                BindingFlags.Static | BindingFlags.NonPublic);
-
-            if (patchMethod == null)
-            {
-                SdkLogger.Warning($"[TacticalEventHooks] Patch method not found: {patchMethodName}");
-                return 0;
-            }
-
-            harmony.Patch(targetMethod, postfix: new HarmonyMethod(patchMethod));
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            SdkLogger.Warning($"[TacticalEventHooks] Failed to patch {methodName}: {ex.Message}");
-            return 0;
-        }
-    }
-
-    private static int PatchMethodPrefixPostfix(HarmonyLib.Harmony harmony, string methodName, string prefixMethodName, string postfixMethodName)
-    {
-        try
-        {
-            var targetMethod = _tacticalManagerType.GetMethod(methodName,
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-
-            if (targetMethod == null)
-            {
-                SdkLogger.Warning($"[TacticalEventHooks] Method not found: {methodName}");
-                return 0;
-            }
-
-            var prefixMethod = typeof(TacticalEventHooks).GetMethod(prefixMethodName,
-                BindingFlags.Static | BindingFlags.NonPublic);
-            var postfixMethod = typeof(TacticalEventHooks).GetMethod(postfixMethodName,
-                BindingFlags.Static | BindingFlags.NonPublic);
-
-            harmony.Patch(targetMethod,
-                prefix: prefixMethod != null ? new HarmonyMethod(prefixMethod) : null,
-                postfix: postfixMethod != null ? new HarmonyMethod(postfixMethod) : null);
-            return 1;
-        }
-        catch (Exception ex)
-        {
-            SdkLogger.Warning($"[TacticalEventHooks] Failed to patch {methodName}: {ex.Message}");
-            return 0;
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     //  Helper Methods
     // ═══════════════════════════════════════════════════════════════════
-
-    private static IntPtr GetPointer(object obj)
-    {
-        if (obj == null) return IntPtr.Zero;
-        if (obj is Il2CppObjectBase il2cppObj)
-            return il2cppObj.Pointer;
-        return IntPtr.Zero;
-    }
 
     private static string GetName(object obj)
     {
         if (obj == null) return "<null>";
         try
         {
-            var gameObj = new GameObj(GetPointer(obj));
+            var gameObj = new GameObj(Il2CppUtils.GetPointer(obj));
             return gameObj.GetName() ?? "<unnamed>";
         }
         catch
@@ -312,7 +230,7 @@ public static class TacticalEventHooks
 
         try
         {
-            var skillPtr = GetPointer(skill);
+            var skillPtr = Il2CppUtils.GetPointer(skill);
             if (skillPtr == IntPtr.Zero) return (false, false, "<null>");
 
             var skillObj = new GameObj(skillPtr);
@@ -354,10 +272,15 @@ public static class TacticalEventHooks
 
     // --- Combat Events ---
 
+    private static void OnActorKilled_Postfix(object __instance, object _target, object _killer, int _killerFaction)
+    {
+        OnActorKilled?.Invoke(Il2CppUtils.GetPointer(_target), Il2CppUtils.GetPointer(_killer), _killerFaction);
+    }
+
     private static void OnDeath_Postfix(object __instance, object entity, object killer, int factionId)
     {
-        var entityPtr = GetPointer(entity);
-        var killerPtr = GetPointer(killer);
+        var entityPtr = Il2CppUtils.GetPointer(entity);
+        var killerPtr = Il2CppUtils.GetPointer(killer);
 
         OnActorKilled?.Invoke(entityPtr, killerPtr, factionId);
 
@@ -373,9 +296,9 @@ public static class TacticalEventHooks
 
     private static void OnDamageReceived_Postfix(object __instance, object target, object attacker, object skill)
     {
-        var targetPtr = GetPointer(target);
-        var attackerPtr = GetPointer(attacker);
-        var skillPtr = GetPointer(skill);
+        var targetPtr = Il2CppUtils.GetPointer(target);
+        var attackerPtr = Il2CppUtils.GetPointer(attacker);
+        var skillPtr = Il2CppUtils.GetPointer(skill);
 
         OnDamageReceived?.Invoke(targetPtr, attackerPtr, skillPtr);
 
@@ -390,12 +313,13 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnAttackMissed_Postfix(object __instance, object attacker, object target)
+    private static void OnAttackMissed_Postfix(object __instance, object attacker, object target, object skill)
     {
-        var attackerPtr = GetPointer(attacker);
-        var targetPtr = GetPointer(target);
+        var attackerPtr = Il2CppUtils.GetPointer(attacker);
+        var targetPtr = Il2CppUtils.GetPointer(target);
+        var skillPtr = Il2CppUtils.GetPointer(skill);
 
-        OnAttackMissed?.Invoke(attackerPtr, targetPtr);
+        OnAttackMissed?.Invoke(attackerPtr, targetPtr, skillPtr);
 
         FireLuaEvent("attack_missed", new Dictionary<string, object>
         {
@@ -408,8 +332,8 @@ public static class TacticalEventHooks
 
     private static void OnAttackTileStart_Postfix(object __instance, object attacker, object tile)
     {
-        var attackerPtr = GetPointer(attacker);
-        var tilePtr = GetPointer(tile);
+        var attackerPtr = Il2CppUtils.GetPointer(attacker);
+        var tilePtr = Il2CppUtils.GetPointer(tile);
 
         OnAttackTileStart?.Invoke(attackerPtr, tilePtr);
 
@@ -421,11 +345,11 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnBleedingOut_Postfix(object __instance, object actor)
+    private static void OnBleedingOut_Postfix(object __instance, object actor, int remainingRounds)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
-        OnBleedingOut?.Invoke(actorPtr);
+        OnBleedingOut?.Invoke(actorPtr, remainingRounds);
 
         FireLuaEvent("bleeding_out", new Dictionary<string, object>
         {
@@ -434,11 +358,12 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnStabilized_Postfix(object __instance, object actor)
+    private static void OnStabilized_Postfix(object __instance, object actor, object savior)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
+        var saviorPtr = Il2CppUtils.GetPointer(savior);
 
-        OnStabilized?.Invoke(actorPtr);
+        OnStabilized?.Invoke(actorPtr, saviorPtr);
 
         FireLuaEvent("stabilized", new Dictionary<string, object>
         {
@@ -449,7 +374,7 @@ public static class TacticalEventHooks
 
     private static void OnSuppressed_Postfix(object __instance, object actor)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
         OnSuppressed?.Invoke(actorPtr);
 
@@ -460,19 +385,19 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnSuppressionApplied_Postfix(object __instance, object target, object attacker, float amount)
+    private static void OnSuppressionApplied_Postfix(object __instance, object target, object suppressor, float amount)
     {
-        var targetPtr = GetPointer(target);
-        var attackerPtr = GetPointer(attacker);
+        var targetPtr = Il2CppUtils.GetPointer(target);
+        var suppressorPtr = Il2CppUtils.GetPointer(suppressor);
 
-        OnSuppressionApplied?.Invoke(targetPtr, attackerPtr, amount);
+        OnSuppressionApplied?.Invoke(targetPtr, amount, suppressorPtr);
 
         FireLuaEvent("suppression_applied", new Dictionary<string, object>
         {
             ["target"] = GetName(target),
             ["target_ptr"] = targetPtr.ToInt64(),
-            ["attacker"] = GetName(attacker),
-            ["attacker_ptr"] = attackerPtr.ToInt64(),
+            ["attacker"] = GetName(suppressor),
+            ["attacker_ptr"] = suppressorPtr.ToInt64(),
             ["amount"] = amount
         });
     }
@@ -481,7 +406,7 @@ public static class TacticalEventHooks
 
     private static void OnActorStateChanged_Postfix(object __instance, object actor)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
         OnActorStateChanged?.Invoke(actorPtr);
 
@@ -494,7 +419,7 @@ public static class TacticalEventHooks
 
     private static void OnMoraleStateChanged_Postfix(object __instance, object actor, int newState)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
         OnMoraleStateChanged?.Invoke(actorPtr, newState);
 
@@ -506,27 +431,25 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnHitpointsChanged_Postfix(object __instance, object actor, int oldHp, int newHp)
+    private static void OnHitpointsChanged_Postfix(object __instance, object actor, float hitpointsPct)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
-        OnHitpointsChanged?.Invoke(actorPtr, oldHp, newHp);
+        OnHitpointsChanged?.Invoke(actorPtr, hitpointsPct);
 
         FireLuaEvent("hp_changed", new Dictionary<string, object>
         {
             ["actor"] = GetName(actor),
             ["actor_ptr"] = actorPtr.ToInt64(),
-            ["old_hp"] = oldHp,
-            ["new_hp"] = newHp,
-            ["delta"] = newHp - oldHp
+            ["hitpoints_pct"] = hitpointsPct,
         });
     }
 
-    private static void OnArmorChanged_Postfix(object __instance, object actor)
+    private static void OnArmorChanged_Postfix(object __instance, object actor, float armorDurability, int armor)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
-        OnArmorChanged?.Invoke(actorPtr);
+        OnArmorChanged?.Invoke(actorPtr, armorDurability, armor);
 
         FireLuaEvent("armor_changed", new Dictionary<string, object>
         {
@@ -537,7 +460,7 @@ public static class TacticalEventHooks
 
     private static void OnActionPointsChanged_Postfix(object __instance, object actor, int oldAp, int newAp)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
         OnActionPointsChanged?.Invoke(actorPtr, oldAp, newAp);
 
@@ -555,8 +478,8 @@ public static class TacticalEventHooks
 
     private static void OnDiscovered_Postfix(object __instance, object discovered, object discoverer)
     {
-        var discoveredPtr = GetPointer(discovered);
-        var discovererPtr = GetPointer(discoverer);
+        var discoveredPtr = Il2CppUtils.GetPointer(discovered);
+        var discovererPtr = Il2CppUtils.GetPointer(discoverer);
 
         OnDiscovered?.Invoke(discoveredPtr, discovererPtr);
 
@@ -571,7 +494,7 @@ public static class TacticalEventHooks
 
     private static void OnVisibleToPlayer_Postfix(object __instance, object entity)
     {
-        var entityPtr = GetPointer(entity);
+        var entityPtr = Il2CppUtils.GetPointer(entity);
 
         OnVisibleToPlayer?.Invoke(entityPtr);
 
@@ -584,7 +507,7 @@ public static class TacticalEventHooks
 
     private static void OnHiddenToPlayer_Postfix(object __instance, object entity)
     {
-        var entityPtr = GetPointer(entity);
+        var entityPtr = Il2CppUtils.GetPointer(entity);
 
         OnHiddenToPlayer?.Invoke(entityPtr);
 
@@ -597,12 +520,17 @@ public static class TacticalEventHooks
 
     // --- Movement Events ---
 
+    private static void OnMovementStarted_Postfix(object __instance, object _actor, object _from, object _to, object _action, object _container)
+    {
+        OnMovementStarted?.Invoke(Il2CppUtils.GetPointer(_actor), Il2CppUtils.GetPointer(_from), Il2CppUtils.GetPointer(_to));
+    }
+
     private static void OnMovement_Postfix(object __instance, object actor, object fromTile, object toTile,
         int action, object container)
     {
-        var actorPtr = GetPointer(actor);
-        var fromPtr = GetPointer(fromTile);
-        var toPtr = GetPointer(toTile);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
+        var fromPtr = Il2CppUtils.GetPointer(fromTile);
+        var toPtr = Il2CppUtils.GetPointer(toTile);
 
         OnMovementStarted?.Invoke(actorPtr, fromPtr, toPtr);
 
@@ -618,8 +546,8 @@ public static class TacticalEventHooks
 
     private static void OnMovementFinished_Postfix(object __instance, object actor, object tile)
     {
-        var actorPtr = GetPointer(actor);
-        var tilePtr = GetPointer(tile);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
+        var tilePtr = Il2CppUtils.GetPointer(tile);
 
         OnMovementFinished?.Invoke(actorPtr, tilePtr);
 
@@ -633,13 +561,9 @@ public static class TacticalEventHooks
 
     // --- Skill Events ---
 
-    private static void OnSkillUse_Postfix(object __instance, object user, object skill, object targetParams)
+    private static void OnSkillUsed_Postfix(object __instance, object _actor, object _skill, object _targetTile)
     {
-        var userPtr = GetPointer(user);
-        var skillPtr = GetPointer(skill);
-        var targetPtr = GetPointer(targetParams);
-
-        OnSkillUsed?.Invoke(userPtr, skillPtr, targetPtr);
+        OnSkillUsed?.Invoke(Il2CppUtils.GetPointer(_actor), Il2CppUtils.GetPointer(_skill), Il2CppUtils.GetPointer(_targetTile));
 
         // Fire Lua event with Actor and Skill objects directly
         // Usage: on("skill_used", function(actor, skill)
@@ -649,7 +573,10 @@ public static class TacticalEventHooks
         //        end)
         try
         {
-            LuaScriptEngine.Instance?.FireEventWithActorAndSkill("skill_used", userPtr.ToInt64(), skillPtr.ToInt64());
+            // FIXED
+            var actorPtr = Il2CppUtils.GetPointer(_actor);
+            var skillPtr = Il2CppUtils.GetPointer(_skill);
+            LuaScriptEngine.Instance?.FireEventWithActorAndSkill("skill_used", actorPtr.ToInt64(), skillPtr.ToInt64());
         }
         catch (Exception ex)
         {
@@ -657,9 +584,14 @@ public static class TacticalEventHooks
         }
     }
 
+    private static void OnSkillCompleted_Postfix(object __instance, object _skill)
+    {
+        OnSkillCompleted?.Invoke(Il2CppUtils.GetPointer(_skill));
+    }
+
     private static void OnAfterSkillUse_Postfix(object __instance, object skill)
     {
-        var skillPtr = GetPointer(skill);
+        var skillPtr = Il2CppUtils.GetPointer(skill);
 
         OnSkillCompleted?.Invoke(skillPtr);
 
@@ -672,8 +604,8 @@ public static class TacticalEventHooks
 
     private static void OnSkillAdded_Postfix(object __instance, object actor, object skill)
     {
-        var actorPtr = GetPointer(actor);
-        var skillPtr = GetPointer(skill);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
+        var skillPtr = Il2CppUtils.GetPointer(skill);
 
         OnSkillAdded?.Invoke(actorPtr, skillPtr);
 
@@ -686,22 +618,24 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnOffmapAbilityUsed_Postfix(object __instance, object ability)
+    private static void OnOffmapAbilityUsed_Postfix(object __instance, object ability, object targetTile)
     {
-        var abilityPtr = GetPointer(ability);
+        var abilityPtr = Il2CppUtils.GetPointer(ability);
+        var targetTilePtr = Il2CppUtils.GetPointer(targetTile);
 
-        OnOffmapAbilityUsed?.Invoke(abilityPtr);
+        OnOffmapAbilityUsed?.Invoke(abilityPtr, targetTilePtr);
 
         FireLuaEvent("offmap_ability_used", new Dictionary<string, object>
         {
             ["ability"] = GetName(ability),
-            ["ability_ptr"] = abilityPtr.ToInt64()
+            ["ability_ptr"] = abilityPtr.ToInt64(),
+            ["tile_ptr"] = targetTilePtr.ToInt64()
         });
     }
 
     private static void OnOffmapAbilityCanceled_Postfix(object __instance, object ability)
     {
-        var abilityPtr = GetPointer(ability);
+        var abilityPtr = Il2CppUtils.GetPointer(ability);
 
         OnOffmapAbilityCanceled?.Invoke(abilityPtr);
 
@@ -711,12 +645,46 @@ public static class TacticalEventHooks
             ["ability_ptr"] = abilityPtr.ToInt64()
         });
     }
+    private static void OnOffmapAbilityUpdateUsability_Postfix(object __instance)
+    {
+        OnOffmapAbilityUpdateUsability?.Invoke();
+    }
 
     // --- Turn/Round Events ---
 
+    private static void OnActiveActorChanged_Postfix(object __instance, object _actor, bool _endTurn)
+    {
+        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        if (actorPtr == IntPtr.Zero) return;
+
+        OnActiveActorChanged?.Invoke(actorPtr);
+
+        if (_endTurn)
+        {
+            OnTurnStart?.Invoke(actorPtr);
+
+            // Derive player/AI turn from game state
+            try
+            {
+                // UNVERIFIED: TacticalManager.Get() and IsPlayerTurn() - verify against dump.cs
+                var tm = typeof(Il2CppMenace.Tactical.TacticalManager);
+                var get = tm.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
+                var instance = get?.Invoke(null, null);
+                var isPlayerTurn = (bool?)tm.GetMethod("IsPlayerTurn",
+                    BindingFlags.Public | BindingFlags.Instance)?.Invoke(instance, null);
+
+                if (isPlayerTurn == true)
+                    OnPlayerTurn?.Invoke();
+                else
+                    OnAITurn?.Invoke();
+            }
+            catch { }
+        }
+    }
+
     private static void OnTurnEnd_Postfix(object __instance, object actor)
     {
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
 
         OnTurnEnd?.Invoke(actorPtr);
 
@@ -766,7 +734,7 @@ public static class TacticalEventHooks
         // Only fire turn_start if this is actually a new turn (not just selecting an actor)
         if (!isNewTurn || actor == null) return;
 
-        var actorPtr = GetPointer(actor);
+        var actorPtr = Il2CppUtils.GetPointer(actor);
         if (actorPtr == IntPtr.Zero) return;
 
         OnTurnStart?.Invoke(actorPtr);
@@ -795,7 +763,7 @@ public static class TacticalEventHooks
 
     private static void OnEntitySpawned_Postfix(object __instance, object entity)
     {
-        var entityPtr = GetPointer(entity);
+        var entityPtr = Il2CppUtils.GetPointer(entity);
 
         OnEntitySpawned?.Invoke(entityPtr);
 
@@ -808,7 +776,7 @@ public static class TacticalEventHooks
 
     private static void OnElementDeath_Postfix(object __instance, object element)
     {
-        var elementPtr = GetPointer(element);
+        var elementPtr = Il2CppUtils.GetPointer(element);
 
         OnElementDeath?.Invoke(elementPtr);
 
@@ -821,7 +789,7 @@ public static class TacticalEventHooks
 
     private static void OnElementMalfunction_Postfix(object __instance, object element)
     {
-        var elementPtr = GetPointer(element);
+        var elementPtr = Il2CppUtils.GetPointer(element);
 
         OnElementMalfunction?.Invoke(elementPtr);
 
@@ -834,11 +802,11 @@ public static class TacticalEventHooks
 
     // --- Mission Events ---
 
-    private static void OnObjectiveStateChanged_Postfix(object __instance, object objective, int newState)
+    private static void OnObjectiveStateChanged_Postfix(object __instance, object objective, int oldState, int newState)
     {
-        var objectivePtr = GetPointer(objective);
+        var objectivePtr = Il2CppUtils.GetPointer(objective);
 
-        OnObjectiveStateChanged?.Invoke(objectivePtr, newState);
+        OnObjectiveStateChanged?.Invoke(objectivePtr, oldState, newState);
 
         FireLuaEvent("objective_changed", new Dictionary<string, object>
         {

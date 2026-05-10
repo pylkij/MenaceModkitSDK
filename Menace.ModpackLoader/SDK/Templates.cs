@@ -6,6 +6,8 @@ using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
 
+using Menace.SDK.Internal;
+
 namespace Menace.SDK;
 
 /// <summary>

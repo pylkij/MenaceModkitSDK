@@ -4,6 +4,8 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Menace.SDK.Internal;
+
 namespace Menace.SDK;
 
 /// <summary>

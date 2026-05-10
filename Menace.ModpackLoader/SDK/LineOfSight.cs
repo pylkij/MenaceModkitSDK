@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Il2CppInterop.Runtime.InteropTypes;
-using UnityEngine;
+
+using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 

@@ -6,6 +6,8 @@ using Il2CppInterop.Runtime;
 using Menace.ModpackLoader;
 using UnityEngine;
 
+using Menace.SDK.Internal;
+
 namespace Menace.SDK;
 
 // Runtime visual overrides for character prefabs.

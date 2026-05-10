@@ -150,4 +150,16 @@ internal static class OffsetCache
             return 0;
         }
     }
+
+    /// <summary>
+    /// Extract the IL2CPP pointer from a managed proxy object.
+    /// Returns IntPtr.Zero if the object is null or not an IL2CPP proxy.
+    /// </summary>
+    internal static IntPtr GetPointer(object obj)
+    {
+        if (obj == null) return IntPtr.Zero;
+        if (obj is Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase il2cppObj)
+            return il2cppObj.Pointer;
+        return IntPtr.Zero;
+    }
 }
