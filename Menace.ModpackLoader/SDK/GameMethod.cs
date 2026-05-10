@@ -27,7 +27,7 @@ public static class GameMethod
     {
         if (string.IsNullOrEmpty(typeName))
         {
-            ModError.ReportInternal($"GameMethod: type name is null or empty");
+            ModError.ReportInternal("Type name is null or empty", "GameMethod.ResolveType", null);
             return null;
         }
 
@@ -41,7 +41,7 @@ public static class GameMethod
 
             if (_gameAssembly == null)
             {
-                ModError.ReportInternal($"GameMethod: Assembly-CSharp not loaded");
+                ModError.ReportInternal("Assembly-CSharp not loaded", "GameMethod.ResolveType", null);
                 return null;
             }
 
@@ -50,7 +50,7 @@ public static class GameMethod
 
             if (type == null)
             {
-                ModError.ReportInternal($"GameMethod: type not found — {typeName}");
+                ModError.ReportInternal($"Type not found — {typeName}", "GameMethod.ResolveType", null);
                 return null;
             }
 
@@ -59,7 +59,7 @@ public static class GameMethod
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal($"GameMethod: failed to resolve type '{typeName}' — {ex.Message}");
+            ModError.ReportInternal($"Failed to resolve type '{typeName}'", "GameMethod.ResolveType", ex);
             return null;
         }
     }
@@ -97,7 +97,7 @@ public static class GameMethod
 
             if (method == null)
             {
-                ModError.ReportInternal($"GameMethod: method not found — {typeName}.{methodName}");
+                ModError.ReportInternal($"Method not found — {typeName}.{methodName}", "GameMethod.ResolveMethod", null);
                 return null;
             }
 
@@ -106,7 +106,7 @@ public static class GameMethod
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal($"GameMethod: failed to resolve {typeName}.{methodName} — {ex.Message}");
+            ModError.ReportInternal($"Failed to resolve {typeName}.{methodName}", "GameMethod.ResolveMethod", ex);
             return null;
         }
     }
@@ -129,7 +129,7 @@ public static class GameMethod
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal($"GameMethod: CallStatic failed — {typeName}.{methodName} — {ex.Message}");
+            ModError.ReportInternal($"CallStatic failed — {typeName}.{methodName}", "GameMethod.CallStatic", ex);
             return null;
         }
     }
@@ -145,7 +145,7 @@ public static class GameMethod
     {
         if (instance == null)
         {
-            ModError.ReportInternal($"GameMethod: Call — null instance for {typeName}.{methodName}");
+            ModError.ReportInternal($"Null instance for {typeName}.{methodName}", "GameMethod.Call", null);
             return null;
         }
 
@@ -158,7 +158,7 @@ public static class GameMethod
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal($"GameMethod: Call failed — {typeName}.{methodName} — {ex.Message}");
+            ModError.ReportInternal($"Call failed — {typeName}.{methodName}", "GameMethod.Call", ex);
             return null;
         }
     }
@@ -175,7 +175,7 @@ public static class GameMethod
         var result = Call(instance, typeName, methodName, paramTypes, args);
         if (result is int i) return i;
         if (result != null)
-            ModError.ReportInternal($"GameMethod: CallInt — unexpected return type {result.GetType()} for {typeName}.{methodName}");
+            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeName}.{methodName}", "GameMethod.CallInt", null);
         return 0;
     }
 
@@ -187,7 +187,7 @@ public static class GameMethod
         var result = Call(instance, typeName, methodName, paramTypes, args);
         if (result is bool b) return b;
         if (result != null)
-            ModError.ReportInternal($"GameMethod: CallBool — unexpected return type {result.GetType()} for {typeName}.{methodName}");
+            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeName}.{methodName}", "GameMethod.CallBool", null);
         return false;
     }
 
@@ -200,7 +200,7 @@ public static class GameMethod
         if (result is IntPtr ptr) return ptr;
         if (result is Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase il2cppObj) return il2cppObj.Pointer;
         if (result != null)
-            ModError.ReportInternal($"GameMethod: CallPtr — unexpected return type {result.GetType()} for {typeName}.{methodName}");
+            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeName}.{methodName}", "GameMethod.CallPtr", null);
         return IntPtr.Zero;
     }
 }
