@@ -2,7 +2,6 @@ using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace Menace.SDK;
 
@@ -77,8 +76,6 @@ public static class TacticalEventHooks
     public static event Action<IntPtr> OnEntitySpawned;                      // entity
     public static event Action<IntPtr, IntPtr, IntPtr, IntPtr> OnElementDeath; // entity, element, attacker, damageInfo
     public static event Action<IntPtr, IntPtr> OnElementMalfunction;         // element, skill
-    public static event Action OnPreFinished;                                // no args
-    public static event Action OnFinished;                                   // no args
 
     // ═══════════════════════════════════════════════════════════════════
     //  Initialization
@@ -138,7 +135,7 @@ public static class TacticalEventHooks
             // Turn/Round Events
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "SetActiveActor", hooks.GetMethod(nameof(OnActiveActorChanged_Postfix), flags)) ? 1 : 0;
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnTurnEnd", hooks.GetMethod(nameof(OnTurnEnd_Postfix), flags)) ? 1 : 0;
-            patchCount += GamePatch.Postfix(harmony, tacticalManager, "NextRound", hooks.GetMethod(nameof(NextRound_Postfix), flags)) ? 1 : 0; // Commented out pending GameMethod additon to API
+            patchCount += GamePatch.Postfix(harmony, tacticalManager, "NextRound", hooks.GetMethod(nameof(NextRound_Postfix), flags)) ? 1 : 0;
 
             // Mission Events
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnObjectiveStateChanged", hooks.GetMethod(nameof(OnObjectiveStateChanged_Postfix), flags)) ? 1 : 0;
@@ -173,84 +170,6 @@ public static class TacticalEventHooks
         }
     }
 
-    // Skill field offsets - fallbacks if schema not loaded
-    private const int FALLBACK_OFFSET_SKILL_TEMPLATE = 0x10;
-    private const int FALLBACK_OFFSET_TEMPLATE_IS_ATTACK = 0xF2;
-    private const int FALLBACK_OFFSET_TEMPLATE_IS_SILENT = 0x110;
-
-    // Cached schema offsets
-    private static int? _schemaOffsetTemplate;
-    private static int? _schemaOffsetIsAttack;
-    private static int? _schemaOffsetIsSilent;
-    private static bool _schemaChecked;
-
-    private static void EnsureSchemaOffsetsLoaded()
-    {
-        if (_schemaChecked) return;
-        _schemaChecked = true;
-
-        if (!TemplateSchema.IsInitialized) return;
-
-        if (TemplateSchema.TryGetOffset("Skill", "Template", out var tOff))
-            _schemaOffsetTemplate = tOff;
-        if (TemplateSchema.TryGetOffset("SkillTemplate", "IsAttack", out var aOff))
-            _schemaOffsetIsAttack = aOff;
-        if (TemplateSchema.TryGetOffset("SkillTemplate", "IsSilent", out var sOff))
-            _schemaOffsetIsSilent = sOff;
-    }
-
-    private static int GetOffsetSkillTemplate()
-    {
-        EnsureSchemaOffsetsLoaded();
-        return _schemaOffsetTemplate ?? FALLBACK_OFFSET_SKILL_TEMPLATE;
-    }
-
-    private static int GetOffsetIsAttack()
-    {
-        EnsureSchemaOffsetsLoaded();
-        return _schemaOffsetIsAttack ?? FALLBACK_OFFSET_TEMPLATE_IS_ATTACK;
-    }
-
-    private static int GetOffsetIsSilent()
-    {
-        EnsureSchemaOffsetsLoaded();
-        return _schemaOffsetIsSilent ?? FALLBACK_OFFSET_TEMPLATE_IS_SILENT;
-    }
-
-    /// <summary>
-    /// Extract skill information from a skill object for Lua events.
-    /// Returns (isAttack, isSilent, skillName) tuple.
-    /// </summary>
-    private static (bool isAttack, bool isSilent, string name) GetSkillInfo(object skill)
-    {
-        if (skill == null) return (false, false, "<null>");
-
-        try
-        {
-            var skillPtr = Il2CppUtils.GetPointer(skill);
-            if (skillPtr == IntPtr.Zero) return (false, false, "<null>");
-
-            var skillObj = new GameObj(skillPtr);
-            var name = skillObj.GetName() ?? "<unnamed>";
-
-            // Read template pointer from skill
-            var templatePtr = Marshal.ReadIntPtr(skillPtr + GetOffsetSkillTemplate());
-            if (templatePtr == IntPtr.Zero) return (false, false, name);
-
-            // Read IsAttack bool from template
-            var isAttack = Marshal.ReadByte(templatePtr + GetOffsetIsAttack()) != 0;
-
-            // Read IsSilent bool from template
-            var isSilent = Marshal.ReadByte(templatePtr + GetOffsetIsSilent()) != 0;
-
-            return (isAttack, isSilent, name);
-        }
-        catch
-        {
-            return (false, false, "<unknown>");
-        }
-    }
-
     private static void FireLuaEvent(string eventName, Dictionary<string, object> data)
     {
         try
@@ -271,23 +190,18 @@ public static class TacticalEventHooks
 
     private static void OnActorKilled_Postfix(object __instance, object _target, object _killer, int _killerFaction)
     {
-        OnActorKilled?.Invoke(Il2CppUtils.GetPointer(_target), Il2CppUtils.GetPointer(_killer), _killerFaction);
-    }
+        var targetPtr = Il2CppUtils.GetPointer(_target);
+        var killerPtr = Il2CppUtils.GetPointer(_killer);
 
-    private static void OnDeath_Postfix(object __instance, object entity, object killer, int factionId)
-    {
-        var entityPtr = Il2CppUtils.GetPointer(entity);
-        var killerPtr = Il2CppUtils.GetPointer(killer);
-
-        OnActorKilled?.Invoke(entityPtr, killerPtr, factionId);
+        OnActorKilled?.Invoke(targetPtr, killerPtr, _killerFaction);
 
         FireLuaEvent("actor_killed", new Dictionary<string, object>
         {
-            ["actor"] = GetName(entity),
-            ["actor_ptr"] = entityPtr.ToInt64(),
-            ["killer"] = GetName(killer),
+            ["actor"] = GetName(_target),
+            ["actor_ptr"] = targetPtr.ToInt64(),
+            ["killer"] = GetName(_killer),
             ["killer_ptr"] = killerPtr.ToInt64(),
-            ["faction"] = factionId
+            ["faction"] = _killerFaction
         });
     }
 
@@ -591,18 +505,13 @@ public static class TacticalEventHooks
 
     private static void OnSkillCompleted_Postfix(object __instance, object _skill)
     {
-        OnSkillCompleted?.Invoke(Il2CppUtils.GetPointer(_skill));
-    }
-
-    private static void OnAfterSkillUse_Postfix(object __instance, object skill)
-    {
-        var skillPtr = Il2CppUtils.GetPointer(skill);
+        var skillPtr = Il2CppUtils.GetPointer(_skill);
 
         OnSkillCompleted?.Invoke(skillPtr);
 
         FireLuaEvent("skill_complete", new Dictionary<string, object>
         {
-            ["skill"] = GetName(skill),
+            ["skill"] = GetName(_skill),
             ["skill_ptr"] = skillPtr.ToInt64()
         });
     }
@@ -710,19 +619,6 @@ public static class TacticalEventHooks
 
         // Fire existing turn_end event for compatibility
         LuaScriptEngine.Instance?.OnTurnEnd(faction, factionName);
-    }
-
-    private static void OnNextRound_Postfix(object __instance)
-    {
-        // Fire round_start AFTER the round number has incremented
-        int roundNumber = TacticalController.GetCurrentRound();
-
-        OnRoundStart?.Invoke(roundNumber);
-
-        FireLuaEvent("round_start", new Dictionary<string, object>
-        {
-            ["round"] = roundNumber
-        });
     }
 
     private static void NextRound_Postfix(object __instance)
