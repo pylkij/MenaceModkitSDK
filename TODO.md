@@ -10,7 +10,6 @@
 ## Pending
 <!-- Confirmed tasks not yet started -->
 - [ ] Investigate missing type errors on startup (MissionTemplate, Map, OperationTemplate, MapGenerator)
-- [ ] Investigate requirements for repair of `StrategyEventHooks`
 
 ## Completed
 - [x] Fork and set up build environment
@@ -21,6 +20,7 @@
 - [x] Port Il2CppUtils
 - [x] New class `GameMethods`, mirroring GameObj utility for methods
 - [x] `TacticalEventHooks` refactored and repaired.
+- [ ] `StrategyEventHooks` migrated to GamePatch; expanded event coverage
 
 
 ## Notes
