@@ -81,7 +81,7 @@ public partial class ModpackLoaderMod : MelonMod
 
         StrategyEventHooks.Initialize(HarmonyInstance);
 
-        StrategyEventHooks.OnMissionEnded += _ =>
+        StrategyEventHooks.OnMissionFinished += (_, _, _) =>
         {
             SDK.Coroutine.Cleanup();
             StateMachine.Cleanup();
