@@ -378,7 +378,7 @@ public sealed class GraphInterpreter
         ExecuteGraphsForHook(HookPoints.SkillUsed, context);
     }
 
-    private void OnDamageReceived(IntPtr targetPtr, IntPtr attackerPtr, IntPtr skillPtr)
+    private void OnDamageReceived(IntPtr targetPtr, IntPtr attackerPtr, IntPtr skillPtr, IntPtr damageInfoPtr)
     {
         var context = new ExecutionContext
         {
@@ -437,7 +437,7 @@ public sealed class GraphInterpreter
         ExecuteGraphsForHook(HookPoints.TurnEnd, context);
     }
 
-    private void OnMovementStarted(IntPtr actorPtr, IntPtr fromTilePtr, IntPtr toTilePtr)
+    private void OnMovementStarted(IntPtr actorPtr, IntPtr fromTilePtr, IntPtr toTilePtr, IntPtr actionPtr, IntPtr containerPtr)
     {
         var context = new ExecutionContext
         {
