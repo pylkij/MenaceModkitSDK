@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
+using Il2CppMenace.Tactical;
+
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -596,7 +598,7 @@ public static class TacticalEventHooks
         {
             OnTurnStart?.Invoke(actorPtr);
 
-            var result = GameMethod.Call(__instance, "Il2CppMenace.Tactical.TacticalManager", "IsPlayerTurn");
+            var result = GameMethod.Call<TacticalManager>(__instance, x => x.IsPlayerTurn());
             if (result == null) return;
 
             if ((bool)result)
@@ -634,7 +636,7 @@ public static class TacticalEventHooks
 
     private static void NextRound_Postfix(object __instance)
     {
-        var round = GameMethod.CallInt(__instance, "Il2CppMenace.Tactical.TacticalManager", "GetRound");
+        var round = GameMethod.CallInt<TacticalManager>(__instance, x => x.GetRound());
 
         OnRoundStart?.Invoke(round);
 

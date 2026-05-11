@@ -1,114 +1,51 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 
 namespace Menace.SDK;
 
 /// <summary>
-/// Invoke methods on IL2CPP game objects by name via reflection,
-/// with cached MethodInfo lookups to avoid repeated scanning.
+/// Invoke methods on IL2CPP game objects via expression trees.
+/// Type and method resolution happens at compile time; failures surface
+/// as compiler errors rather than runtime exceptions.
 /// Complements GameObj field reads with method call capability.
 /// </summary>
 public static class GameMethod
 {
-    private static Assembly _gameAssembly;
-    private static readonly Dictionary<string, Type> _typeCache = new();
-
-    // Cache keyed by "typeName::methodName" — MethodInfo on a stable game assembly
-    // does not change for the lifetime of the process.
-    private static readonly Dictionary<string, MethodInfo> _methodCache = new();
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Type resolution
-    // ═══════════════════════════════════════════════════════════════════
-
-    private static Type ResolveType(string typeName)
-    {
-        if (string.IsNullOrEmpty(typeName))
-        {
-            ModError.ReportInternal("Type name is null or empty", "GameMethod.ResolveType", null);
-            return null;
-        }
-
-        if (_typeCache.TryGetValue(typeName, out var cached))
-            return cached;
-
-        try
-        {
-            _gameAssembly ??= AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
-
-            if (_gameAssembly == null)
-            {
-                ModError.ReportInternal("Assembly-CSharp not loaded", "GameMethod.ResolveType", null);
-                return null;
-            }
-
-            var type = _gameAssembly.GetTypes()
-                .FirstOrDefault(t => t.Name == typeName || t.FullName == typeName);
-
-            if (type == null)
-            {
-                ModError.ReportInternal($"Type not found — {typeName}", "GameMethod.ResolveType", null);
-                return null;
-            }
-
-            _typeCache[typeName] = type;
-            return type;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal($"Failed to resolve type '{typeName}'", "GameMethod.ResolveType", ex);
-            return null;
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     //  Method resolution
     // ═══════════════════════════════════════════════════════════════════
 
-    private static MethodInfo ResolveMethod(string typeName, string methodName, Type[] paramTypes = null)
+    private static MethodInfo ResolveMethod<TType>(Expression<Action<TType>> methodExpr)
     {
-        var cacheKey = paramTypes == null
-            ? $"{typeName}::{methodName}"
-            : $"{typeName}::{methodName}({string.Join(",", Array.ConvertAll(paramTypes, t => t.FullName))})";
-
-        if (_methodCache.TryGetValue(cacheKey, out var cached))
-            return cached;
-
-        try
+        if (methodExpr.Body is not MethodCallExpression callExpr)
         {
-            var type = ResolveType(typeName);
-            if (type == null) return null;
-
-            MethodInfo method;
-            if (paramTypes != null)
-            {
-                method = type.GetMethod(methodName,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static,
-                    null, paramTypes, null);
-            }
-            else
-            {
-                method = type.GetMethod(methodName,
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static);
-            }
-
-            if (method == null)
-            {
-                ModError.ReportInternal($"Method not found — {typeName}.{methodName}", "GameMethod.ResolveMethod", null);
-                return null;
-            }
-
-            _methodCache[cacheKey] = method;
-            return method;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal($"Failed to resolve {typeName}.{methodName}", "GameMethod.ResolveMethod", ex);
+            ModError.ReportInternal(
+                $"Expression body is not a method call — got {methodExpr.Body.NodeType} on {typeof(TType).Name}", 
+                "GameMethod.ResolveMethod", 
+                null);
             return null;
         }
+        return ResolveFromExpression(callExpr);
+    }
+
+    private static MethodInfo ResolveMethod<TType, TReturn>(Expression<Func<TType, TReturn>> methodExpr)
+    {
+        if (methodExpr.Body is not MethodCallExpression callExpr)
+        {
+            ModError.ReportInternal(
+                $"Expression body is not a method call — got {methodExpr.Body.NodeType} on {typeof(TType).Name}", 
+                "GameMethod.ResolveMethod", 
+                null);
+            return null;
+        }
+        return ResolveFromExpression(callExpr);
+    }
+
+    private static MethodInfo ResolveFromExpression(MethodCallExpression callExpr)
+    {
+        var method = callExpr.Method;
+        return method;
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -116,20 +53,22 @@ public static class GameMethod
     // ═══════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Invoke a static method by type and method name. Returns null on failure.
+    /// Invoke a static method resolved via expression tree. Returns null on failure.
     /// </summary>
-    public static object CallStatic(string typeName, string methodName, Type[] paramTypes = null, object[] args = null)
+    public static object CallStatic<TType>(
+        Expression<Action<TType>> methodExpr,
+        object[] args = null)
     {
         try
         {
-            var method = ResolveMethod(typeName, methodName, paramTypes);
+            var method = ResolveMethod(methodExpr);
             if (method == null) return null;
 
             return method.Invoke(null, args);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal($"CallStatic failed — {typeName}.{methodName}", "GameMethod.CallStatic", ex);
+            ModError.ReportInternal($"CallStatic failed — {typeof(TType).Name}", "GameMethod.CallStatic", ex);
             return null;
         }
     }
@@ -141,24 +80,52 @@ public static class GameMethod
     /// <summary>
     /// Invoke an instance method on an IL2CPP object. Returns null on failure.
     /// </summary>
-    public static object Call(object instance, string typeName, string methodName, Type[] paramTypes = null, object[] args = null)
+    public static object Call<TType>(
+        object instance,
+        Expression<Action<TType>> methodExpr,
+        object[] args = null)
     {
         if (instance == null)
         {
-            ModError.ReportInternal($"Null instance for {typeName}.{methodName}", "GameMethod.Call", null);
+            ModError.ReportInternal($"Null instance for {typeof(TType).Name}", "GameMethod.Call", null);
             return null;
         }
 
         try
         {
-            var method = ResolveMethod(typeName, methodName, paramTypes);
+            var method = ResolveMethod(methodExpr);
             if (method == null) return null;
 
             return method.Invoke(instance, args);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal($"Call failed — {typeName}.{methodName}", "GameMethod.Call", ex);
+            ModError.ReportInternal($"Call failed — {typeof(TType).Name}", "GameMethod.Call", ex);
+            return null;
+        }
+    }
+
+    private static object Call<TType, TReturn>(
+        object instance,
+        Expression<Func<TType, TReturn>> methodExpr,
+        object[] args = null)
+    {
+        if (instance == null)
+        {
+            ModError.ReportInternal($"Null instance for {typeof(TType).Name}", "GameMethod.Call", null);
+            return null;
+        }
+
+        try
+        {
+            var method = ResolveMethod(methodExpr);
+            if (method == null) return null;
+
+            return method.Invoke(instance, args);
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal($"Call failed — {typeof(TType).Name}", "GameMethod.Call", ex);
             return null;
         }
     }
@@ -170,37 +137,30 @@ public static class GameMethod
     /// <summary>
     /// Invoke an instance method and return the result as int. Returns 0 on failure.
     /// </summary>
-    public static int CallInt(object instance, string typeName, string methodName, Type[] paramTypes = null, object[] args = null)
+    public static int CallInt<TType>(
+        object instance,
+        Expression<Func<TType, int>> methodExpr,
+        object[] args = null)
     {
-        var result = Call(instance, typeName, methodName, paramTypes, args);
+        var result = Call<TType, int>(instance, methodExpr, args);
         if (result is int i) return i;
         if (result != null)
-            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeName}.{methodName}", "GameMethod.CallInt", null);
+            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeof(TType).Name}", "GameMethod.CallInt", null);
         return 0;
     }
 
     /// <summary>
     /// Invoke an instance method and return the result as bool. Returns false on failure.
     /// </summary>
-    public static bool CallBool(object instance, string typeName, string methodName, Type[] paramTypes = null, object[] args = null)
+    public static bool CallBool<TType>(
+        object instance,
+        Expression<Func<TType, bool>> methodExpr,
+        object[] args = null)
     {
-        var result = Call(instance, typeName, methodName, paramTypes, args);
+        var result = Call<TType, bool>(instance, methodExpr, args);
         if (result is bool b) return b;
         if (result != null)
-            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeName}.{methodName}", "GameMethod.CallBool", null);
+            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeof(TType).Name}", "GameMethod.CallBool", null);
         return false;
-    }
-
-    /// <summary>
-    /// Invoke an instance method and return the result as IntPtr. Returns IntPtr.Zero on failure.
-    /// </summary>
-    public static IntPtr CallPtr(object instance, string typeName, string methodName, Type[] paramTypes = null, object[] args = null)
-    {
-        var result = Call(instance, typeName, methodName, paramTypes, args);
-        if (result is IntPtr ptr) return ptr;
-        if (result is Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase il2cppObj) return il2cppObj.Pointer;
-        if (result != null)
-            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeName}.{methodName}", "GameMethod.CallPtr", null);
-        return IntPtr.Zero;
     }
 }

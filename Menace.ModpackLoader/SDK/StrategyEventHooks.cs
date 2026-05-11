@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
+using Il2CppMenace.Strategy;
+
 namespace Menace.SDK;
 
 /// <summary>
@@ -322,7 +324,7 @@ public static class StrategyEventHooks
 
     private static void SquaddieAddAlive_Postfix(object __instance, string _name)
     {
-        int count = GameMethod.CallInt(__instance, "Squaddies", "GetAliveCount");
+        int count = GameMethod.CallInt<Squaddies>(__instance, x => x.GetAliveCount());
 
         OnSquaddieAdded?.Invoke(count);
 
