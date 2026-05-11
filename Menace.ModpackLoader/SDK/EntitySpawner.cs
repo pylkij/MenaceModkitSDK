@@ -19,11 +19,11 @@ namespace Menace.SDK;
 public static class EntitySpawner
 {
     // Cached types
-    private static GameType _actorType;
-    private static GameType _entityTemplateType;
-    private static GameType _tileType;
-    private static GameType _tacticalManagerType;
-    private static GameType _factionType;
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _entityTemplateType = GameType.Of<Il2CppMenace.Tactical.EntityTemplate>();
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _transientActorType = GameType.Of<Il2CppMenace.Tactical.TransientActor>();
 
     // Field offsets from actor-system.md
     private const uint OFFSET_ENTITY_ID = 0x10;
@@ -62,8 +62,6 @@ public static class EntitySpawner
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Find the template
             var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
             if (template.IsNull)
@@ -95,7 +93,7 @@ public static class EntitySpawner
 
             // Use DevMode's approach: create TransientActor directly, initialize it, then finalize
             // This matches how SpawnEntityAction.HandleLeftClickOnTile works
-            var transientActorType = GameType.Find("Menace.Tactical.TransientActor")?.ManagedType;
+            var transientActorType = _transientActorType.ManagedType;
             if (transientActorType == null)
             {
                 return SpawnResult.Failed("TransientActor type not found");
@@ -188,8 +186,6 @@ public static class EntitySpawner
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Actors are stored in TacticalManager.m_Factions[].m_Actors, not as Unity Resources
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return Array.Empty<GameObj>();
@@ -288,8 +284,6 @@ public static class EntitySpawner
 
         try
         {
-            EnsureTypesLoaded();
-
             var managedType = _actorType?.ManagedType;
             if (managedType == null)
             {
@@ -375,15 +369,6 @@ public static class EntitySpawner
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _entityTemplateType ??= GameType.Find("Menace.Tactical.EntityTemplate");
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-        _factionType ??= GameType.Find("Menace.Tactical.FactionType");
-    }
 
     private static GameObj GetTileAt(int x, int y)
     {
