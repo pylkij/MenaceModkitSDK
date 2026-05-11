@@ -25,11 +25,11 @@ namespace Menace.SDK;
 public static class ArmyGeneration
 {
     // Cached types
-    private static GameType _armyType;
-    private static GameType _armyEntryType;
-    private static GameType _armyTemplateType;
-    private static GameType _armyTemplateEntryType;
-    private static GameType _entityTemplateType;
+    private static readonly GameType _armyType = GameType.Of<Il2CppMenace.Strategy.Army>();
+    private static readonly GameType _armyEntryType = GameType.Of<Il2CppMenace.Strategy.ArmyEntry>();
+    private static readonly GameType _armyTemplateType = GameType.Of<Il2CppMenace.Strategy.ArmyTemplate>();
+    private static readonly GameType _armyTemplateEntryType = GameType.Of<Il2CppMenace.Strategy.ArmyTemplateEntry>();
+    private static readonly GameType _entityTemplateType = GameType.Of<Il2CppMenace.Tactical.EntityTemplate>();
 
     // Default spawn area index
     public const byte DEFAULT_SPAWN_AREA = 3;
@@ -69,8 +69,6 @@ public static class ArmyGeneration
 
         try
         {
-            EnsureTypesLoaded();
-
             var armyType = _armyType?.ManagedType;
             if (armyType == null) return null;
 
@@ -138,8 +136,6 @@ public static class ArmyGeneration
 
         try
         {
-            EnsureTypesLoaded();
-
             var entryType = _armyEntryType?.ManagedType;
             if (entryType == null) return null;
 
@@ -187,8 +183,6 @@ public static class ArmyGeneration
 
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _armyTemplateType?.ManagedType;
             if (templateType == null) return false;
 
@@ -219,8 +213,6 @@ public static class ArmyGeneration
 
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _entityTemplateType?.ManagedType;
             if (templateType == null) return 0;
 
@@ -416,8 +408,6 @@ public static class ArmyGeneration
 
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _armyTemplateType?.ManagedType;
             if (templateType == null) return result;
 
@@ -515,15 +505,6 @@ public static class ArmyGeneration
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _armyType ??= GameType.Find("Army");
-        _armyEntryType ??= GameType.Find("ArmyEntry");
-        _armyTemplateType ??= GameType.Find("ArmyTemplate");
-        _armyTemplateEntryType ??= GameType.Find("ArmyTemplateEntry");
-        _entityTemplateType ??= GameType.Find("EntityTemplate");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
