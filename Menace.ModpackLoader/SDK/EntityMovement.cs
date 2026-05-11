@@ -26,11 +26,12 @@ namespace Menace.SDK;
 public static class EntityMovement
 {
     // Cached types
-    private static GameType _actorType;
-    private static GameType _tileType;
-    private static GameType _tacticalManagerType;
-    private static GameType _pathfindingProcessType;
-    private static GameType _movementActionType;
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _pathfindingProcessType = GameType.Of<Il2CppMenace.Tactical.PathfindingProcess>(); // Not actually used, but for a movement API it probably should be so I am leaving it for now.
+    private static readonly GameType _movementActionType = GameType.Of<Il2CppMenace.Tactical.Actor>(); // Original class did not exist, Actor is a guess based on Method name and parameters passed
+    private static readonly GameType _pathfindingManagerType = GameType.Of<Il2CppMenace.Tactical.PathfindingManager>();
 
     // Field offsets from actor-system.md
     private const uint OFFSET_ACTOR_START_TILE = 0xA0;
@@ -93,8 +94,6 @@ public static class EntityMovement
 
         try
         {
-            EnsureTypesLoaded();
-
             // Check if already moving
             if (IsMoving(actor))
                 return MoveResult.Failed("Actor is already moving");
@@ -117,7 +116,7 @@ public static class EntityMovement
             if (tileProxy == null)
                 return MoveResult.Failed("Failed to get tile proxy");
 
-            // Find MoveTo method - signature: MoveTo(Tile _tile, MovementAction& _action, MovementFlags _flags)
+            // Find MoveTo method - signature: MoveTo(Tile _tile, MovementAction _action, MovementFlags _flags)
             var movementActionManagedType = _movementActionType?.ManagedType;
             if (movementActionManagedType == null)
                 return MoveResult.Failed("MovementAction type not available");
@@ -221,8 +220,6 @@ public static class EntityMovement
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null)
                 return result;
@@ -302,8 +299,6 @@ public static class EntityMovement
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null)
                 return result;
@@ -379,8 +374,6 @@ public static class EntityMovement
 
         try
         {
-            EnsureTypesLoaded();
-
             // Get current and destination tiles
             var currentTile = GetActorTile(actor);
             var destTile = GetTileAt(destX, destY);
@@ -389,8 +382,7 @@ public static class EntityMovement
                 return result;
 
             // Use PathfindingManager to get path
-            var pmType = GameType.Find("Menace.Tactical.PathfindingManager");
-            var pmManaged = pmType?.ManagedType;
+            var pmManaged = _pathfindingManagerType.ManagedType;
             if (pmManaged == null)
                 return result;
 
@@ -587,21 +579,10 @@ public static class EntityMovement
 
     // --- Internal helpers ---
 
-    private static void EnsureTypesLoaded()
-    {
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-        _pathfindingProcessType ??= GameType.Find("Menace.Tactical.PathfindingProcess");
-        _movementActionType ??= GameType.Find("Menace.Tactical.MovementAction");
-    }
-
     private static GameObj GetTileAt(int x, int y)
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return GameObj.Null;
 
@@ -636,7 +617,6 @@ public static class EntityMovement
         try
         {
             // Primary method: use Actor.GetTile() method
-            EnsureTypesLoaded();
             var actorType = _actorType?.ManagedType;
             if (actorType != null)
             {
