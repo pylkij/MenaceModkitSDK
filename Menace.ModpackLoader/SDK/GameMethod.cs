@@ -13,11 +13,6 @@ namespace Menace.SDK;
 /// </summary>
 public static class GameMethod
 {
-    // Keyed by MethodInfo directly — stable reference on a loaded assembly.
-    // Acts as an identity cache: confirms a method has been validated and is
-    // ready to invoke without re-evaluating the expression tree on every call.
-    private static readonly HashSet<MethodInfo> _methodCache = [];
-
     // ═══════════════════════════════════════════════════════════════════
     //  Method resolution
     // ═══════════════════════════════════════════════════════════════════
@@ -26,7 +21,10 @@ public static class GameMethod
     {
         if (methodExpr.Body is not MethodCallExpression callExpr)
         {
-            ModError.ReportInternal("...", "GameMethod.ResolveMethod", null);
+            ModError.ReportInternal(
+                $"Expression body is not a method call — got {methodExpr.Body.NodeType} on {typeof(TType).Name}", 
+                "GameMethod.ResolveMethod", 
+                null);
             return null;
         }
         return ResolveFromExpression(callExpr);
@@ -36,7 +34,10 @@ public static class GameMethod
     {
         if (methodExpr.Body is not MethodCallExpression callExpr)
         {
-            ModError.ReportInternal("...", "GameMethod.ResolveMethod", null);
+            ModError.ReportInternal(
+                $"Expression body is not a method call — got {methodExpr.Body.NodeType} on {typeof(TType).Name}", 
+                "GameMethod.ResolveMethod", 
+                null);
             return null;
         }
         return ResolveFromExpression(callExpr);
@@ -45,9 +46,6 @@ public static class GameMethod
     private static MethodInfo ResolveFromExpression(MethodCallExpression callExpr)
     {
         var method = callExpr.Method;
-        if (_methodCache.Contains(method))
-            return method;
-        _methodCache.Add(method);
         return method;
     }
 
@@ -165,21 +163,5 @@ public static class GameMethod
         if (result != null)
             ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeof(TType).Name}", "GameMethod.CallBool", null);
         return false;
-    }
-
-    /// <summary>
-    /// Invoke an instance method and return the result as IntPtr. Returns IntPtr.Zero on failure.
-    /// </summary>
-    public static IntPtr CallPtr<TType>(
-        object instance,
-        Expression<Func<TType, IntPtr>> methodExpr,
-        object[] args = null)
-    {
-        var result = Call<TType, IntPtr>(instance, methodExpr, args);
-        if (result is IntPtr ptr) return ptr;
-        if (result is Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase il2cppObj) return il2cppObj.Pointer;
-        if (result != null)
-            ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeof(TType).Name}", "GameMethod.CallPtr", null);
-        return IntPtr.Zero;
     }
 }
