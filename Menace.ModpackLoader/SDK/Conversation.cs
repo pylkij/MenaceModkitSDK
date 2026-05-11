@@ -29,14 +29,15 @@ namespace Menace.SDK;
 public static class Conversation
 {
     // Cached types
-    private static GameType _conversationManagerType;
-    private static GameType _conversationPresenterType;
-    private static GameType _conversationTemplateType;
-    private static GameType _roleType;
-    private static GameType _speakerTemplateType;
-    private static GameType _conversationNodeType;
-    private static GameType _tacticalManagerType;
-    private static GameType _strategyStateType;
+    private static readonly GameType _conversationManagerType = GameType.Of<Il2CppMenace.Conversations.BaseConversationManager>();
+    private static readonly GameType _conversationPresenterType = GameType.Of<Il2CppMenace.Conversations.ConversationPresenter>();
+    private static readonly GameType _conversationTemplateType = GameType.Of<Il2CppMenace.Conversations.ConversationTemplate>();
+    private static readonly GameType _roleType = GameType.Of<Il2CppMenace.Conversations.Role>();
+    private static readonly GameType _speakerTemplateType = GameType.Of<Il2CppMenace.Conversations.SpeakerTemplate>();
+    private static readonly GameType _conversationNodeType = GameType.Of<Il2CppMenace.Conversations.BaseConversationNode>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    private static readonly GameType _tacticalState = GameType.Of < Il2CppMenace.States.TacticalState> ();
 
     // ConversationTriggerType enum values
     /// <summary>No trigger type specified.</summary>
@@ -298,11 +299,9 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Try TacticalState.TacticalBarksManager first (tactical mode)
             // TacticalBarksManager is stored in TacticalState at offset +0x88 (verified via REPL)
-            var tacticalStateType = GameType.Find("Menace.States.TacticalState")?.ManagedType;
+            var tacticalStateType = _tacticalState.ManagedType;
             if (tacticalStateType != null)
             {
                 var getMethod = tacticalStateType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
@@ -350,8 +349,6 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return GameObj.Null;
 
@@ -405,8 +402,6 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return false;
 
@@ -439,8 +434,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var cmType = _conversationManagerType?.ManagedType;
             if (cmType == null) return result;
 
@@ -521,8 +514,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _conversationTemplateType?.ManagedType;
             if (templateType == null) return null;
 
@@ -605,8 +596,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _conversationTemplateType?.ManagedType;
             if (templateType == null) return result;
 
@@ -652,8 +641,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var roleType = _roleType?.ManagedType;
             if (roleType == null) return null;
 
@@ -753,7 +740,6 @@ public static class Conversation
             if (currentNodePtr != IntPtr.Zero)
             {
                 var currentNode = new GameObj(currentNodePtr);
-                EnsureTypesLoaded();
                 var nodeType = _conversationNodeType?.ManagedType;
                 if (nodeType != null)
                 {
@@ -818,8 +804,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return false;
 
@@ -876,8 +860,6 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return false;
 
@@ -906,8 +888,6 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return false;
 
@@ -949,8 +929,6 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return false;
 
@@ -1008,8 +986,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var speakerType = _speakerTemplateType?.ManagedType;
             if (speakerType == null) return null;
 
@@ -1077,8 +1053,6 @@ public static class Conversation
 
         try
         {
-            EnsureTypesLoaded();
-
             var cmType = _conversationManagerType?.ManagedType;
             if (cmType == null) return 0;
 
@@ -1128,8 +1102,6 @@ public static class Conversation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var cmType = _conversationManagerType?.ManagedType;
             if (cmType == null) return false;
 
@@ -1387,18 +1359,6 @@ public static class Conversation
 
     // --- Internal helpers ---
 
-    private static void EnsureTypesLoaded()
-    {
-        _conversationManagerType ??= GameType.Find("Menace.Conversations.BaseConversationManager");
-        _conversationPresenterType ??= GameType.Find("Menace.Conversations.ConversationPresenter");
-        _conversationTemplateType ??= GameType.Find("Menace.Conversations.ConversationTemplate");
-        _roleType ??= GameType.Find("Menace.Conversations.Role");
-        _speakerTemplateType ??= GameType.Find("Menace.Conversations.SpeakerTemplate");
-        _conversationNodeType ??= GameType.Find("Menace.Conversations.BaseConversationNode");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-    }
-
     private static object GetConversationManagerProxy()
     {
         try
@@ -1406,7 +1366,6 @@ public static class Conversation
             var cm = GetConversationManager();
             if (cm.IsNull) return null;
 
-            EnsureTypesLoaded();
             var cmType = _conversationManagerType?.ManagedType;
             if (cmType == null) return null;
 
@@ -1425,7 +1384,6 @@ public static class Conversation
             var presenter = GetPresenter();
             if (presenter.IsNull) return null;
 
-            EnsureTypesLoaded();
             var presenterType = _conversationPresenterType?.ManagedType;
             if (presenterType == null) return null;
 
