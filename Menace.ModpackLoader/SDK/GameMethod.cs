@@ -16,7 +16,7 @@ public static class GameMethod
     // Keyed by MethodInfo directly — stable reference on a loaded assembly.
     // Acts as an identity cache: confirms a method has been validated and is
     // ready to invoke without re-evaluating the expression tree on every call.
-    private static readonly Dictionary<MethodInfo, MethodInfo> _methodCache = new();
+    private static readonly HashSet<MethodInfo> _methodCache = new();
 
     // ═══════════════════════════════════════════════════════════════════
     //  Method resolution
@@ -45,9 +45,9 @@ public static class GameMethod
     private static MethodInfo ResolveFromExpression(MethodCallExpression callExpr)
     {
         var method = callExpr.Method;
-        if (_methodCache.TryGetValue(method, out var cached))
-            return cached;
-        _methodCache[method] = method;
+        if (_methodCache.Contains(method))
+            return method;
+        _methodCache.Add(method);
         return method;
     }
 
