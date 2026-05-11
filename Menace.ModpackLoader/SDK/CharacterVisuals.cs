@@ -13,6 +13,9 @@ namespace Menace.SDK;
 // Runtime visual overrides for character prefabs.
 public static class CharacterVisuals
 {
+    // Cached type
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+
     // Configuration for a character visual override.
     public class OverrideConfig
     {
@@ -235,7 +238,7 @@ public static class CharacterVisuals
     {
         try
         {
-            var managedType = GameType.Find("Menace.Tactical.Actor")?.ManagedType;
+            var managedType = _actorType.ManagedType;
             if (managedType == null) return null;
 
             var proxy = Il2CppUtils.GetManagedProxy(entity, managedType);
