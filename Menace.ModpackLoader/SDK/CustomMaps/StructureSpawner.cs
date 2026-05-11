@@ -30,12 +30,11 @@ public static class StructureSpawner
     // Template offset for entity type
     private const int OFFSET_ENTITY_TYPE = 0x88;
 
-    // Cached types
-    private static Type _structureType;
-    private static Type _entityTemplateType;
-    private static Type _tileType;
-    private static Type _tacticalManagerType;
-    private static bool _typesLoaded;
+    // Cached types - slight bodge here due to the structure of the code.
+    private static readonly Type _structureType = GameType.Of<Il2CppMenace.Tactical.Structure>().ManagedType;
+    private static readonly Type _entityTemplateType = GameType.Of<Il2CppMenace.Tactical.EntityTemplate>().ManagedType;
+    private static readonly Type _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>().ManagedType;
+    private static readonly Type _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>().ManagedType;
 
     /// <summary>
     /// Result of a structure spawn operation.
@@ -63,8 +62,6 @@ public static class StructureSpawner
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Find the template
             var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
             if (template.IsNull)
@@ -160,8 +157,6 @@ public static class StructureSpawner
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Find the template and check its type
             var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
             if (template.IsNull)
@@ -217,25 +212,6 @@ public static class StructureSpawner
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        if (_typesLoaded) return;
-
-        var gameType = GameType.Find("Menace.Tactical.Structure");
-        _structureType = gameType?.ManagedType;
-
-        gameType = GameType.Find("Menace.Tactical.EntityTemplate");
-        _entityTemplateType = gameType?.ManagedType;
-
-        gameType = GameType.Find("Menace.Tactical.Tile");
-        _tileType = gameType?.ManagedType;
-
-        gameType = GameType.Find("Menace.Tactical.TacticalManager");
-        _tacticalManagerType = gameType?.ManagedType;
-
-        _typesLoaded = true;
-    }
 
     private static GameObj GetTileAt(int x, int y)
     {
