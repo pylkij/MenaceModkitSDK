@@ -26,15 +26,27 @@ public static class GameMethod
     {
         if (methodExpr.Body is not MethodCallExpression callExpr)
         {
-            ModError.ReportInternal("Expression body is not a method call — pass a direct method call expression", "GameMethod.ResolveMethod", null);
+            ModError.ReportInternal("...", "GameMethod.ResolveMethod", null);
             return null;
         }
+        return ResolveFromExpression(callExpr);
+    }
 
+    private static MethodInfo ResolveMethod<TType, TReturn>(Expression<Func<TType, TReturn>> methodExpr)
+    {
+        if (methodExpr.Body is not MethodCallExpression callExpr)
+        {
+            ModError.ReportInternal("...", "GameMethod.ResolveMethod", null);
+            return null;
+        }
+        return ResolveFromExpression(callExpr);
+    }
+
+    private static MethodInfo ResolveFromExpression(MethodCallExpression callExpr)
+    {
         var method = callExpr.Method;
-
         if (_methodCache.TryGetValue(method, out var cached))
             return cached;
-
         _methodCache[method] = method;
         return method;
     }
@@ -96,6 +108,31 @@ public static class GameMethod
         }
     }
 
+    private static object Call<TType, TReturn>(
+        object instance,
+        Expression<Func<TType, TReturn>> methodExpr,
+        object[] args = null)
+    {
+        if (instance == null)
+        {
+            ModError.ReportInternal($"Null instance for {typeof(TType).Name}", "GameMethod.Call", null);
+            return null;
+        }
+
+        try
+        {
+            var method = ResolveMethod(methodExpr);
+            if (method == null) return null;
+
+            return method.Invoke(instance, args);
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal($"Call failed — {typeof(TType).Name}", "GameMethod.Call", ex);
+            return null;
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════════
     //  Instance calls — typed convenience wrappers
     // ═══════════════════════════════════════════════════════════════════
@@ -105,10 +142,10 @@ public static class GameMethod
     /// </summary>
     public static int CallInt<TType>(
         object instance,
-        Expression<Action<TType>> methodExpr,
+        Expression<Func<TType, int>> methodExpr,
         object[] args = null)
     {
-        var result = Call(instance, methodExpr, args);
+        var result = Call<TType, int>(instance, methodExpr, args);
         if (result is int i) return i;
         if (result != null)
             ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeof(TType).Name}", "GameMethod.CallInt", null);
@@ -120,10 +157,10 @@ public static class GameMethod
     /// </summary>
     public static bool CallBool<TType>(
         object instance,
-        Expression<Action<TType>> methodExpr,
+        Expression<Func<TType, bool>> methodExpr,
         object[] args = null)
     {
-        var result = Call(instance, methodExpr, args);
+        var result = Call<TType, bool>(instance, methodExpr, args);
         if (result is bool b) return b;
         if (result != null)
             ModError.ReportInternal($"Unexpected return type {result.GetType()} for {typeof(TType).Name}", "GameMethod.CallBool", null);
@@ -135,10 +172,10 @@ public static class GameMethod
     /// </summary>
     public static IntPtr CallPtr<TType>(
         object instance,
-        Expression<Action<TType>> methodExpr,
+        Expression<Func<TType, IntPtr>> methodExpr,
         object[] args = null)
     {
-        var result = Call(instance, methodExpr, args);
+        var result = Call<TType, IntPtr>(instance, methodExpr, args);
         if (result is IntPtr ptr) return ptr;
         if (result is Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase il2cppObj) return il2cppObj.Pointer;
         if (result != null)
