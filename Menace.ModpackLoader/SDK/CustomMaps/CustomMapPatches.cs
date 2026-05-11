@@ -70,19 +70,12 @@ public static class CustomMapPatches
     /// </summary>
     private static void ApplyMissionPatches()
     {
-        // Patch MissionTemplate.TryCreateMapLayout to inject custom parameters
+        var missionTemplate = typeof(Il2CppMenace.Strategy.Missions.MissionTemplate);
+
         var patchMethod = typeof(CustomMapPatches).GetMethod(nameof(TryCreateMapLayout_Prefix),
             BindingFlags.NonPublic | BindingFlags.Static);
 
-        GamePatch.Prefix(_harmony, "Menace.Strategy.Missions.MissionTemplate",
-            "TryCreateMapLayout", patchMethod);
-
-        // Patch for generator iteration
-        var generatorPatchMethod = typeof(CustomMapPatches).GetMethod(nameof(InitGenerators_Postfix),
-            BindingFlags.NonPublic | BindingFlags.Static);
-
-        // This will be the patch point after generators are created but before Init
-        // Exact method name TBD from Ghidra analysis
+        GamePatch.Prefix(_harmony, missionTemplate, "TryCreateMapLayout", patchMethod);
     }
 
     /// <summary>
@@ -90,17 +83,15 @@ public static class CustomMapPatches
     /// </summary>
     private static void ApplyMapSizePatches()
     {
-        // Patch Map.IsInBounds to use dynamic size
+        var map = typeof(Il2CppMenace.Tactical.Map);
+
         var isInBoundsMethod = typeof(CustomMapPatches).GetMethod(nameof(IsInBounds_Prefix),
             BindingFlags.NonPublic | BindingFlags.Static);
+        GamePatch.Prefix(_harmony, map, "IsInBounds", isInBoundsMethod);
 
-        GamePatch.Prefix(_harmony, "Menace.Tactical.Map", "IsInBounds", isInBoundsMethod);
-
-        // Patch Map.ClampToBounds to use dynamic size
         var clampMethod = typeof(CustomMapPatches).GetMethod(nameof(ClampToBounds_Prefix),
             BindingFlags.NonPublic | BindingFlags.Static);
-
-        GamePatch.Prefix(_harmony, "Menace.Tactical.Map", "ClampToBounds", clampMethod);
+        GamePatch.Prefix(_harmony, map, "ClampToBounds", clampMethod);
     }
 
     /// <summary>
@@ -108,12 +99,11 @@ public static class CustomMapPatches
     /// </summary>
     private static void ApplyMissionPoolPatches()
     {
-        // Patch OperationTemplate.GetMissionsForDifficulties to add custom maps
+        var operationTemplate = typeof(Il2CppMenace.Strategy.OperationTemplate);
+
         var poolPatchMethod = typeof(CustomMapPatches).GetMethod(nameof(GetMissionsForDifficulties_Postfix),
             BindingFlags.NonPublic | BindingFlags.Static);
-
-        GamePatch.Postfix(_harmony, "Menace.Strategy.Operations.OperationTemplate",
-            "GetMissionsForDifficulties", poolPatchMethod);
+        GamePatch.Postfix(_harmony, operationTemplate, "GetMissionsForDifficulties", poolPatchMethod);
     }
 
     /// <summary>
@@ -121,21 +111,15 @@ public static class CustomMapPatches
     /// </summary>
     private static void ApplyTileOverridePatches()
     {
-        // Patch OnSecondPass (State 7) to apply tile-level overrides after generation
+        var mapGenerator = typeof(Il2CppMenace.Tactical.Mapgen.BaseMapGenerator);
+
         var secondPassPostfixMethod = typeof(CustomMapPatches).GetMethod(nameof(OnSecondPass_Postfix),
             BindingFlags.NonPublic | BindingFlags.Static);
+        GamePatch.Postfix(_harmony, mapGenerator, "OnSecondPass", secondPassPostfixMethod);
 
-        // The map generator's OnSecondPass is called after initial layout is complete
-        // This is the ideal hook point for applying tile overrides
-        GamePatch.Postfix(_harmony, "Menace.Tactical.MapGeneration.MapGenerator",
-            "OnSecondPass", secondPassPostfixMethod);
-
-        // Also patch OnLayoutPass (State 3) for zone-aware generator parameter overrides
         var layoutPassPrefixMethod = typeof(CustomMapPatches).GetMethod(nameof(OnLayoutPass_Prefix),
             BindingFlags.NonPublic | BindingFlags.Static);
-
-        GamePatch.Prefix(_harmony, "Menace.Tactical.MapGeneration.MapGenerator",
-            "OnLayoutPass", layoutPassPrefixMethod);
+        GamePatch.Prefix(_harmony, mapGenerator, "OnLayoutPass", layoutPassPrefixMethod);
     }
 
     // ==================== Patch Methods ====================

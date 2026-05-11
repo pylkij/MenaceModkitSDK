@@ -69,13 +69,13 @@ public static class StrategyEventHooks
         try
         {
             // Cache types
-            const string rosterType = "Il2CppMenace.Strategy.Roster";
-            const string storyFactionType = "Il2CppMenace.Strategy.StoryFaction";
-            const string squaddiesType = "Il2CppMenace.Strategy.Squaddies";
-            const string baseGameEffect = "Il2CppMenace.Strategy.BaseGameEffect";
-            const string baseUnitLeaderType = "Il2CppMenace.Strategy.BaseUnitLeader";
-            const string blackMarketType = "Il2CppMenace.Strategy.BlackMarket";
-            const string emotionalStatesType = "Il2CppMenace.Strategy.EmotionalStates";
+            var rosterType = typeof(Il2CppMenace.Strategy.Roster);
+            var storyFactionType = typeof(Il2CppMenace.Strategy.StoryFaction);
+            var squaddiesType = typeof(Il2CppMenace.Strategy.Squaddies);
+            var baseGameEffect = typeof(Il2CppMenace.Strategy.BaseGameEffect);
+            var baseUnitLeaderType = typeof(Il2CppMenace.Strategy.BaseUnitLeader);
+            var blackMarketType = typeof(Il2CppMenace.Strategy.BlackMarket);
+            var emotionalStatesType = typeof(Il2CppMenace.Strategy.EmotionalStates);
 
             var hooks = typeof(StrategyEventHooks);
             var flags = BindingFlags.Static | BindingFlags.NonPublic;

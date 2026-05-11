@@ -93,7 +93,7 @@ public static class TacticalEventHooks
 
         try
         {
-            const string tacticalManager = "Il2CppMenace.Tactical.TacticalManager";
+            var tacticalManager = typeof(Il2CppMenace.Tactical.TacticalManager);
             var hooks = typeof(TacticalEventHooks);
             var flags = BindingFlags.Static | BindingFlags.NonPublic;
 
