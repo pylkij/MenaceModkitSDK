@@ -201,7 +201,7 @@ public static class BattleLog
 
     private static void Patch(HarmonyLib.Harmony harmony, string methodName, MethodInfo patch)
     {
-        if (!GamePatch.Postfix(harmony, "DevCombatLog", methodName, patch))
+        if (!GamePatch.Postfix(harmony, typeof(Il2CppMenace.Tactical.DevCombatLog), methodName, patch))
             SdkLogger.Warning($"[BattleLog] Could not patch DevCombatLog.{methodName}");
     }
 
