@@ -16,7 +16,7 @@ public static class GameMethod
     // Keyed by MethodInfo directly — stable reference on a loaded assembly.
     // Acts as an identity cache: confirms a method has been validated and is
     // ready to invoke without re-evaluating the expression tree on every call.
-    private static readonly HashSet<MethodInfo> _methodCache = new();
+    private static readonly HashSet<MethodInfo> _methodCache = [];
 
     // ═══════════════════════════════════════════════════════════════════
     //  Method resolution
