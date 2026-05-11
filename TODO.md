@@ -20,7 +20,7 @@
 - [x] Port Il2CppUtils
 - [x] New class `GameMethods`, mirroring GameObj utility for methods
 - [x] `TacticalEventHooks` refactored and repaired.
-- [ ] `StrategyEventHooks` migrated to GamePatch; expanded event coverage
+- [x] `StrategyEventHooks` migrated to GamePatch; expanded event coverage
 
 
 ## Notes
