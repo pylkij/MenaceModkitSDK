@@ -27,10 +27,10 @@ namespace Menace.SDK;
 public static class EntityAI
 {
     // Cached types
-    private static GameType _actorType;
-    private static GameType _agentType;
-    private static GameType _tacticalManagerType;
-    private static GameType _behaviorType;
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _agentType = GameType.Of<Il2CppMenace.Tactical.AI.Agent>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _behaviorType = GameType.Of<Il2CppMenace.Tactical.AI.Behavior>();
 
     // TacticalManager offsets
     private const uint OFFSET_TACTICAL_MANAGER_IS_AI_PAUSED = 0xB9;
@@ -102,8 +102,6 @@ public static class EntityAI
 
         try
         {
-            EnsureTypesLoaded();
-
             var agent = GetAgent(actor);
             if (agent.IsNull)
                 return AIResult.Failed("Actor has no AI agent");
@@ -187,8 +185,6 @@ public static class EntityAI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null)
                 return AIResult.Failed("TacticalManager type not found");
@@ -232,8 +228,6 @@ public static class EntityAI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null)
                 return AIResult.Failed("TacticalManager type not found");
@@ -277,8 +271,6 @@ public static class EntityAI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null)
                 return false;
@@ -501,8 +493,6 @@ public static class EntityAI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return null;
 
@@ -528,16 +518,5 @@ public static class EntityAI
             ModError.ReportInternal("EntityAI.GetTacticalManagerProxy", "Failed", ex);
             return null;
         }
-    }
-
-    /// <summary>
-    /// Ensure all required IL2CPP types are loaded.
-    /// </summary>
-    private static void EnsureTypesLoaded()
-    {
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _agentType ??= GameType.Find("Menace.Tactical.AI.Agent");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-        _behaviorType ??= GameType.Find("Menace.Tactical.AI.Behavior");
     }
 }
