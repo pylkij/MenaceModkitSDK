@@ -22,11 +22,12 @@ namespace Menace.SDK;
 public static class EntityCombat
 {
     // Cached types
-    private static GameType _actorType;
-    private static GameType _skillType;
-    private static GameType _skillContainerType;
-    private static GameType _tacticalStateType;
-    private static GameType _tacticalManagerType;
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _skillType = GameType.Of<Il2CppMenace.Tactical.Skills.BaseSkill>();
+    private static readonly GameType _skillContainerType = GameType.Of<Il2CppMenace.Tactical.Skills.SkillContainer>();
+    private static readonly GameType _tacticalStateType = GameType.Of<Il2CppMenace.States.TacticalState>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
 
     // Field offsets from actor-system.md
     private const uint OFFSET_ACTOR_SUPPRESSION = 0x15C;
@@ -78,8 +79,6 @@ public static class EntityCombat
 
         try
         {
-            EnsureTypesLoaded();
-
             // Get skills and find primary attack skill
             var skills = GetSkills(attacker);
             var attackSkill = skills.Find(s => s.IsAttack);
@@ -106,8 +105,6 @@ public static class EntityCombat
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null)
                 return CombatResult.Failed("Actor type not available");
@@ -188,7 +185,7 @@ public static class EntityCombat
             object targetTile = null;
             if (!target.IsNull)
             {
-                var tileType = GameType.Find("Menace.Tactical.Tile")?.ManagedType;
+                var tileType = _tileType.ManagedType;
                 var targetActorProxy = GetManagedProxy(target, actorType);
                 if (targetActorProxy != null)
                 {
@@ -226,8 +223,6 @@ public static class EntityCombat
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null)
                 return result;
@@ -555,15 +550,6 @@ public static class EntityCombat
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _skillType ??= GameType.Find("Menace.Tactical.Skills.BaseSkill");
-        _skillContainerType ??= GameType.Find("Menace.Tactical.Skills.SkillContainer");
-        _tacticalStateType ??= GameType.Find("Menace.States.TacticalState");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-    }
 
     private static string GetSuppressionState(GameObj actor)
     {
