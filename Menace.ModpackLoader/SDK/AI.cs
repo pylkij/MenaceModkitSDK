@@ -16,11 +16,11 @@ namespace Menace.SDK;
 public static class AI
 {
     // Cached types
-    private static GameType _agentType;
-    private static GameType _aiFactionType;
-    private static GameType _behaviorType;
-    private static GameType _roleDataType;
-    private static GameType _actorType;
+    private static readonly GameType _agentType = GameType.Of<Il2CppMenace.Tactical.AI.Agent>();
+    private static readonly GameType _aiFactionType = GameType.Of<Il2CppMenace.Tactical.AI.AIFaction>();
+    private static readonly GameType _behaviorType = GameType.Of<Il2CppMenace.Tactical.AI.Behavior>();
+    private static readonly GameType _roleDataType = GameType.Of<Il2CppMenace.Tactical.AI.Data.RoleData>();
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
 
     // Agent state enum values
     public const int STATE_NONE = 0;
@@ -124,8 +124,6 @@ public static class AI
 
         try
         {
-            EnsureTypesLoaded();
-
             // Agent is typically stored on Actor or accessible via AIFaction
             // Try Actor.Agent property first
             var agentObj = actor.ReadObj("Agent");
@@ -434,8 +432,6 @@ public static class AI
 
         try
         {
-            EnsureTypesLoaded();
-
             // Find AIFaction for this faction
             var aiFactions = GameQuery.FindAll("AIFaction");
             foreach (var aiFaction in aiFactions)
@@ -868,15 +864,6 @@ public static class AI
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _agentType ??= GameType.Find("Menace.Tactical.AI.Agent");
-        _aiFactionType ??= GameType.Find("Menace.Tactical.AI.AIFaction");
-        _behaviorType ??= GameType.Find("Menace.Tactical.AI.Behavior");
-        _roleDataType ??= GameType.Find("Menace.Tactical.AI.Data.RoleData");
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-    }
 
     private static string GetStateName(int state)
     {
