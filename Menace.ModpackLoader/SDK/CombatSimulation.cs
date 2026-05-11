@@ -18,9 +18,9 @@ namespace Menace.SDK;
 public static class CombatSimulation
 {
     // Cached types
-    private static GameType _skillType;
-    private static GameType _tileType;
-    private static GameType _actorType;
+    private static readonly GameType _skillType = GameType.Of<Il2CppMenace.Tactical.Skills.BaseSkill>();
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
 
     /// <summary>
     /// Result from hit chance calculation.
@@ -70,8 +70,6 @@ public static class CombatSimulation
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             var tileType = _tileType?.ManagedType;
             var skillType = _skillType?.ManagedType;
@@ -295,13 +293,6 @@ public static class CombatSimulation
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _skillType ??= GameType.Find("Menace.Tactical.Skills.BaseSkill");
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
