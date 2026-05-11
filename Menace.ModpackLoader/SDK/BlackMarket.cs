@@ -27,12 +27,12 @@ namespace Menace.SDK;
 public static class BlackMarket
 {
     // Cached types
-    private static GameType _blackMarketType;
-    private static GameType _blackMarketItemStackType;
-    private static GameType _strategyStateType;
-    private static GameType _strategyConfigType;
-    private static GameType _baseItemTemplateType;
-    private static GameType _baseItemType;
+    private static readonly GameType _blackMarketType = GameType.Of<Il2CppMenace.Strategy.BlackMarket>();
+    private static readonly GameType _blackMarketItemStackType = GameType.Of<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    private static readonly GameType _strategyConfigType = GameType.Of<Il2CppMenace.Strategy.StrategyConfig>();
+    private static readonly GameType _baseItemTemplateType = GameType.Of<Il2CppMenace.Items.BaseItemTemplate>();
+    private static readonly GameType _baseItemType = GameType.Of<Il2CppMenace.Items.BaseItem>();
 
     /// <summary>
     /// Stack type enumeration matching game's BlackMarketStackType.
@@ -149,8 +149,6 @@ public static class BlackMarket
     {
         try
         {
-            EnsureTypesLoaded();
-
             var ssType = _strategyStateType?.ManagedType;
             if (ssType == null) return GameObj.Null;
 
@@ -184,8 +182,6 @@ public static class BlackMarket
 
         try
         {
-            EnsureTypesLoaded();
-
             var info = new BlackMarketInfo { Pointer = bm.Pointer };
 
             // Get stacks list using direct offset access (Stacks property doesn't exist)
@@ -262,8 +258,6 @@ public static class BlackMarket
             var bm = GetBlackMarket();
             if (bm.IsNull) return result;
 
-            EnsureTypesLoaded();
-
             // Get stacks list using direct offset access (Stacks property doesn't exist)
             var (stacks, listType, count) = GetStacksList(bm);
             if (stacks == null || listType == null) return result;
@@ -301,8 +295,6 @@ public static class BlackMarket
             var bm = GetBlackMarket();
             if (bm.IsNull) return null;
 
-            EnsureTypesLoaded();
-
             // Get stacks list using direct offset access (Stacks property doesn't exist)
             var (stacks, listType, count) = GetStacksList(bm);
             if (stacks == null || listType == null) return null;
@@ -334,8 +326,6 @@ public static class BlackMarket
             var bm = GetBlackMarket();
             if (bm.IsNull) return GameObj.Null;
 
-            EnsureTypesLoaded();
-
             // Get stacks list using direct offset access (Stacks property doesn't exist)
             var (stacks, listType, count) = GetStacksList(bm);
             if (stacks == null || listType == null) return GameObj.Null;
@@ -366,8 +356,6 @@ public static class BlackMarket
 
         try
         {
-            EnsureTypesLoaded();
-
             var stackType = _blackMarketItemStackType?.ManagedType;
             if (stackType == null) return result;
 
@@ -603,7 +591,6 @@ public static class BlackMarket
             try
             {
                 // Step 1: Find StrategyState type via GameType
-                EnsureTypesLoaded();
                 var gtType = _strategyStateType;
                 lines.Add($"  GameType.Find(StrategyState): {(gtType != null ? "Found" : "NULL")}");
 
@@ -863,8 +850,6 @@ public static class BlackMarket
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Get BlackMarket
             var bm = GetBlackMarket();
             if (bm.IsNull)
@@ -923,16 +908,6 @@ public static class BlackMarket
 
     // --- Internal helpers ---
 
-    private static void EnsureTypesLoaded()
-    {
-        _blackMarketType ??= GameType.Find("Menace.Strategy.BlackMarket");
-        _blackMarketItemStackType ??= GameType.Find("Menace.Strategy.BlackMarket.BlackMarketItemStack");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-        _strategyConfigType ??= GameType.Find("Menace.Strategy.StrategyConfig");
-        _baseItemTemplateType ??= GameType.Find("Menace.Items.BaseItemTemplate");
-        _baseItemType ??= GameType.Find("Menace.Items.BaseItem");
-    }
-
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
 
@@ -946,8 +921,6 @@ public static class BlackMarket
 
         try
         {
-            EnsureTypesLoaded();
-
             // Read stacks list at offset +0x10
             var stacksPtr = bm.ReadPtr(0x10);
             if (stacksPtr == IntPtr.Zero) return (null, null, 0);
@@ -980,8 +953,6 @@ public static class BlackMarket
     {
         try
         {
-            EnsureTypesLoaded();
-
             var ssType = _strategyStateType?.ManagedType;
             if (ssType == null) return null;
 
@@ -1006,8 +977,6 @@ public static class BlackMarket
     {
         try
         {
-            EnsureTypesLoaded();
-
             var ssType = _strategyStateType?.ManagedType;
             if (ssType == null) return 0;
 
@@ -1037,8 +1006,6 @@ public static class BlackMarket
 
         try
         {
-            EnsureTypesLoaded();
-
             var stackType = _blackMarketItemStackType?.ManagedType;
             if (stackType == null) return null;
 
@@ -1117,8 +1084,6 @@ public static class BlackMarket
 
         try
         {
-            EnsureTypesLoaded();
-
             var baseItemType = _baseItemType?.ManagedType;
             if (baseItemType == null) return null;
 
