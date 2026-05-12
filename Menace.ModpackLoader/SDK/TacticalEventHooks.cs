@@ -215,9 +215,9 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnDamageReceived_Postfix(object __instance, object _target, object _attacker, object _skill, object _damageInfo)
+    private static void OnDamageReceived_Postfix(object __instance, object _entity, object _attacker, object _skill, object _damageInfo)
     {
-        var targetPtr = Il2CppUtils.GetPointer(_target);
+        var targetPtr = Il2CppUtils.GetPointer(_entity);
         var attackerPtr = Il2CppUtils.GetPointer(_attacker);
         var skillPtr = Il2CppUtils.GetPointer(_skill);
         var damageInfoPtr = Il2CppUtils.GetPointer(_damageInfo);
@@ -226,7 +226,7 @@ public static class TacticalEventHooks
 
         FireLuaEvent("damage_received", new Dictionary<string, object>
         {
-            ["target"] = GetName(_target),
+            ["target"] = GetName(_entity),
             ["target_ptr"] = targetPtr.ToInt64(),
             ["attacker"] = GetName(_attacker),
             ["attacker_ptr"] = attackerPtr.ToInt64(),
@@ -236,10 +236,10 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnAttackMissed_Postfix(object __instance, object _attacker, object _target, object _skill)
+    private static void OnAttackMissed_Postfix(object __instance, object _attacker, object _entity, object _skill)
     {
         var attackerPtr = Il2CppUtils.GetPointer(_attacker);
-        var targetPtr = Il2CppUtils.GetPointer(_target);
+        var targetPtr = Il2CppUtils.GetPointer(_entity);
         var skillPtr = Il2CppUtils.GetPointer(_skill);
 
         OnAttackMissed?.Invoke(attackerPtr, targetPtr, skillPtr);
@@ -248,16 +248,16 @@ public static class TacticalEventHooks
         {
             ["attacker"] = GetName(_attacker),
             ["attacker_ptr"] = attackerPtr.ToInt64(),
-            ["target"] = GetName(_target),
+            ["target"] = GetName(_entity),
             ["target_ptr"] = targetPtr.ToInt64(),
             ["skill"] = GetName(_skill),
             ["skill_ptr"] = skillPtr.ToInt64()
         });
     }
 
-    private static void OnAttackTileStart_Postfix(object __instance, object _attacker, object _skill, object _tile, float _attackDurationInSec)
+    private static void OnAttackTileStart_Postfix(object __instance, object _actor, object _skill, object _tile, float _attackDurationInSec)
     {
-        var attackerPtr = Il2CppUtils.GetPointer(_attacker);
+        var attackerPtr = Il2CppUtils.GetPointer(_actor);
         var skillPtr = Il2CppUtils.GetPointer(_skill);
         var tilePtr = Il2CppUtils.GetPointer(_tile);
 
@@ -265,7 +265,7 @@ public static class TacticalEventHooks
 
         FireLuaEvent("attack_start", new Dictionary<string, object>
         {
-            ["attacker"] = GetName(_attacker),
+            ["attacker"] = GetName(_actor),
             ["attacker_ptr"] = attackerPtr.ToInt64(),
             ["skill"] = GetName(_skill),
             ["skill_ptr"] = skillPtr.ToInt64(),
@@ -274,30 +274,30 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnBleedingOut_Postfix(object __instance, object _actor, int _remainingRounds)
+    private static void OnBleedingOut_Postfix(object __instance, object _leader, int _remainingRounds)
     {
-        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        var actorPtr = Il2CppUtils.GetPointer(_leader);
 
         OnBleedingOut?.Invoke(actorPtr, _remainingRounds);
 
         FireLuaEvent("bleeding_out", new Dictionary<string, object>
         {
-            ["actor"] = GetName(_actor),
+            ["actor"] = GetName(_leader),
             ["actor_ptr"] = actorPtr.ToInt64(),
             ["remaining_rounds"] = _remainingRounds
         });
     }
 
-    private static void OnStabilized_Postfix(object __instance, object _actor, object _savior)
+    private static void OnStabilized_Postfix(object __instance, object _leader, object _savior)
     {
-        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        var actorPtr = Il2CppUtils.GetPointer(_leader);
         var saviorPtr = Il2CppUtils.GetPointer(_savior);
 
         OnStabilized?.Invoke(actorPtr, saviorPtr);
 
         FireLuaEvent("stabilized", new Dictionary<string, object>
         {
-            ["actor"] = GetName(_actor),
+            ["actor"] = GetName(_leader),
             ["actor_ptr"] = actorPtr.ToInt64(),
             ["savior"] = GetName(_savior),
             ["savior_ptr"] = saviorPtr.ToInt64()
@@ -351,108 +351,108 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnMoraleStateChanged_Postfix(object __instance, object _actor, int _newState)
+    private static void OnMoraleStateChanged_Postfix(object __instance, object _actor, int _moraleState)
     {
         var actorPtr = Il2CppUtils.GetPointer(_actor);
 
-        OnMoraleStateChanged?.Invoke(actorPtr, _newState);
+        OnMoraleStateChanged?.Invoke(actorPtr, _moraleState);
 
         FireLuaEvent("morale_changed", new Dictionary<string, object>
         {
             ["actor"] = GetName(_actor),
             ["actor_ptr"] = actorPtr.ToInt64(),
-            ["state"] = _newState
+            ["state"] = _moraleState
         });
     }
 
-    private static void OnHitpointsChanged_Postfix(object __instance, object _actor, float _hitpointsPct, int _animationDurationInMs)
+    private static void OnHitpointsChanged_Postfix(object __instance, object _entity, float _hitpointsPct, int _animationDurationInMs)
     {
-        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        var entityPtr = Il2CppUtils.GetPointer(_entity);
 
-        OnHitpointsChanged?.Invoke(actorPtr, _hitpointsPct, _animationDurationInMs);
+        OnHitpointsChanged?.Invoke(entityPtr, _hitpointsPct, _animationDurationInMs);
 
         FireLuaEvent("hp_changed", new Dictionary<string, object>
         {
-            ["actor"] = GetName(_actor),
-            ["actor_ptr"] = actorPtr.ToInt64(),
+            ["actor"] = GetName(_entity),
+            ["actor_ptr"] = entityPtr.ToInt64(),
             ["hitpoints_pct"] = _hitpointsPct,
             ["animation_duration_ms"] = _animationDurationInMs
         });
     }
 
-    private static void OnArmorChanged_Postfix(object __instance, object _actor, float _armorDurability, int _armor, int _animationDurationInMs)
+    private static void OnArmorChanged_Postfix(object __instance, object _entity, float _armorDurability, int _armor, int _animationDurationInMs)
     {
-        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        var entityPtr = Il2CppUtils.GetPointer(_entity);
 
-        OnArmorChanged?.Invoke(actorPtr, _armorDurability, _armor, _animationDurationInMs);
+        OnArmorChanged?.Invoke(entityPtr, _armorDurability, _armor, _animationDurationInMs);
 
         FireLuaEvent("armor_changed", new Dictionary<string, object>
         {
-            ["actor"] = GetName(_actor),
-            ["actor_ptr"] = actorPtr.ToInt64(),
+            ["actor"] = GetName(_entity),
+            ["actor_ptr"] = entityPtr.ToInt64(),
             ["armor_durability"] = _armorDurability,
             ["armor"] = _armor,
             ["animation_duration_ms"] = _animationDurationInMs
         });
     }
 
-    private static void OnActionPointsChanged_Postfix(object __instance, object _actor, int _oldAp, int _newAp)
+    private static void OnActionPointsChanged_Postfix(object __instance, object _actor, int _oldAP, int _newAp)
     {
         var actorPtr = Il2CppUtils.GetPointer(_actor);
 
-        OnActionPointsChanged?.Invoke(actorPtr, _oldAp, _newAp);
+        OnActionPointsChanged?.Invoke(actorPtr, _oldAP, _newAp);
 
         FireLuaEvent("ap_changed", new Dictionary<string, object>
         {
             ["actor"] = GetName(_actor),
             ["actor_ptr"] = actorPtr.ToInt64(),
-            ["old_ap"] = _oldAp,
+            ["old_ap"] = _oldAP,
             ["new_ap"] = _newAp,
-            ["delta"] = _newAp - _oldAp
+            ["delta"] = _newAp - _oldAP
         });
     }
 
     // --- Visibility Events ---
 
-    private static void OnDiscovered_Postfix(object __instance, object _discovered, object _discoverer)
+    private static void OnDiscovered_Postfix(object __instance, object _entity, object _discoverer)
     {
-        var discoveredPtr = Il2CppUtils.GetPointer(_discovered);
+        var discoveredPtr = Il2CppUtils.GetPointer(_entity);
         var discovererPtr = Il2CppUtils.GetPointer(_discoverer);
 
         OnDiscovered?.Invoke(discoveredPtr, discovererPtr);
 
         FireLuaEvent("discovered", new Dictionary<string, object>
         {
-            ["discovered"] = GetName(_discovered),
+            ["discovered"] = GetName(_entity),
             ["discovered_ptr"] = discoveredPtr.ToInt64(),
             ["discoverer"] = GetName(_discoverer),
             ["discoverer_ptr"] = discovererPtr.ToInt64()
         });
     }
 
-    private static void OnVisibleToPlayer_Postfix(object __instance, object _entity)
+    private static void OnVisibleToPlayer_Postfix(object __instance, object _actor)
     {
-        var entityPtr = Il2CppUtils.GetPointer(_entity);
+        var actorPtr = Il2CppUtils.GetPointer(_actor);
 
-        OnVisibleToPlayer?.Invoke(entityPtr);
+        OnVisibleToPlayer?.Invoke(actorPtr);
 
         FireLuaEvent("visible_to_player", new Dictionary<string, object>
         {
-            ["entity"] = GetName(_entity),
-            ["entity_ptr"] = entityPtr.ToInt64()
+            ["entity"] = GetName(_actor),
+            ["entity_ptr"] = actorPtr.ToInt64()
         });
     }
 
-    private static void OnHiddenToPlayer_Postfix(object __instance, object _entity)
+    private static void OnHiddenToPlayer_Postfix(object __instance, object _actor)
     {
-        var entityPtr = Il2CppUtils.GetPointer(_entity);
+        var actorPtr = Il2CppUtils.GetPointer(_actor);
 
-        OnHiddenToPlayer?.Invoke(entityPtr);
+        OnHiddenToPlayer?.Invoke(actorPtr);
 
         FireLuaEvent("hidden_from_player", new Dictionary<string, object>
         {
-            ["entity"] = GetName(_entity),
-            ["entity_ptr"] = entityPtr.ToInt64()
+            ["entity"] = GetName(_actor),
+            ["entity_ptr"] = actorPtr.ToInt64()
         });
     }
 
@@ -479,18 +479,18 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnMovementFinished_Postfix(object __instance, object _actor, object _tile)
+    private static void OnMovementFinished_Postfix(object __instance, object _actor, object _to)
     {
         var actorPtr = Il2CppUtils.GetPointer(_actor);
-        var tilePtr = Il2CppUtils.GetPointer(_tile);
+        var toPtr = Il2CppUtils.GetPointer(_to);
 
-        OnMovementFinished?.Invoke(actorPtr, tilePtr);
+        OnMovementFinished?.Invoke(actorPtr, toPtr);
 
         FireLuaEvent("move_complete", new Dictionary<string, object>
         {
             ["actor"] = GetName(_actor),
             ["actor_ptr"] = actorPtr.ToInt64(),
-            ["tile_ptr"] = tilePtr.ToInt64()
+            ["tile_ptr"] = toPtr.ToInt64()
         });
     }
 
@@ -533,18 +533,18 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnSkillAdded_Postfix(object __instance, object _actor, object _skill, object _source, bool _success)
+    private static void OnSkillAdded_Postfix(object __instance, object _receiver, object _skill, object _source, bool _success)
     {
-        var actorPtr = Il2CppUtils.GetPointer(_actor);
+        var receiverPtr = Il2CppUtils.GetPointer(_receiver);
         var skillPtr = Il2CppUtils.GetPointer(_skill);
         var sourcePtr = Il2CppUtils.GetPointer(_source);
 
-        OnSkillAdded?.Invoke(actorPtr, skillPtr, sourcePtr, _success);
+        OnSkillAdded?.Invoke(receiverPtr, skillPtr, sourcePtr, _success);
 
         FireLuaEvent("skill_added", new Dictionary<string, object>
         {
-            ["actor"] = GetName(_actor),
-            ["actor_ptr"] = actorPtr.ToInt64(),
+            ["actor"] = GetName(_receiver),
+            ["actor_ptr"] = receiverPtr.ToInt64(),
             ["skill"] = GetName(_skill),
             ["skill_ptr"] = skillPtr.ToInt64(),
             ["source"] = GetName(_source),
@@ -553,31 +553,31 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnOffmapAbilityUsed_Postfix(object __instance, object _ability, object _targetTile)
+    private static void OnOffmapAbilityUsed_Postfix(object __instance, object _offmapAbility, object _targetTile)
     {
-        var abilityPtr = Il2CppUtils.GetPointer(_ability);
+        var offmapAbilityPtr = Il2CppUtils.GetPointer(_offmapAbility);
         var targetTilePtr = Il2CppUtils.GetPointer(_targetTile);
 
-        OnOffmapAbilityUsed?.Invoke(abilityPtr, targetTilePtr);
+        OnOffmapAbilityUsed?.Invoke(offmapAbilityPtr, targetTilePtr);
 
         FireLuaEvent("offmap_ability_used", new Dictionary<string, object>
         {
-            ["ability"] = GetName(_ability),
-            ["ability_ptr"] = abilityPtr.ToInt64(),
+            ["ability"] = GetName(_offmapAbility),
+            ["ability_ptr"] = offmapAbilityPtr.ToInt64(),
             ["tile_ptr"] = targetTilePtr.ToInt64()
         });
     }
 
-    private static void OnOffmapAbilityCanceled_Postfix(object __instance, object _ability)
+    private static void OnOffmapAbilityCanceled_Postfix(object __instance, object _offmapAbility)
     {
-        var abilityPtr = Il2CppUtils.GetPointer(_ability);
+        var offmapAbilityPtr = Il2CppUtils.GetPointer(_offmapAbility);
 
-        OnOffmapAbilityCanceled?.Invoke(abilityPtr);
+        OnOffmapAbilityCanceled?.Invoke(offmapAbilityPtr);
 
         FireLuaEvent("offmap_ability_canceled", new Dictionary<string, object>
         {
-            ["ability"] = GetName(_ability),
-            ["ability_ptr"] = abilityPtr.ToInt64()
+            ["ability"] = GetName(_offmapAbility),
+            ["ability_ptr"] = offmapAbilityPtr.ToInt64()
         });
     }
     private static void OnOffmapAbilityUpdateUsability_Postfix(object __instance)
