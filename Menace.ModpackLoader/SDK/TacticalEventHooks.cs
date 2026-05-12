@@ -255,13 +255,13 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnAttackTileStart_Postfix(object __instance, object _actor, object _skill, object _tile, float _attackDurationInSec)
+    private static void OnAttackTileStart_Postfix(object __instance, object _actor, object _skill, object _targetTile, float _attackDurationInSec)
     {
         var attackerPtr = Il2CppUtils.GetPointer(_actor);
         var skillPtr = Il2CppUtils.GetPointer(_skill);
-        var tilePtr = Il2CppUtils.GetPointer(_tile);
+        var targetTilePtr = Il2CppUtils.GetPointer(_targetTile);
 
-        OnAttackTileStart?.Invoke(attackerPtr, skillPtr, tilePtr, _attackDurationInSec);
+        OnAttackTileStart?.Invoke(attackerPtr, skillPtr, targetTilePtr, _attackDurationInSec);
 
         FireLuaEvent("attack_start", new Dictionary<string, object>
         {
@@ -269,7 +269,7 @@ public static class TacticalEventHooks
             ["attacker_ptr"] = attackerPtr.ToInt64(),
             ["skill"] = GetName(_skill),
             ["skill_ptr"] = skillPtr.ToInt64(),
-            ["tile_ptr"] = tilePtr.ToInt64(),
+            ["tile_ptr"] = targetTilePtr.ToInt64(),
             ["attack_duration"] = _attackDurationInSec
         });
     }
@@ -396,19 +396,19 @@ public static class TacticalEventHooks
         });
     }
 
-    private static void OnActionPointsChanged_Postfix(object __instance, object _actor, int _oldAP, int _newAp)
+    private static void OnActionPointsChanged_Postfix(object __instance, object _actor, int _oldAP, int _newAP)
     {
         var actorPtr = Il2CppUtils.GetPointer(_actor);
 
-        OnActionPointsChanged?.Invoke(actorPtr, _oldAP, _newAp);
+        OnActionPointsChanged?.Invoke(actorPtr, _oldAP, _newAP);
 
         FireLuaEvent("ap_changed", new Dictionary<string, object>
         {
             ["actor"] = GetName(_actor),
             ["actor_ptr"] = actorPtr.ToInt64(),
             ["old_ap"] = _oldAP,
-            ["new_ap"] = _newAp,
-            ["delta"] = _newAp - _oldAP
+            ["new_ap"] = _newAP,
+            ["delta"] = _newAP - _oldAP
         });
     }
 
