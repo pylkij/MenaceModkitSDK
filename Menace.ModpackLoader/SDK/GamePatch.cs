@@ -17,9 +17,10 @@ public static class GamePatch
     /// Use the overload with parameterTypes when the method has multiple overloads.
     /// Failed patches log to ModError and return false.
     /// </summary>
-    public static bool Postfix(HarmonyLib.Harmony harmony, Type targetType, string methodName, MethodInfo patchMethod)
+    public static bool Postfix(HarmonyLib.Harmony harmony, Type targetType, string methodName,
+        MethodInfo patchMethod, Type[] parameterTypes = null)
     {
-        return PatchInternal(harmony, targetType, methodName, null, patchMethod);
+        return PatchInternal(harmony, targetType, methodName, parameterTypes, null, patchMethod);
     }
 
     /// <summary>
@@ -28,13 +29,14 @@ public static class GamePatch
     /// Use the overload with parameterTypes when the method has multiple overloads.
     /// Failed patches log to ModError and return false.
     /// </summary>
-    public static bool Prefix(HarmonyLib.Harmony harmony, Type targetType, string methodName, MethodInfo patchMethod)
+    public static bool Prefix(HarmonyLib.Harmony harmony, Type targetType, string methodName,
+        MethodInfo patchMethod, Type[] parameterTypes = null)
     {
-        return PatchInternal(harmony, targetType, methodName, patchMethod, null);
+        return PatchInternal(harmony, targetType, methodName, parameterTypes, patchMethod, null);
     }
 
     private static bool PatchInternal(HarmonyLib.Harmony harmony, Type targetType,
-        string methodName, MethodInfo prefix, MethodInfo postfix)
+        string methodName, Type[] parameterTypes, MethodInfo prefix, MethodInfo postfix)
     {
         if (harmony == null)
         {
@@ -44,21 +46,34 @@ public static class GamePatch
 
         try
         {
-            var method = targetType.GetMethod(methodName,
-                BindingFlags.Public | BindingFlags.NonPublic |
-                BindingFlags.Instance | BindingFlags.Static);
+            MethodInfo method = null;
 
-            if (method == null)
+            if (parameterTypes != null)
             {
-                // Try by declared-only in the type hierarchy
-                var current = targetType;
-                while (current != null && method == null)
+                method = targetType.GetMethod(methodName,
+                    BindingFlags.Public | BindingFlags.NonPublic |
+                    BindingFlags.Instance | BindingFlags.Static,
+                    binder: null,
+                    types: parameterTypes,
+                    modifiers: null);
+            }
+            else
+            {
+                method = targetType.GetMethod(methodName,
+                    BindingFlags.Public | BindingFlags.NonPublic |
+                    BindingFlags.Instance | BindingFlags.Static);
+
+                if (method == null)
                 {
-                    method = current.GetMethod(methodName,
-                        BindingFlags.Public | BindingFlags.NonPublic |
-                        BindingFlags.Instance | BindingFlags.Static |
-                        BindingFlags.DeclaredOnly);
-                    current = current.BaseType;
+                    var current = targetType;
+                    while (current != null && method == null)
+                    {
+                        method = current.GetMethod(methodName,
+                            BindingFlags.Public | BindingFlags.NonPublic |
+                            BindingFlags.Instance | BindingFlags.Static |
+                            BindingFlags.DeclaredOnly);
+                        current = current.BaseType;
+                    }
                 }
             }
 
