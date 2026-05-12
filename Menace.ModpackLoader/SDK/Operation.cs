@@ -22,10 +22,10 @@ namespace Menace.SDK;
 public static class Operation
 {
     // Cached types
-    private static GameType _operationType;
-    private static GameType _operationsManagerType;
-    private static GameType _missionType;
-    private static GameType _strategyStateType;
+    private static readonly GameType _operationType = GameType.Of<Il2CppMenace.Strategy.Operation>();
+    private static readonly GameType _operationsManagerType = GameType.Of<Il2CppMenace.Strategy.OperationsManager>();
+    private static readonly GameType _missionType = GameType.Of<Il2CppMenace.Strategy.Mission>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
 
     /// <summary>
     /// Operation information structure.
@@ -52,8 +52,6 @@ public static class Operation
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Access OperationsManager via StrategyState.Get().Operations (offset +0x58)
             var strategyStateType = _strategyStateType?.ManagedType;
             if (strategyStateType == null) return GameObj.Null;
@@ -105,8 +103,6 @@ public static class Operation
 
         try
         {
-            EnsureTypesLoaded();
-
             var opType = _operationType?.ManagedType;
             if (opType == null) return null;
 
@@ -201,8 +197,6 @@ public static class Operation
             var op = GetCurrentOperation();
             if (op.IsNull) return GameObj.Null;
 
-            EnsureTypesLoaded();
-
             var opType = _operationType?.ManagedType;
             if (opType == null) return GameObj.Null;
 
@@ -292,8 +286,6 @@ public static class Operation
     {
         try
         {
-            EnsureTypesLoaded();
-
             var strategyStateType = _strategyStateType?.ManagedType;
             if (strategyStateType == null) return GameObj.Null;
 
@@ -324,8 +316,6 @@ public static class Operation
 
         try
         {
-            EnsureTypesLoaded();
-
             var om = GetOperationsManager();
             if (om.IsNull) return result;
 
@@ -446,8 +436,6 @@ public static class Operation
 
         try
         {
-            EnsureTypesLoaded();
-
             var om = GetOperationsManager();
             if (om.IsNull) return result;
 
@@ -643,14 +631,6 @@ public static class Operation
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _operationType ??= GameType.Find("Menace.Strategy.Operation");
-        _operationsManagerType ??= GameType.Find("Menace.Strategy.OperationsManager");
-        _missionType ??= GameType.Find("Menace.Strategy.Mission");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
