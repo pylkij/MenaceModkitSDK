@@ -24,10 +24,10 @@ namespace Menace.SDK;
 public static class Faction
 {
     // Cached types
-    private static GameType _storyFactionType;
-    private static GameType _storyFactionTemplateType;
-    private static GameType _strategyStateType;
-    private static GameType _strategyConfigType;
+    private static readonly GameType _storyFactionType = GameType.Of<Il2CppMenace.Strategy.StoryFaction>();
+    private static readonly GameType _storyFactionTemplateType = GameType.Of<Il2CppMenace.Strategy.StoryFactionTemplate>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    private static readonly GameType _strategyConfigType = GameType.Of<Il2CppMenace.Strategy.StrategyConfig>();
 
     // Faction status enum values
     public const int STATUS_UNKNOWN = 0;
@@ -104,8 +104,6 @@ public static class Faction
     {
         try
         {
-            EnsureTypesLoaded();
-
             var ssType = _strategyStateType?.ManagedType;
             if (ssType == null) return GameObj.Null;
 
@@ -131,8 +129,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var ss = GetStrategyState();
             if (ss.IsNull) return result;
 
@@ -206,8 +202,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var factionType = _storyFactionType?.ManagedType;
             if (factionType == null) return null;
 
@@ -408,8 +402,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var factionType = _storyFactionType?.ManagedType;
             if (factionType == null) return 0;
 
@@ -437,8 +429,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var factionType = _storyFactionType?.ManagedType;
             if (factionType == null) return false;
 
@@ -467,8 +457,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var factionType = _storyFactionType?.ManagedType;
             if (factionType == null) return false;
 
@@ -508,8 +496,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var factionType = _storyFactionType?.ManagedType;
             if (factionType == null) return result;
 
@@ -598,8 +584,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var factionType = _storyFactionType?.ManagedType;
             if (factionType == null) return false;
 
@@ -667,8 +651,6 @@ public static class Faction
 
         try
         {
-            EnsureTypesLoaded();
-
             var info = GetFactionInfo(faction);
             if (info?.TemplatePointer == IntPtr.Zero) return result;
 
@@ -853,14 +835,6 @@ public static class Faction
     // ═══════════════════════════════════════════════════════════════════
     //  Internal Helpers
     // ═══════════════════════════════════════════════════════════════════
-
-    private static void EnsureTypesLoaded()
-    {
-        _storyFactionType ??= GameType.Find("Menace.Strategy.StoryFaction");
-        _storyFactionTemplateType ??= GameType.Find("Menace.Strategy.StoryFactionTemplate");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-        _strategyConfigType ??= GameType.Find("Menace.Strategy.StrategyConfig");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
