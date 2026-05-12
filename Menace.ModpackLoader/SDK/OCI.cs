@@ -24,10 +24,10 @@ namespace Menace.SDK;
 public static class OCI
 {
     // Cached types
-    private static GameType _shipUpgradesType;
-    private static GameType _shipUpgradeTemplateType;
-    private static GameType _shipUpgradeSlotTemplateType;
-    private static GameType _strategyStateType;
+    private static readonly GameType _shipUpgradesType = GameType.Of<Il2CppMenace.Strategy.ShipUpgrades>();
+    private static readonly GameType _shipUpgradeTemplateType = GameType.Of<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
+    private static readonly GameType _shipUpgradeSlotTemplateType = GameType.Of<Il2CppMenace.Strategy.ShipUpgradeSlotTemplate>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
 
     // Ship upgrade type enum values (from schema)
     public const int TYPE_ARMAMENT = 0;
@@ -107,8 +107,6 @@ public static class OCI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var ssType = _strategyStateType?.ManagedType;
             if (ssType == null) return GameObj.Null;
 
@@ -157,8 +155,6 @@ public static class OCI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return 0;
 
@@ -192,8 +188,6 @@ public static class OCI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return 0;
 
@@ -253,8 +247,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return result;
 
@@ -313,8 +305,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return result;
 
@@ -372,8 +362,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _shipUpgradeTemplateType?.ManagedType;
             if (templateType == null) return null;
 
@@ -435,8 +423,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return result;
 
@@ -494,8 +480,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var slotType = _shipUpgradeSlotTemplateType?.ManagedType;
             if (slotType == null) return null;
 
@@ -551,8 +535,6 @@ public static class OCI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var suType = _shipUpgradesType?.ManagedType;
             if (suType == null) return 0;
 
@@ -575,8 +557,6 @@ public static class OCI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var suType = _shipUpgradesType?.ManagedType;
             if (suType == null) return GameObj.Null;
 
@@ -603,8 +583,6 @@ public static class OCI
     {
         try
         {
-            EnsureTypesLoaded();
-
             var suType = _shipUpgradesType?.ManagedType;
             if (suType == null) return 0;
 
@@ -642,8 +620,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return false;
 
@@ -681,8 +657,6 @@ public static class OCI
 
         try
         {
-            EnsureTypesLoaded();
-
             var su = GetShipUpgrades();
             if (su.IsNull) return false;
 
@@ -862,14 +836,6 @@ public static class OCI
     // ═══════════════════════════════════════════════════════════════════
     //  Internal Helpers
     // ═══════════════════════════════════════════════════════════════════
-
-    private static void EnsureTypesLoaded()
-    {
-        _shipUpgradesType ??= GameType.Find("Menace.Strategy.ShipUpgrades");
-        _shipUpgradeTemplateType ??= GameType.Find("Menace.Strategy.ShipUpgradeTemplate");
-        _shipUpgradeSlotTemplateType ??= GameType.Find("Menace.Strategy.ShipUpgradeSlotTemplate");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
