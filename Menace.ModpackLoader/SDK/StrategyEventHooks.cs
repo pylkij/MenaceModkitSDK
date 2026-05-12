@@ -206,51 +206,51 @@ public static class StrategyEventHooks
 
     // --- Roster Events ---
 
-    private static void HireLeader_Postfix(object __instance, object __result, object template)
+    private static void HireLeader_Postfix(object __instance, object __result, object _template)
     {
         if (__result == null) return; // Hire failed
 
-        var leaderPtr = Il2CppUtils.GetPointer(template);
+        var leaderPtr = Il2CppUtils.GetPointer(_template);
         OnLeaderHired?.Invoke(leaderPtr);
 
         FireLuaEvent("leader_hired", new Dictionary<string, object>
         {
             ["leader"] = GetName(__result),
             ["leader_ptr"] = leaderPtr.ToInt64(),
-            ["template"] = GetName(template)
+            ["template"] = GetName(_template)
         });
     }
 
-    private static void DismissLeader_Postfix(object __instance, bool __result, object leader)
+    private static void DismissLeader_Postfix(object __instance, bool __result, object _leader)
     {
         if (!__result) return; // Dismiss failed
 
-        var leaderPtr = Il2CppUtils.GetPointer(leader);
+        var leaderPtr = Il2CppUtils.GetPointer(_leader);
         OnLeaderDismissed?.Invoke(leaderPtr);
 
         FireLuaEvent("leader_dismissed", new Dictionary<string, object>
         {
-            ["leader"] = GetName(leader),
+            ["leader"] = GetName(_leader),
             ["leader_ptr"] = leaderPtr.ToInt64()
         });
     }
 
-    private static void OnPermanentDeath_Postfix(object __instance, object leader)
+    private static void OnPermanentDeath_Postfix(object __instance, object _leader)
     {
-        var leaderPtr = Il2CppUtils.GetPointer(leader);
+        var leaderPtr = Il2CppUtils.GetPointer(_leader);
         OnLeaderPermadeath?.Invoke(leaderPtr);
 
         FireLuaEvent("leader_permadeath", new Dictionary<string, object>
         {
-            ["leader"] = GetName(leader),
+            ["leader"] = GetName(_leader),
             ["leader_ptr"] = leaderPtr.ToInt64()
         });
     }
 
-    private static void AddPerk_Postfix(object __instance, object perk)
+    private static void AddPerk_Postfix(object __instance, object _perk)
     {
         var leaderPtr = Il2CppUtils.GetPointer(__instance);
-        var perkPtr = Il2CppUtils.GetPointer(perk);
+        var perkPtr = Il2CppUtils.GetPointer(_perk);
 
         OnLeaderLevelUp?.Invoke(leaderPtr, perkPtr);
 
@@ -258,44 +258,44 @@ public static class StrategyEventHooks
         {
             ["leader"] = GetName(__instance),
             ["leader_ptr"] = leaderPtr.ToInt64(),
-            ["perk"] = GetName(perk)
+            ["perk"] = GetName(_perk)
         });
     }
 
     // --- Faction Events ---
 
-    private static void ChangeTrust_Postfix(object __instance, int delta)
+    private static void ChangeTrust_Postfix(object __instance, int _delta)
     {
-        if (delta == 0) return;
+        if (_delta == 0) return;
 
         var factionPtr = Il2CppUtils.GetPointer(__instance);
-        OnFactionTrustChanged?.Invoke(factionPtr, delta);
+        OnFactionTrustChanged?.Invoke(factionPtr, _delta);
 
         FireLuaEvent("faction_trust_changed", new Dictionary<string, object>
         {
             ["faction"] = GetFactionName(__instance),
             ["faction_ptr"] = factionPtr.ToInt64(),
-            ["delta"] = delta
+            ["delta"] = _delta
         });
     }
 
-    private static void SetStatus_Postfix(object __instance, int status)
+    private static void SetStatus_Postfix(object __instance, int _status)
     {
         var factionPtr = Il2CppUtils.GetPointer(__instance);
-        OnFactionStatusChanged?.Invoke(factionPtr, status);
+        OnFactionStatusChanged?.Invoke(factionPtr, _status);
 
         FireLuaEvent("faction_status_changed", new Dictionary<string, object>
         {
             ["faction"] = GetFactionName(__instance),
             ["faction_ptr"] = factionPtr.ToInt64(),
-            ["status"] = status
+            ["status"] = _status
         });
     }
 
-    private static void UnlockUpgrade_Postfix(object __instance, object upgrade)
+    private static void UnlockUpgrade_Postfix(object __instance, object _upgrade)
     {
         var factionPtr = Il2CppUtils.GetPointer(__instance);
-        var upgradePtr = Il2CppUtils.GetPointer(upgrade);
+        var upgradePtr = Il2CppUtils.GetPointer(_upgrade);
 
         OnFactionUpgradeUnlocked?.Invoke(factionPtr, upgradePtr);
 
@@ -303,22 +303,22 @@ public static class StrategyEventHooks
         {
             ["faction"] = GetFactionName(__instance),
             ["faction_ptr"] = factionPtr.ToInt64(),
-            ["upgrade"] = GetName(upgrade),
+            ["upgrade"] = GetName(_upgrade),
             ["upgrade_ptr"] = upgradePtr.ToInt64()
         });
     }
 
     // --- Squaddie Events ---
 
-    private static void SquaddieKill_Postfix(object __instance, bool __result, int squaddieId)
+    private static void SquaddieKill_Postfix(object __instance, bool __result, int _squaddieId)
     {
         if (!__result) return; // Kill failed
 
-        OnSquaddieKilled?.Invoke(squaddieId);
+        OnSquaddieKilled?.Invoke(_squaddieId);
 
         FireLuaEvent("squaddie_killed", new Dictionary<string, object>
         {
-            ["squaddie_id"] = squaddieId
+            ["squaddie_id"] = _squaddieId
         });
     }
 
@@ -337,77 +337,77 @@ public static class StrategyEventHooks
 
     // --- Operation/Mission Events ---
 
-    private static void OnOperationStarted_Postfix(object __instance, object operation)
+    private static void OnOperationStarted_Postfix(object __instance, object _operation)
     {
-        var operationPtr = Il2CppUtils.GetPointer(operation);
+        var operationPtr = Il2CppUtils.GetPointer(_operation);
 
         OnOperationStarted?.Invoke(operationPtr);
 
         FireLuaEvent("operation_started", new Dictionary<string, object>
         {
-            ["operation"] = GetName(operation),
+            ["operation"] = GetName(_operation),
             ["operation_ptr"] = operationPtr.ToInt64()
         });
     }
 
-    private static void OnOperationFinished_Postfix(object __instance, object operation)
+    private static void OnOperationFinished_Postfix(object __instance, object _operation)
     {
-        var operationPtr = Il2CppUtils.GetPointer(operation);
+        var operationPtr = Il2CppUtils.GetPointer(_operation);
         
         OnOperationFinished?.Invoke(operationPtr);
 
         FireLuaEvent("operation_finished", new Dictionary<string, object>
         {
-            ["operation"] = GetName(operation),
+            ["operation"] = GetName(_operation),
             ["operation_ptr"] = operationPtr.ToInt64()
         });
     }
 
-    private static void OnMissionStarted_Postfix(object __instance, object operation, object mission)
+    private static void OnMissionStarted_Postfix(object __instance, object _operation, object _mission)
     {
-        var operationPtr = Il2CppUtils.GetPointer(operation);
-        var missionPtr = Il2CppUtils.GetPointer(mission);
+        var operationPtr = Il2CppUtils.GetPointer(_operation);
+        var missionPtr = Il2CppUtils.GetPointer(_mission);
 
         OnMissionStarted?.Invoke(operationPtr, missionPtr);
 
         FireLuaEvent("mission_started", new Dictionary<string, object>
         {
-            ["operation"] = GetName(operation),
+            ["operation"] = GetName(_operation),
             ["operation_ptr"] = operationPtr.ToInt64(),
-            ["mission"] = GetName(mission),
+            ["mission"] = GetName(_mission),
             ["mission_ptr"] = missionPtr.ToInt64()
         });
     }
 
-    private static void OnMissionFinished_Postfix(object __instance, object operation, object mission, object missionResult)
+    private static void OnMissionFinished_Postfix(object __instance, object _operation, object _mission, object _missionResult)
     {
-        var operationPtr = Il2CppUtils.GetPointer(operation);
-        var missionPtr = Il2CppUtils.GetPointer(mission);
-        var missionResultPtr = Il2CppUtils.GetPointer(missionResult);
+        var operationPtr = Il2CppUtils.GetPointer(_operation);
+        var missionPtr = Il2CppUtils.GetPointer(_mission);
+        var missionResultPtr = Il2CppUtils.GetPointer(_missionResult);
 
         OnMissionFinished?.Invoke(operationPtr, missionPtr, missionResultPtr);
 
         FireLuaEvent("mission_finished", new Dictionary<string, object>
         {
-            ["operation"] = GetName(operation),
+            ["operation"] = GetName(_operation),
             ["operation_ptr"] = operationPtr.ToInt64(),
-            ["mission"] = GetName(mission),
+            ["mission"] = GetName(_mission),
             ["mission_ptr"] = missionPtr.ToInt64(),
-            ["mission_result"] = GetName(missionResult),
+            ["mission_result"] = GetName(_missionResult),
             ["mission_result_ptr"] = missionResultPtr.ToInt64()
         });
     }
 
     // --- Black Market Events ---
 
-    private static void BlackMarketAddItem_Postfix(object __instance, object item)
+    private static void BlackMarketAddItem_Postfix(object __instance, object _item)
     {
-        var itemPtr = Il2CppUtils.GetPointer(item);
+        var itemPtr = Il2CppUtils.GetPointer(_item);
         OnBlackMarketItemAdded?.Invoke(itemPtr);
 
         FireLuaEvent("blackmarket_item_added", new Dictionary<string, object>
         {
-            ["item"] = GetName(item),
+            ["item"] = GetName(_item),
             ["item_ptr"] = itemPtr.ToInt64()
         });
     }
@@ -421,22 +421,22 @@ public static class StrategyEventHooks
 
     // --- Emotion State Events ---
 
-    private static void TriggerEmotion_Postfix(object __instance, object trigger, object target, object random, object mission)
+    private static void TriggerEmotion_Postfix(object __instance, object _trigger, object _target, object _random, object _mission)
     {
-        var triggerPtr = Il2CppUtils.GetPointer(trigger);
-        var targetPtr = Il2CppUtils.GetPointer(target);
-        var randomPtr = Il2CppUtils.GetPointer(random);
-        var missionPtr = Il2CppUtils.GetPointer(mission);
+        var triggerPtr = Il2CppUtils.GetPointer(_trigger);
+        var targetPtr = Il2CppUtils.GetPointer(_target);
+        var randomPtr = Il2CppUtils.GetPointer(_random);
+        var missionPtr = Il2CppUtils.GetPointer(_mission);
 
         OnTriggerEmotion?.Invoke(triggerPtr, targetPtr, randomPtr, missionPtr);
 
         FireLuaEvent("emotion_triggered", new Dictionary<string, object>
         {
-            ["trigger"] = GetName(trigger),
+            ["trigger"] = GetName(_trigger),
             ["trigger_ptr"] = triggerPtr.ToInt64(),
-            ["target"] = GetName(target),
+            ["target"] = GetName(_target),
             ["target_ptr"] = targetPtr.ToInt64(),
-            ["mission"] = GetName(mission),
+            ["mission"] = GetName(_mission),
             ["mission_ptr"] = missionPtr.ToInt64()
         });
     }
