@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
@@ -19,6 +17,7 @@ public static class GameQuery
     /// <summary>
     /// Find all objects of a given type name.
     /// </summary>
+    /// [Obsolete("Use FindAll<T>() for compile-time safety")]
     public static GameObj[] FindAll(string typeName, string assembly = "Assembly-CSharp")
     {
         var type = GameType.Find(typeName, assembly);
@@ -29,6 +28,7 @@ public static class GameQuery
     /// Find all objects of a given type name and return them as managed IL2CPP proxy objects.
     /// This is the preferred method when you need to pass objects to reflection or IL2CPP APIs.
     /// </summary>
+    /// [Obsolete("Use FindAll<T>() for compile-time safety")]
     public static object[] FindAllManaged(string typeName, string assembly = "Assembly-CSharp")
     {
         var type = GameType.Find(typeName, assembly);
@@ -38,6 +38,7 @@ public static class GameQuery
     /// <summary>
     /// Find all objects of a given GameType and return as managed IL2CPP proxy objects.
     /// </summary>
+    /// [Obsolete("Use FindAll<T>() for compile-time safety")]
     public static object[] FindAllManaged(GameType type)
     {
         if (type == null || !type.IsValid)
@@ -101,6 +102,7 @@ public static class GameQuery
     /// <summary>
     /// Find all objects of a given GameType.
     /// </summary>
+    /// [Obsolete("Use FindAll<T>() for compile-time safety")]
     public static GameObj[] FindAll(GameType type)
     {
         if (type == null || !type.IsValid)
@@ -140,7 +142,7 @@ public static class GameQuery
     /// <summary>
     /// Find all objects of a given IL2CppInterop proxy type.
     /// </summary>
-    public static GameObj[] FindAll<T>() where T : Il2CppObjectBase
+    public static T[] FindAll<T>() where T : Il2CppObjectBase
     {
         try
         {
@@ -148,27 +150,40 @@ public static class GameQuery
             var objects = Resources.FindObjectsOfTypeAll(il2cppType);
 
             if (objects == null || objects.Length == 0)
-                return Array.Empty<GameObj>();
+                return Array.Empty<T>();
 
-            var results = new GameObj[objects.Length];
-            for (int i = 0; i < objects.Length; i++)
+            var results = new List<T>(objects.Length);
+            foreach (var obj in objects)
             {
-                var obj = objects[i];
-                results[i] = obj != null ? new GameObj(obj.Pointer) : GameObj.Null;
+                if (obj == null) continue;
+                var ptr = obj.Pointer;
+                if (ptr != IntPtr.Zero)
+                    results.Add(IL2CPP.PointerToValueGeneric<T>(ptr, false, false));
             }
-
-            return results;
+            return results.ToArray();
         }
         catch (Exception ex)
         {
             ModError.ReportInternal("GameQuery.FindAll<T>", $"Failed for {typeof(T).Name}", ex);
-            return Array.Empty<GameObj>();
+            return Array.Empty<T>();
         }
     }
-
     /// <summary>
     /// Find an object by type name and Unity object name.
     /// </summary>
+    public static T FindByName<T>(string name) where T : Il2CppObjectBase
+    {
+        if (string.IsNullOrEmpty(name))
+            return null;
+
+        foreach (var obj in FindAll<T>())
+        {
+            if (obj is UnityEngine.Object uo && uo.name == name)
+                return obj;
+        }
+        return null;
+    }
+    
     public static GameObj FindByName(string typeName, string name)
     {
         var type = GameType.Find(typeName);
@@ -197,17 +212,17 @@ public static class GameQuery
     /// Cached variant of FindAll — results are cached until ClearCache is called
     /// (typically on scene load).
     /// </summary>
-    public static GameObj[] FindAllCached(GameType type)
+    public static T[] FindAllCached<T>() where T : Il2CppObjectBase
     {
-        if (type == null || !type.IsValid)
-            return Array.Empty<GameObj>();
+        if (Cache<T>.Value != null)
+            return Cache<T>.Value;
 
-        if (_cache.TryGetValue(type.ClassPointer, out var cached))
-            return cached;
+        return Cache<T>.Value = FindAll<T>();
+    }
 
-        var results = FindAll(type);
-        _cache[type.ClassPointer] = results;
-        return results;
+    private static class Cache<T> where T : Il2CppObjectBase
+    {
+        internal static T[] Value = null;
     }
 
     /// <summary>
