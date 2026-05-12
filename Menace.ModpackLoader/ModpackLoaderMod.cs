@@ -847,7 +847,7 @@ public partial class ModpackLoaderMod : MelonMod
 
     private static void PlayerLog(string message)
     {
-        UnityEngine.Debug.Log($"[MODDED] {message}");
+        SdkLogger.Msg($"[MODDED] {message}");
     }
 }
 
