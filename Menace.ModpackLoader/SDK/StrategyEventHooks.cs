@@ -206,18 +206,18 @@ public static class StrategyEventHooks
 
     // --- Roster Events ---
 
-    private static void HireLeader_Postfix(object __instance, object __result, object _template)
+    private static void HireLeader_Postfix(object __instance, object __result, object _leaderTemplate)
     {
         if (__result == null) return; // Hire failed
 
-        var leaderPtr = Il2CppUtils.GetPointer(_template);
+        var leaderPtr = Il2CppUtils.GetPointer(_leaderTemplate);
         OnLeaderHired?.Invoke(leaderPtr);
 
         FireLuaEvent("leader_hired", new Dictionary<string, object>
         {
             ["leader"] = GetName(__result),
             ["leader_ptr"] = leaderPtr.ToInt64(),
-            ["template"] = GetName(_template)
+            ["template"] = GetName(_leaderTemplate)
         });
     }
 
@@ -264,18 +264,18 @@ public static class StrategyEventHooks
 
     // --- Faction Events ---
 
-    private static void ChangeTrust_Postfix(object __instance, int _delta)
+    private static void ChangeTrust_Postfix(object __instance, int _change)
     {
-        if (_delta == 0) return;
+        if (_change == 0) return;
 
         var factionPtr = Il2CppUtils.GetPointer(__instance);
-        OnFactionTrustChanged?.Invoke(factionPtr, _delta);
+        OnFactionTrustChanged?.Invoke(factionPtr, _change);
 
         FireLuaEvent("faction_trust_changed", new Dictionary<string, object>
         {
             ["faction"] = GetFactionName(__instance),
             ["faction_ptr"] = factionPtr.ToInt64(),
-            ["delta"] = _delta
+            ["delta"] = _change
         });
     }
 
