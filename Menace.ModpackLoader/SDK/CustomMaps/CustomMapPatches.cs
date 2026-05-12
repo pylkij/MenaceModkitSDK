@@ -1,8 +1,10 @@
+using HarmonyLib;
+using MelonLoader;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using HarmonyLib;
+using UnityEngine;
 
 namespace Menace.SDK.CustomMaps;
 
@@ -85,13 +87,33 @@ public static class CustomMapPatches
     {
         var map = typeof(Il2CppMenace.Tactical.Map);
 
-        var isInBoundsMethod = typeof(CustomMapPatches).GetMethod(nameof(IsInBounds_Prefix),
+        var isInBoundsPrefix = typeof(CustomMapPatches).GetMethod(nameof(IsInBounds_Prefix),
             BindingFlags.NonPublic | BindingFlags.Static);
-        GamePatch.Prefix(_harmony, map, "IsInBounds", isInBoundsMethod);
 
-        var clampMethod = typeof(CustomMapPatches).GetMethod(nameof(ClampToBounds_Prefix),
+        var clampPrefix = typeof(CustomMapPatches).GetMethod(nameof(ClampToBounds_Prefix),
             BindingFlags.NonPublic | BindingFlags.Static);
-        GamePatch.Prefix(_harmony, map, "ClampToBounds", clampMethod);
+
+        var isInBoundsTarget = map.GetMethod("IsInBounds",
+            BindingFlags.Public | BindingFlags.Static,
+            binder: null,
+            types: new[] { typeof(int), typeof(int) },
+            modifiers: null);
+
+        var clampTarget = map.GetMethod("ClampToBounds",
+            BindingFlags.Public | BindingFlags.Static,
+            binder: null,
+            types: new[] { typeof(RectInt) },  // or typeof(Vector3) — pick the one your prefix handles
+            modifiers: null);
+
+        if (isInBoundsTarget != null)
+            _harmony.Patch(isInBoundsTarget, new HarmonyMethod(isInBoundsPrefix));
+        else
+            MelonLogger.Error("[CustomMaps] Could not resolve Map.IsInBounds overload");
+
+        if (clampTarget != null)
+            _harmony.Patch(clampTarget, new HarmonyMethod(clampPrefix));
+        else
+            MelonLogger.Error("[CustomMaps] Could not resolve Map.ClampToBounds overload");
     }
 
     /// <summary>
@@ -128,7 +150,7 @@ public static class CustomMapPatches
     /// Prefix patch for MissionTemplate.TryCreateMapLayout
     /// Injects custom seed and parameters before map generation.
     /// </summary>
-    private static void TryCreateMapLayout_Prefix(object __instance, object mission)
+    private static void TryCreateMapLayout_Prefix(object __instance, object _mission)
     {
         try
         {
@@ -147,14 +169,14 @@ public static class CustomMapPatches
             // Override seed if specified
             if (config.Seed.HasValue)
             {
-                ApplySeedOverride(mission, config.Seed.Value);
+                ApplySeedOverride(_mission, config.Seed.Value);
             }
 
             // Override map size if specified
             if (config.MapSize.HasValue)
             {
                 CurrentMapSize = config.MapSize.Value;
-                ApplyMapSizeOverride(mission, config.MapSize.Value);
+                ApplyMapSizeOverride(_mission, config.MapSize.Value);
             }
             else
             {
@@ -193,32 +215,33 @@ public static class CustomMapPatches
     /// Prefix patch for Map.IsInBounds
     /// Uses dynamic map size instead of hardcoded 42.
     /// </summary>
-    private static bool IsInBounds_Prefix(int x, int y, ref bool __result)
+    private static bool IsInBounds_Prefix(int _x, int _z, ref bool __result)
     {
-        __result = x >= 0 && y >= 0 && x < CurrentMapSize && y < CurrentMapSize;
-        return false; // Skip original method
+        __result = _x >= 0 && _z >= 0 && _x < CurrentMapSize && _z < CurrentMapSize;
+        return false;
     }
 
     /// <summary>
     /// Prefix patch for Map.ClampToBounds
     /// Uses dynamic map size instead of hardcoded 42.
     /// </summary>
-    private static bool ClampToBounds_Prefix(ref UnityEngine.Vector2 pos)
+    private static bool ClampToBounds_Prefix(ref UnityEngine.RectInt _input, ref UnityEngine.RectInt __result)
     {
-        pos.x = UnityEngine.Mathf.Clamp(pos.x, 0, CurrentMapSize);
-        pos.y = UnityEngine.Mathf.Clamp(pos.y, 0, CurrentMapSize);
-        return false; // Skip original method
+        int clampedX = UnityEngine.Mathf.Clamp(_input.x, 0, CurrentMapSize - _input.width);
+        int clampedY = UnityEngine.Mathf.Clamp(_input.y, 0, CurrentMapSize - _input.height);
+        __result = new UnityEngine.RectInt(clampedX, clampedY, _input.width, _input.height);
+        return false;
     }
 
     /// <summary>
     /// Postfix patch for OperationTemplate.GetMissionsForDifficulties
     /// Adds custom maps to the mission pool.
     /// </summary>
-    private static void GetMissionsForDifficulties_Postfix(ref object __result, int layer)
+    private static void GetMissionsForDifficulties_Postfix(ref object __result, int _layer)
     {
         try
         {
-            var customMaps = CustomMapRegistry.GetByLayer(layer);
+            var customMaps = CustomMapRegistry.GetByLayer(_layer);
             if (customMaps.Count == 0)
                 return;
 
@@ -226,7 +249,7 @@ public static class CustomMapPatches
             // This requires creating MissionConfig objects with our custom templates
             // Implementation depends on exact MissionConfig structure from Ghidra
 
-            SdkLogger.Msg($"[CustomMaps] Injecting {customMaps.Count} maps into layer {layer} pool");
+            SdkLogger.Msg($"[CustomMaps] Injecting {customMaps.Count} maps into layer {_layer} pool");
 
             // TODO: Create MissionConfig objects and add to __result
             // InjectMapsIntoPool(__result, customMaps);
