@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using UnityEngine;
 
 namespace Menace.SDK.CustomMaps;
 
@@ -93,15 +94,15 @@ public static class CustomMapPatches
             BindingFlags.NonPublic | BindingFlags.Static);
 
         var isInBoundsTarget = map.GetMethod("IsInBounds",
-            BindingFlags.Public | BindingFlags.Instance,
+            BindingFlags.Public | BindingFlags.Static,
             binder: null,
             types: new[] { typeof(int), typeof(int) },
             modifiers: null);
 
         var clampTarget = map.GetMethod("ClampToBounds",
-            BindingFlags.Public | BindingFlags.Instance,
+            BindingFlags.Public | BindingFlags.Static,
             binder: null,
-            types: new[] { typeof(int), typeof(int) },
+            types: new[] { typeof(RectInt) },  // or typeof(Vector3) — pick the one your prefix handles
             modifiers: null);
 
         if (isInBoundsTarget != null)
@@ -214,21 +215,24 @@ public static class CustomMapPatches
     /// Prefix patch for Map.IsInBounds
     /// Uses dynamic map size instead of hardcoded 42.
     /// </summary>
-    private static bool IsInBounds_Prefix(int x, int y, ref bool __result)
+    private static bool IsInBounds_Prefix(int _x, int _z, ref bool __result)
     {
-        __result = x >= 0 && y >= 0 && x < CurrentMapSize && y < CurrentMapSize;
-        return false; // Skip original method
+        __result = _x >= 0 && _z >= 0 && _x < CurrentMapSize && _z < CurrentMapSize;
+        return false;
     }
 
     /// <summary>
     /// Prefix patch for Map.ClampToBounds
     /// Uses dynamic map size instead of hardcoded 42.
     /// </summary>
-    private static bool ClampToBounds_Prefix(ref UnityEngine.Vector2 pos)
+    private static bool ClampToBounds_Prefix(ref UnityEngine.Vector3 _worldPos, ref UnityEngine.Vector3 __result)
     {
-        pos.x = UnityEngine.Mathf.Clamp(pos.x, 0, CurrentMapSize);
-        pos.y = UnityEngine.Mathf.Clamp(pos.y, 0, CurrentMapSize);
-        return false; // Skip original method
+        __result = new UnityEngine.Vector3(
+            UnityEngine.Mathf.Clamp(_worldPos.x, 0, CurrentMapSize),
+            _worldPos.y, // don't clamp height
+            UnityEngine.Mathf.Clamp(_worldPos.z, 0, CurrentMapSize)
+        );
+        return false;
     }
 
     /// <summary>
