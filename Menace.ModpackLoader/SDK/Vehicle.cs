@@ -21,10 +21,11 @@ namespace Menace.SDK;
 public static class Vehicle
 {
     // Cached types
-    private static GameType _vehicleType;
-    private static GameType _modularVehicleType;
-    private static GameType _slotType;
-    private static GameType _vehicleTemplateType;
+    private static readonly GameType _itemContainerType = GameType.Of<Il2CppMenace.Items.ItemContainer>();
+    private static readonly GameType _vehicleType = GameType.Of<Il2CppMenace.Strategy.Vehicle>();
+    private static readonly GameType _modularVehicleType = GameType.Of<Il2CppMenace.Strategy.ItemsModularVehicle>();
+    private static readonly GameType _slotType = GameType.Of<Il2CppMenace.Strategy.ModularVehicleSlot>();
+    private static readonly GameType _vehicleTemplateType = GameType.Of<Il2CppMenace.Strategy.ModularVehicleTemplate>();
 
     // Modular slot types
     public const int MODULAR_WEAPON = 0;
@@ -70,8 +71,6 @@ public static class Vehicle
 
         try
         {
-            EnsureTypesLoaded();
-
             var vehicleType = _vehicleType?.ManagedType;
             if (vehicleType == null) return null;
 
@@ -147,13 +146,11 @@ public static class Vehicle
 
         try
         {
-            EnsureTypesLoaded();
-
             // Get ItemContainer first
             var container = Inventory.GetContainer(entity);
             if (container.IsNull) return null;
 
-            var containerType = GameType.Find("Menace.Items.ItemContainer")?.ManagedType;
+            var containerType = _itemContainerType.ManagedType;
             if (containerType == null) return null;
 
             var containerProxy = GetManagedProxy(container, containerType);
@@ -210,8 +207,6 @@ public static class Vehicle
 
         try
         {
-            EnsureTypesLoaded();
-
             var slotType = _slotType?.ManagedType;
             if (slotType == null) return null;
 
@@ -266,8 +261,6 @@ public static class Vehicle
 
         try
         {
-            EnsureTypesLoaded();
-
             var vehicleType = _vehicleType?.ManagedType;
             if (vehicleType == null) return false;
 
@@ -354,14 +347,6 @@ public static class Vehicle
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _vehicleType ??= GameType.Find("Menace.Strategy.Vehicle");
-        _modularVehicleType ??= GameType.Find("Menace.Strategy.ItemsModularVehicle");
-        _slotType ??= GameType.Find("Menace.Strategy.ModularVehicleSlot");
-        _vehicleTemplateType ??= GameType.Find("Menace.Strategy.ModularVehicleTemplate");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

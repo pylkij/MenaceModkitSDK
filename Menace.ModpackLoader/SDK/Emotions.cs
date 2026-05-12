@@ -27,13 +27,13 @@ namespace Menace.SDK;
 public static class Emotions
 {
     // Cached types
-    private static GameType _emotionalStatesType;
-    private static GameType _emotionalStateType;
-    private static GameType _emotionalStateTemplateType;
-    private static GameType _baseUnitLeaderType;
-    private static GameType _strategyStateType;
-    private static GameType _rosterType;
-    private static GameType _pseudoRandomType;
+    private static readonly GameType _emotionalStatesType = GameType.Of<Il2CppMenace.Strategy.EmotionalStates>();
+    private static readonly GameType _emotionalStateType = GameType.Of<Il2CppMenace.Strategy.EmotionalState>();
+    private static readonly GameType _emotionalStateTemplateType = GameType.Of<Il2CppMenace.Strategy.EmotionalStateTemplate>();
+    private static readonly GameType _baseUnitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    private static readonly GameType _rosterType = GameType.Of<Il2CppMenace.Strategy.Roster>();
+    private static readonly GameType _pseudoRandomType = GameType.Of<Il2CppMenace.Tools.PseudoRandom>();
 
     // EmotionalStates field offsets
     private const uint OFFSET_ES_OWNER = 0x10;
@@ -323,8 +323,6 @@ public static class Emotions
             if (emotions.IsNull)
                 return null;
 
-            EnsureTypesLoaded();
-
             var info = new EmotionalStatesInfo
             {
                 Pointer = emotions.Pointer,
@@ -365,8 +363,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             var emotions = GetEmotionalStates(leader);
             if (emotions.IsNull)
                 return false;
@@ -482,8 +478,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             var emotions = GetEmotionalStates(leader);
             if (emotions.IsNull)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
@@ -553,8 +547,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             // Find the template
             var template = GameQuery.FindByName("EmotionalStateTemplate", templateName);
             if (template.IsNull)
@@ -635,8 +627,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             var emotions = GetEmotionalStates(leader);
             if (emotions.IsNull)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
@@ -797,8 +787,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             var emotions = GetEmotionalStates(leader);
             if (emotions.IsNull)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
@@ -1195,17 +1183,6 @@ public static class Emotions
 
     // --- Internal helpers ---
 
-    private static void EnsureTypesLoaded()
-    {
-        _emotionalStatesType ??= GameType.Find("Menace.Strategy.EmotionalStates");
-        _emotionalStateType ??= GameType.Find("Menace.Strategy.EmotionalState");
-        _emotionalStateTemplateType ??= GameType.Find("Menace.Strategy.EmotionalStateTemplate");
-        _baseUnitLeaderType ??= GameType.Find("Menace.Strategy.BaseUnitLeader");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-        _rosterType ??= GameType.Find("Menace.Strategy.Roster");
-        _pseudoRandomType ??= GameType.Find("Menace.Tools.PseudoRandom");
-    }
-
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
 
@@ -1213,8 +1190,6 @@ public static class Emotions
     {
         try
         {
-            EnsureTypesLoaded();
-
             var randomType = _pseudoRandomType?.ManagedType;
             if (randomType == null) return null;
 
@@ -1244,8 +1219,6 @@ public static class Emotions
         try
         {
             // Try to get the current mission from StrategyState
-            EnsureTypesLoaded();
-
             var strategyType = _strategyStateType?.ManagedType;
             if (strategyType == null) return null;
 
@@ -1273,8 +1246,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             var listType = typeof(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<>);
             var stateType = _emotionalStateType?.ManagedType;
 
@@ -1312,8 +1283,6 @@ public static class Emotions
 
         try
         {
-            EnsureTypesLoaded();
-
             // Try generic List<EmotionalState>
             var stateType = _emotionalStateType?.ManagedType;
             if (stateType == null) return null;

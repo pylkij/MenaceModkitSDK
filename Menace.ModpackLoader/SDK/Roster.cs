@@ -21,10 +21,13 @@ namespace Menace.SDK;
 public static class Roster
 {
     // Cached types
-    private static GameType _rosterType;
-    private static GameType _unitLeaderType;
-    private static GameType _squaddieType;
-    private static GameType _strategyStateType;
+    private static readonly GameType _perkTreeTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTreeTemplate>();
+    private static readonly GameType _perkTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTemplate>();
+    private static readonly GameType _unitLeaderTemplateType = GameType.Of<Il2CppMenace.Strategy.UnitLeaderTemplate>();
+    private static readonly GameType _rosterType = GameType.Of<Il2CppMenace.Strategy.Roster>();
+    private static readonly GameType _unitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
+    private static readonly GameType _squaddieType = GameType.Of<Il2CppMenace.Strategy.Squaddie>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
 
     // Leader status constants
     public const int STATUS_HIRED = 0;
@@ -86,8 +89,6 @@ public static class Roster
     {
         try
         {
-            EnsureTypesLoaded();
-
             var ssType = _strategyStateType?.ManagedType;
             if (ssType == null) return GameObj.Null;
 
@@ -121,8 +122,6 @@ public static class Roster
         {
             var roster = GetRoster();
             if (roster.IsNull) return result;
-
-            EnsureTypesLoaded();
 
             // Use m_HiredLeaders field at offset +0x10
             var hiredListPtr = roster.ReadPtr(0x10);
@@ -177,8 +176,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return null;
 
@@ -332,14 +329,12 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             // Use m_Perks field at offset +0x48
             var perksPtr = leader.ReadPtr(0x48);
             if (perksPtr == IntPtr.Zero) return result;
 
             // Get typed list to work around GameObj.ToManaged() failing for generic types
-            var perkTemplateType = GameType.Find("Menace.Strategy.PerkTemplate")?.ManagedType;
+            var perkTemplateType = _perkTemplateType.ManagedType;
             if (perkTemplateType == null) return result;
 
             var (perks, listType) = GetTypedList(perksPtr, perkTemplateType);
@@ -398,14 +393,12 @@ public static class Roster
             var roster = GetRoster();
             if (roster.IsNull) return result;
 
-            EnsureTypesLoaded();
-
             // Use hirable leaders field at offset +0x18
             var hirableListPtr = roster.ReadPtr(0x18);
             if (hirableListPtr == IntPtr.Zero) return result;
 
             // Get typed list to work around GameObj.ToManaged() failing for generic types
-            var templateType = GameType.Find("Menace.Strategy.UnitLeaderTemplate")?.ManagedType;
+            var templateType = _unitLeaderTemplateType.ManagedType;
             if (templateType == null) return result;
 
             var (hirableList, listType) = GetTypedList(hirableListPtr, templateType);
@@ -499,8 +492,6 @@ public static class Roster
             var roster = GetRoster();
             if (roster.IsNull) return false;
 
-            EnsureTypesLoaded();
-
             var rosterType = _rosterType?.ManagedType;
             if (rosterType == null) return false;
 
@@ -508,7 +499,7 @@ public static class Roster
             if (proxy == null) return false;
 
             // Find UnitLeaderTemplate type
-            var templateType = GameType.Find("Menace.Strategy.UnitLeaderTemplate")?.ManagedType;
+            var templateType = _unitLeaderTemplateType.ManagedType;
             if (templateType == null) return false;
 
             var method = rosterType.GetMethod("AddHirableLeader", BindingFlags.Public | BindingFlags.Instance);
@@ -539,15 +530,13 @@ public static class Roster
             var roster = GetRoster();
             if (roster.IsNull) return GameObj.Null;
 
-            EnsureTypesLoaded();
-
             var rosterType = _rosterType?.ManagedType;
             if (rosterType == null) return GameObj.Null;
 
             var proxy = GetManagedProxy(roster, rosterType);
             if (proxy == null) return GameObj.Null;
 
-            var templateType = GameType.Find("Menace.Strategy.UnitLeaderTemplate")?.ManagedType;
+            var templateType = _unitLeaderTemplateType.ManagedType;
             if (templateType == null) return GameObj.Null;
 
             var method = rosterType.GetMethod("HireLeader", BindingFlags.Public | BindingFlags.Instance);
@@ -579,8 +568,6 @@ public static class Roster
         {
             var roster = GetRoster();
             if (roster.IsNull) return false;
-
-            EnsureTypesLoaded();
 
             var rosterType = _rosterType?.ManagedType;
             var leaderType = _unitLeaderType?.ManagedType;
@@ -653,8 +640,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return GameObj.Null;
 
@@ -688,8 +673,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return result;
 
@@ -736,8 +719,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var squaddieType = _squaddieType?.ManagedType;
             if (squaddieType == null) return null;
 
@@ -803,8 +784,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             var squaddieType = _squaddieType?.ManagedType;
             if (leaderType == null || squaddieType == null) return false;
@@ -851,8 +830,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             var squaddieType = _squaddieType?.ManagedType;
             if (leaderType == null || squaddieType == null) return false;
@@ -917,15 +894,13 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
             var leaderProxy = GetManagedProxy(leader, leaderType);
             if (leaderProxy == null) return false;
 
-            var perkTemplateType = GameType.Find("Menace.Strategy.PerkTemplate")?.ManagedType;
+            var perkTemplateType = _perkTemplateType.ManagedType;
             if (perkTemplateType == null) return false;
 
             var perkProxy = GetManagedProxy(perk, perkTemplateType);
@@ -954,8 +929,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
@@ -966,7 +939,7 @@ public static class Roster
             var perksPtr = leader.ReadPtr(0x48);
             if (perksPtr == IntPtr.Zero) return false;
 
-            var perkTemplateType = GameType.Find("Menace.Strategy.PerkTemplate")?.ManagedType;
+            var perkTemplateType = _perkTemplateType.ManagedType;
             if (perkTemplateType == null) return false;
 
             var (perks, listType) = GetTypedList(perksPtr, perkTemplateType);
@@ -1018,8 +991,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
@@ -1066,8 +1037,6 @@ public static class Roster
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
@@ -1307,14 +1276,6 @@ public static class Roster
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _rosterType ??= GameType.Find("Menace.Strategy.Roster");
-        _unitLeaderType ??= GameType.Find("Menace.Strategy.BaseUnitLeader");
-        _squaddieType ??= GameType.Find("Menace.Strategy.Squaddie");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

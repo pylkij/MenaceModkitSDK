@@ -31,6 +31,10 @@
       <HintPath>$(MelonLoaderPath)/Il2CppInterop.Common.dll</HintPath>
       <Private>false</Private>
     </Reference>
+	<Reference Include="Il2CppSirenix.Serialization">
+		<HintPath>$(GameAssembliesPath)/Il2CppSirenix.Serialization.dll</HintPath>
+		<Private>false</Private>
+	</Reference>
   </ItemGroup>
 
   <!-- Game-specific Il2Cpp assemblies (configurable via Directory.Build.props) -->

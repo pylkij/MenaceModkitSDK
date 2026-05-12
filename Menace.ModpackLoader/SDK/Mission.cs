@@ -21,10 +21,11 @@ namespace Menace.SDK;
 public static class Mission
 {
     // Cached types
-    private static GameType _missionType;
-    private static GameType _missionTemplateType;
-    private static GameType _objectiveManagerType;
-    private static GameType _tacticalManagerType;
+    private static readonly GameType _objectiveType = GameType.Of<Il2CppMenace.Tactical.Objectives.Objective>();
+    private static readonly GameType _missionType = GameType.Of<Il2CppMenace.Strategy.Mission>();
+    private static readonly GameType _missionTemplateType = GameType.Of<Il2CppMenace.Strategy.Missions.MissionTemplate>(); // not assigned but it probably should be so it is staying for now
+    private static readonly GameType _objectiveManagerType = GameType.Of<Il2CppMenace.Tactical.Objectives.ObjectiveManager>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
 
     // Mission status constants
     public const int STATUS_PENDING = 0;
@@ -82,8 +83,6 @@ public static class Mission
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Get TacticalManager via Get() static method
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return GameObj.Null;
@@ -92,24 +91,28 @@ public static class Mission
             var tm = getMethod?.Invoke(null, null);
             if (tm == null) return GameObj.Null;
 
-            // Get StrategyState from TacticalManager
-            var strategyStateType = GameType.Find("Menace.Strategy.StrategyState")?.ManagedType;
-            if (strategyStateType == null) return GameObj.Null;
+            // TacticalManager likely holds a Mission directly — try common property names
+            var tmActualType = tm.GetType();
 
-            var getStateMethod = strategyStateType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var state = getStateMethod?.Invoke(null, null);
-            if (state == null) return GameObj.Null;
+            // Try "Mission" property first
+            var missionProp = tmActualType.GetProperty("Mission", BindingFlags.Public | BindingFlags.Instance)
+                           ?? tmActualType.GetProperty("CurrentMission", BindingFlags.Public | BindingFlags.Instance);
 
-            // Get current Operation from StrategyState
-            var operationProp = strategyStateType.GetProperty("CurrentOperation", BindingFlags.Public | BindingFlags.Instance);
-            var operation = operationProp?.GetValue(state);
-            if (operation == null) return GameObj.Null;
+            object mission = missionProp?.GetValue(tm);
 
-            // Get Mission from Operation
-            var operationType = operation.GetType();
-            var missionProp = operationType.GetProperty("Mission", BindingFlags.Public | BindingFlags.Instance);
-            var mission = missionProp?.GetValue(operation);
+            // Fallback: TacticalManager may expose it via a field instead
+            if (mission == null)
+            {
+                var missionField = tmActualType.GetField("m_Mission", BindingFlags.NonPublic | BindingFlags.Instance)
+                                ?? tmActualType.GetField("Mission", BindingFlags.Public | BindingFlags.Instance);
+                mission = missionField?.GetValue(tm);
+            }
+
             if (mission == null) return GameObj.Null;
+
+            // Verify it's actually a Menace.Strategy.Mission
+            var missionType = _missionType.ManagedType;
+            if (missionType == null || !missionType.IsInstanceOfType(mission)) return GameObj.Null;
 
             return new GameObj(((Il2CppObjectBase)mission).Pointer);
         }
@@ -138,8 +141,6 @@ public static class Mission
 
         try
         {
-            EnsureTypesLoaded();
-
             var missionType = _missionType?.ManagedType;
             if (missionType == null) return null;
 
@@ -240,8 +241,6 @@ public static class Mission
 
         try
         {
-            EnsureTypesLoaded();
-
             var missionType = _missionType?.ManagedType;
             if (missionType == null) return result;
 
@@ -278,7 +277,7 @@ public static class Mission
             if (objectives.Count == 0) return result;
 
             // Iterate objectives array
-            var objectiveType = GameType.Find("Menace.Tactical.Objectives.Objective")?.ManagedType;
+            var objectiveType = _objectiveType.ManagedType;
 
             foreach (var objPtr in objectives)
             {
@@ -374,10 +373,8 @@ public static class Mission
 
         try
         {
-            EnsureTypesLoaded();
-
             var objPtr = objectives[index].Pointer;
-            var objType = GameType.Find("Menace.Tactical.Objectives.Objective")?.ManagedType;
+            var objType = _objectiveType.ManagedType;
             if (objType == null) return false;
 
             var proxy = GetManagedProxy(new GameObj(objPtr), objType);
@@ -492,14 +489,6 @@ public static class Mission
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _missionType ??= GameType.Find("Menace.Strategy.Mission");
-        _missionTemplateType ??= GameType.Find("Menace.Strategy.Missions.MissionTemplate");
-        _objectiveManagerType ??= GameType.Find("Menace.Tactical.Objectives.ObjectiveManager");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

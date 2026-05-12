@@ -23,12 +23,15 @@ namespace Menace.SDK;
 public static class Inventory
 {
     // Cached types
-    private static GameType _itemType;
-    private static GameType _baseItemType;
-    private static GameType _itemContainerType;
-    private static GameType _itemTemplateType;
-    private static GameType _strategyStateType;
-    private static GameType _ownedItemsType;
+    private static readonly GameType _itemType = GameType.Of<Il2CppMenace.Items.Item>();
+    private static readonly GameType _baseItemType = GameType.Of<Il2CppMenace.Items.BaseItem>();
+    private static readonly GameType _itemContainerType = GameType.Of<Il2CppMenace.Items.ItemContainer>();
+    private static readonly GameType _itemTemplateType = GameType.Of<Il2CppMenace.Items.BaseItemTemplate>();
+    private static readonly GameType _weaponTemplateType = GameType.Of<Il2CppMenace.Items.WeaponTemplate>();
+    private static readonly GameType _armorTemplateType = GameType.Of<Il2CppMenace.Items.ArmorTemplate>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    private static readonly GameType _ownedItemsType = GameType.Of<Il2CppMenace.Strategy.OwnedItems>();
+    private static readonly GameType _entityType = GameType.Of<Il2CppMenace.Tactical.Entity>();
 
     // Slot type constants
     public const int SLOT_WEAPON1 = 0;
@@ -140,28 +143,19 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
-            // Access IHasItemContainer.ItemContainer property
-            // Actor implements IHasItemContainer interface which has ItemContainer property
-            var hasContainerType = GameType.Find("Menace.Items.IHasItemContainer")?.ManagedType;
-            if (hasContainerType != null)
+            var entityType = _entityType.ManagedType;
+            if (entityType != null)
             {
-                var proxy = GetManagedProxy(entity, hasContainerType);
+                var proxy = GetManagedProxy(entity, entityType);
                 if (proxy != null)
                 {
-                    var containerProp = hasContainerType.GetProperty("ItemContainer",
+                    var getItems = entityType.GetMethod("GetItems",
                         BindingFlags.Public | BindingFlags.Instance);
-                    var container = containerProp?.GetValue(proxy);
+                    var container = getItems?.Invoke(proxy, null);
                     if (container != null)
                         return new GameObj(((Il2CppObjectBase)container).Pointer);
                 }
             }
-
-            // Fallback: try direct field access via m_ItemContainer
-            var containerPtr = entity.ReadPtr("m_ItemContainer");
-            if (containerPtr != IntPtr.Zero)
-                return new GameObj(containerPtr);
 
             return GameObj.Null;
         }
@@ -182,8 +176,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return result;
 
@@ -229,8 +221,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return result;
 
@@ -275,8 +265,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return GameObj.Null;
 
@@ -305,8 +293,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var itemType = _itemType?.ManagedType;
             if (itemType == null) return null;
 
@@ -383,8 +369,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return null;
 
@@ -435,8 +419,6 @@ public static class Inventory
             var ownedItems = GetOwnedItems();
             if (ownedItems.IsNull) return GameObj.Null;
 
-            EnsureTypesLoaded();
-
             var ownedType = _ownedItemsType?.ManagedType;
             if (ownedType == null) return GameObj.Null;
 
@@ -465,8 +447,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return false;
 
@@ -510,7 +490,6 @@ public static class Inventory
                 var itemObj = new GameObj(itemInfo.Pointer);
 
                 // Check if item has the tag using HasTag method on BaseItem
-                EnsureTypesLoaded();
                 var baseItemType = _baseItemType?.ManagedType;
                 if (baseItemType != null)
                 {
@@ -771,7 +750,6 @@ public static class Inventory
         // spawninfo - Debug info about spawn system
         DevConsole.RegisterCommand("spawninfo", "", "Show spawn system debug info", args =>
         {
-            EnsureTypesLoaded();
             var lines = new List<string> { "Spawn System Info:" };
 
             // Check types
@@ -853,7 +831,6 @@ public static class Inventory
                 return "Actor has no item container";
 
             // Find BaseItemTemplate.CreateItem method
-            EnsureTypesLoaded();
             var templateType = _itemTemplateType?.ManagedType;
             if (templateType == null)
                 return "BaseItemTemplate type not found";
@@ -911,8 +888,6 @@ public static class Inventory
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Find the template - try multiple template types
             var template = FindItemTemplate(templateName);
             if (template.IsNull)
@@ -1001,10 +976,6 @@ public static class Inventory
         }
     }
 
-    // Additional template types to search
-    private static GameType _weaponTemplateType;
-    private static GameType _armorTemplateType;
-
     /// <summary>
     /// Find an item template by name. Searches multiple template types.
     /// </summary>
@@ -1012,8 +983,6 @@ public static class Inventory
     {
         try
         {
-            EnsureTypesLoaded();
-
             // Try multiple template types
             var typesToSearch = new[]
             {
@@ -1058,8 +1027,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             // Search multiple template types
             var typesToSearch = new[]
             {
@@ -1113,8 +1080,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return false;
 
@@ -1186,8 +1151,6 @@ public static class Inventory
 
         try
         {
-            EnsureTypesLoaded();
-
             var containerType = _itemContainerType?.ManagedType;
             if (containerType == null) return false;
 
@@ -1268,18 +1231,6 @@ public static class Inventory
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _itemType ??= GameType.Find("Menace.Items.Item");
-        _baseItemType ??= GameType.Find("Menace.Items.BaseItem");
-        _itemContainerType ??= GameType.Find("Menace.Items.ItemContainer");
-        _itemTemplateType ??= GameType.Find("Menace.Items.BaseItemTemplate");
-        _weaponTemplateType ??= GameType.Find("Menace.Items.WeaponTemplate");
-        _armorTemplateType ??= GameType.Find("Menace.Items.ArmorTemplate");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-        _ownedItemsType ??= GameType.Find("Menace.Strategy.OwnedItems");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

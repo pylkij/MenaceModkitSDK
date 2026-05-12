@@ -53,10 +53,11 @@ public enum TacticalFinishReason
 public static class TacticalController
 {
     // Cached types
-    private static GameType _tacticalManagerType;
-    private static GameType _tacticalStateType;
-    private static GameType _baseFactionType;
-    private static GameType _tacticalFinishReasonType;
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _taticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    private static readonly GameType _tacticalStateType = GameType.Of<Il2CppMenace.States.TacticalState>();
+    private static readonly GameType _baseFactionType = GameType.Of<Il2CppMenace.Tactical.AI.BaseFaction>();
 
     // TacticalState offsets (still needed for some operations)
     private const uint OFFSET_TS_TIME_SCALE = 0x28;
@@ -69,8 +70,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return 0;
 
@@ -96,8 +95,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return -1;
 
@@ -142,8 +139,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -169,8 +164,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -234,8 +227,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -263,8 +254,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -292,8 +281,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tsType = _tacticalStateType?.ManagedType;
             if (tsType == null) return false;
 
@@ -321,8 +308,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return GameObj.Null;
 
@@ -351,8 +336,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -365,7 +348,7 @@ public static class TacticalController
             object actorProxy = null;
             if (!actor.IsNull)
             {
-                var actorType = GameType.Find("Menace.Tactical.Actor")?.ManagedType;
+                var actorType = _actorType.ManagedType;
                 if (actorType != null)
                 {
                     var ptrCtor = actorType.GetConstructor(new[] { typeof(IntPtr) });
@@ -391,8 +374,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return 0;
 
@@ -419,8 +400,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return 0;
 
@@ -446,8 +425,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -474,8 +451,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -502,8 +477,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
@@ -638,32 +611,26 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return false;
 
-            var tm = GetTacticalManagerProxy();
+            // Get the singleton instance via the static Get() method
+            var getMethod = tmType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
+            if (getMethod == null) return false;
+
+            var tm = getMethod.Invoke(null, null);
             if (tm == null) return false;
 
-            // Find the game's TacticalFinishReason enum type
-            _tacticalFinishReasonType ??= GameType.Find("Menace.Tactical.TacticalFinishReason");
-            var gameReasonType = _tacticalFinishReasonType?.ManagedType;
-
+            // Find Finish() on the instance
             var finishMethod = tmType.GetMethod("Finish", BindingFlags.Public | BindingFlags.Instance);
             if (finishMethod == null) return false;
 
-            // Convert our enum to the game's enum
-            object gameReason;
-            if (gameReasonType != null)
-            {
-                gameReason = Enum.ToObject(gameReasonType, (int)reason);
-            }
-            else
-            {
-                // Fallback: try passing the int value directly
-                gameReason = (int)reason;
-            }
+            // Look up the game's TacticalFinishReason enum type separately
+            // It lives in the Menace.Tactical namespace alongside TacticalManager
+            var finishReasonType = finishMethod.GetParameters()[0].ParameterType;
+
+            // Convert our local enum value to the game's enum type by integer value
+            object gameReason = Enum.ToObject(finishReasonType, (int)reason);
 
             finishMethod.Invoke(tm, new object[] { gameReason });
             ModError.Info("Menace.SDK", $"Mission finished with reason: {reason}");
@@ -678,19 +645,10 @@ public static class TacticalController
 
     // --- Internal helpers ---
 
-    private static void EnsureTypesLoaded()
-    {
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-        _tacticalStateType ??= GameType.Find("Menace.States.TacticalState");
-        _baseFactionType ??= GameType.Find("Menace.Tactical.AI.BaseFaction");
-    }
-
     private static object GetTacticalManagerProxy()
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return null;
 
@@ -707,8 +665,6 @@ public static class TacticalController
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tsType = _tacticalStateType?.ManagedType;
             if (tsType == null) return null;
 

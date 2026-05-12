@@ -21,11 +21,11 @@ namespace Menace.SDK;
 public static class Perks
 {
     // Cached types
-    private static GameType _perkTemplateType;
-    private static GameType _perkTreeTemplateType;
-    private static GameType _perkType;
-    private static GameType _skillTemplateType;
-    private static GameType _unitLeaderType;
+    private static readonly GameType _perkTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTemplate>();
+    private static readonly GameType _perkTreeTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTreeTemplate>();
+    private static readonly GameType _perkType = GameType.Of<Il2CppMenace.Strategy.Perk>();
+    private static readonly GameType _skillTemplateType = GameType.Of<Il2CppMenace.Tactical.Skills.SkillTemplate>();
+    private static readonly GameType _unitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
 
     /// <summary>
     /// Perk information structure.
@@ -66,8 +66,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return result;
 
@@ -158,8 +156,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             // Get leader's template using managed reflection (more reliable than IL2CPP field lookup)
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return result;
@@ -263,7 +259,7 @@ public static class Perks
             };
 
             // Create managed proxy for the perk tree
-            var treeType = GameType.Find("Menace.Strategy.PerkTreeTemplate")?.ManagedType;
+            var treeType = _perkTreeTemplateType.ManagedType;
             if (treeType == null)
             {
                 ModError.Report("Menace.SDK", "GetPerkTreeInfo: treeType is null", null, ErrorSeverity.Warning);
@@ -369,8 +365,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
@@ -398,8 +392,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
@@ -430,8 +422,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             var perkType = _perkTemplateType?.ManagedType;
             if (leaderType == null || perkType == null) return false;
@@ -462,8 +452,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return false;
 
@@ -491,8 +479,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             var perkType = _perkTemplateType?.ManagedType;
             if (leaderType == null || perkType == null) return false;
@@ -522,8 +508,6 @@ public static class Perks
 
         try
         {
-            EnsureTypesLoaded();
-
             var leaderType = _unitLeaderType?.ManagedType;
             if (leaderType == null) return GameObj.Null;
 
@@ -777,15 +761,6 @@ public static class Perks
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _perkTemplateType ??= GameType.Find("Menace.Strategy.PerkTemplate");
-        _perkTreeTemplateType ??= GameType.Find("Menace.Strategy.PerkTreeTemplate");
-        _perkType ??= GameType.Find("Menace.Strategy.Perk");
-        _skillTemplateType ??= GameType.Find("Menace.Tactical.Skills.SkillTemplate");
-        _unitLeaderType ??= GameType.Find("Menace.Strategy.BaseUnitLeader");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

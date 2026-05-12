@@ -21,10 +21,10 @@ namespace Menace.SDK;
 public static class LineOfSight
 {
     // Cached types
-    private static GameType _tileType;
-    private static GameType _actorType;
-    private static GameType _entityPropertiesType;
-    private static GameType _tacticalManagerType;
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _entityPropertiesType = GameType.Of<Il2CppMenace.Tactical.EntityProperties>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
 
     // Visibility states
     public const int VISIBILITY_UNKNOWN = 0;
@@ -72,8 +72,6 @@ public static class LineOfSight
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return false;
 
@@ -108,8 +106,6 @@ public static class LineOfSight
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return false;
 
@@ -204,8 +200,6 @@ public static class LineOfSight
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return 0;
 
@@ -242,8 +236,6 @@ public static class LineOfSight
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return 0;
 
@@ -278,8 +270,6 @@ public static class LineOfSight
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return 0;
 
@@ -454,14 +444,6 @@ public static class LineOfSight
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _entityPropertiesType ??= GameType.Find("Menace.Tactical.EntityProperties");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

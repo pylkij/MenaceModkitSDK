@@ -93,6 +93,13 @@ public class GameType
         return result;
     }
 
+    public static GameType Of<T>() where T : Il2CppObjectBase
+    {
+        var il2cppType = Il2CppType.From(typeof(T));
+        var ptr = IL2CPP.il2cpp_class_from_type(il2cppType.Pointer);
+        return ptr != IntPtr.Zero ? FromPointer(ptr) : Invalid;
+    }
+
     /// <summary>
     /// Search for a type by short name (no namespace) by scanning managed assemblies.
     /// Returns the IL2CPP class pointer if found.
@@ -414,24 +421,6 @@ public class GameType
         catch
         {
             return false;
-        }
-    }
-
-    /// <summary>
-    /// Find a method on this type by name via managed reflection.
-    /// </summary>
-    public MethodInfo FindMethod(string name, BindingFlags flags = BindingFlags.Public | BindingFlags.Instance)
-    {
-        var managed = ManagedType;
-        if (managed == null) return null;
-
-        try
-        {
-            return managed.GetMethod(name, flags);
-        }
-        catch
-        {
-            return null;
         }
     }
 

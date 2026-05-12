@@ -32,10 +32,9 @@ namespace Menace.SDK;
 public static class TileMap
 {
     // Cached types
-    private static GameType _tileType;
-    private static GameType _mapType;
-    private static GameType _tacticalManagerType;
-    private static GameType _directionType;
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _mapType = GameType.Of<Il2CppMenace.Tactical.TileEffects.TileEffectHandler>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.Map>();
 
     // Direction constants (clockwise from North)
     public const int DIR_NORTH = 0;
@@ -118,8 +117,6 @@ public static class TileMap
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return GameObj.Null;
 
@@ -147,8 +144,6 @@ public static class TileMap
     {
         try
         {
-            EnsureTypesLoaded();
-
             var mapObj = GetMap();
             if (mapObj.IsNull) return null;
 
@@ -186,8 +181,6 @@ public static class TileMap
     {
         try
         {
-            EnsureTypesLoaded();
-
             var tmType = _tacticalManagerType?.ManagedType;
             if (tmType == null) return GameObj.Null;
 
@@ -223,8 +216,6 @@ public static class TileMap
     {
         try
         {
-            EnsureTypesLoaded();
-
             var mapObj = GetMap();
             if (mapObj.IsNull) goto fallback;
 
@@ -277,8 +268,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var info = new TileInfo
             {
                 Pointer = tile.Pointer,
@@ -357,8 +346,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return 0;
 
@@ -366,22 +353,12 @@ public static class TileMap
             if (proxy == null) return 0;
 
             // GetCover(Direction _dir, Entity _specificToEntity, EntityProperties _entityProperties, Boolean _realCover)
+            // Direction enum not present in dump — passing raw int, which works at runtime since enums are int-backed.
             var getCoverMethod = tileType.GetMethod("GetCover", BindingFlags.Public | BindingFlags.Instance);
-            if (getCoverMethod != null)
-            {
-                // Convert direction int to Direction enum
-                object directionEnum = direction;
-                if (_directionType?.ManagedType != null)
-                {
-                    directionEnum = Enum.ToObject(_directionType.ManagedType, direction);
-                }
+            if (getCoverMethod == null) return 0;
 
-                // Invoke with 4 parameters: Direction, Entity (null), EntityProperties (null), bool realCover (true)
-                var result = getCoverMethod.Invoke(proxy, new object[] { directionEnum, null, null, true });
-                return Convert.ToInt32(result);
-            }
-
-            return 0;
+            var result = getCoverMethod.Invoke(proxy, new object[] { direction, null, null, true });
+            return Convert.ToInt32(result);
         }
         catch (Exception ex)
         {
@@ -440,8 +417,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType != null)
             {
@@ -493,8 +468,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType != null)
             {
@@ -568,8 +541,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return false;
 
@@ -608,8 +579,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return GameObj.Null;
 
@@ -649,8 +618,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return GameObj.Null;
 
@@ -716,8 +683,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return -1;
 
@@ -767,8 +732,6 @@ public static class TileMap
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return -1;
 
@@ -983,14 +946,6 @@ public static class TileMap
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _mapType ??= GameType.Find("Menace.Tactical.Map");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-        _directionType ??= GameType.Find("Menace.Tactical.Direction");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

@@ -23,14 +23,14 @@ namespace Menace.SDK;
 public static class StrategicContent
 {
     // Cached types
-    private static GameType _operationsManagerType;
-    private static GameType _operationType;
-    private static GameType _missionType;
-    private static GameType _missionTemplateType;
-    private static GameType _conversationManagerType;
-    private static GameType _conversationTemplateType;
-    private static GameType _strategyStateType;
-    private static GameType _eventManagerType;
+    private static readonly GameType _planetTemplateType = GameType.Of<Il2CppMenace.Strategy.PlanetTemplate>();
+    private static readonly GameType _biomeTemplateType = GameType.Of<Il2CppMenace.Strategy.BiomeTemplate>();
+    private static readonly GameType _operationsManagerType = GameType.Of<Il2CppMenace.Strategy.OperationsManager>();
+    private static readonly GameType _operationType = GameType.Of<Il2CppMenace.Strategy.Operation>();
+    private static readonly GameType _missionType = GameType.Of<Il2CppMenace.Strategy.Mission>();
+    private static readonly GameType _missionTemplateType = GameType.Of<Il2CppMenace.Strategy.Missions.MissionTemplate>();
+    private static readonly GameType _eventManagerType = GameType.Of<Il2CppMenace.Strategy.EventManager>();
+    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
 
     // ═══════════════════════════════════════════════════════════════════
     //  Mission Injection
@@ -48,8 +48,6 @@ public static class StrategicContent
 
         try
         {
-            EnsureTypesLoaded();
-
             var opType = _operationType?.ManagedType;
             if (opType == null) return false;
 
@@ -113,8 +111,6 @@ public static class StrategicContent
 
         try
         {
-            EnsureTypesLoaded();
-
             var missionType = _missionType?.ManagedType;
             var templateType = _missionTemplateType?.ManagedType;
             if (missionType == null || templateType == null) return GameObj.Null;
@@ -174,8 +170,6 @@ public static class StrategicContent
 
         try
         {
-            EnsureTypesLoaded();
-
             var om = Operation.GetOperationsManager();
             if (om.IsNull) return GameObj.Null;
 
@@ -227,8 +221,6 @@ public static class StrategicContent
     {
         try
         {
-            EnsureTypesLoaded();
-
             var om = Operation.GetOperationsManager();
             if (om.IsNull) return false;
 
@@ -302,8 +294,6 @@ public static class StrategicContent
 
         try
         {
-            EnsureTypesLoaded();
-
             var emType = _eventManagerType?.ManagedType;
             if (emType == null)
             {
@@ -401,7 +391,7 @@ public static class StrategicContent
             };
 
             // Get localized name
-            var planetType = GameType.Find("Menace.Strategy.PlanetTemplate")?.ManagedType;
+            var planetType = _planetTemplateType.ManagedType;
             if (planetType != null)
             {
                 var proxy = GetManagedProxy(planetTemplate, planetType);
@@ -484,7 +474,7 @@ public static class StrategicContent
             };
 
             // Get localized name
-            var biomeType = GameType.Find("Menace.Tactical.BiomeTemplate")?.ManagedType;
+            var biomeType = _biomeTemplateType.ManagedType;
             if (biomeType != null)
             {
                 var proxy = GetManagedProxy(biomeTemplate, biomeType);
@@ -672,18 +662,6 @@ public static class StrategicContent
     // ═══════════════════════════════════════════════════════════════════
     //  Internal Helpers
     // ═══════════════════════════════════════════════════════════════════
-
-    private static void EnsureTypesLoaded()
-    {
-        _operationsManagerType ??= GameType.Find("Menace.Strategy.OperationsManager");
-        _operationType ??= GameType.Find("Menace.Strategy.Operation");
-        _missionType ??= GameType.Find("Menace.Strategy.Mission");
-        _missionTemplateType ??= GameType.Find("Menace.Strategy.GenericMissionTemplate");
-        _conversationManagerType ??= GameType.Find("Menace.Conversations.BaseConversationManager");
-        _conversationTemplateType ??= GameType.Find("Menace.Conversations.ConversationTemplate");
-        _strategyStateType ??= GameType.Find("Menace.States.StrategyState");
-        _eventManagerType ??= GameType.Find("Menace.Strategy.EventManager");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);

@@ -28,11 +28,10 @@ namespace Menace.SDK;
 public static class EntitySkills
 {
     // Cached types
-    private static GameType _actorType;
-    private static GameType _skillType;
-    private static GameType _skillContainerType;
-    private static GameType _skillTemplateType;
-    private static GameType _cooldownHandlerType;
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _skillType = GameType.Of<Il2CppMenace.Tactical.Skills.BaseSkill>();
+    private static readonly GameType _skillContainerType = GameType.Of<Il2CppMenace.Tactical.Skills.SkillContainer>();
+    private static readonly GameType _skillTemplateType = GameType.Of<Il2CppMenace.Tactical.Skills.SkillTemplate>();
 
     // Skill field offsets from Ghidra decompilation
     private const uint OFFSET_SKILL_ENABLED = 0x38;
@@ -80,8 +79,6 @@ public static class EntitySkills
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return false;
 
@@ -143,8 +140,6 @@ public static class EntitySkills
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return false;
 
@@ -247,8 +242,6 @@ public static class EntitySkills
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return result;
 
@@ -461,7 +454,6 @@ public static class EntitySkills
             if (skill.IsNull) return false;
 
             // Try using SetRanges() method first
-            EnsureTypesLoaded();
             var skillType = _skillType?.ManagedType;
             if (skillType != null)
             {
@@ -517,7 +509,6 @@ public static class EntitySkills
             if (skill.IsNull) return false;
 
             // Try using ChangeActionPointCost() method first
-            EnsureTypesLoaded();
             var skillType = _skillType?.ManagedType;
             if (skillType != null)
             {
@@ -649,7 +640,6 @@ public static class EntitySkills
             info.RemainingCooldown = GetRemainingCooldown(actor, skillID);
 
             // Check if skill is usable via reflection
-            EnsureTypesLoaded();
             var skillType = _skillType?.ManagedType;
             if (skillType != null)
             {
@@ -711,7 +701,6 @@ public static class EntitySkills
             var skill = GetSkillByID(actor, skillID);
             if (skill.IsNull) return false;
 
-            EnsureTypesLoaded();
             var skillType = _skillType?.ManagedType;
             if (skillType == null) return false;
 
@@ -786,8 +775,6 @@ public static class EntitySkills
 
         try
         {
-            EnsureTypesLoaded();
-
             var actorType = _actorType?.ManagedType;
             if (actorType == null) return GameObj.Null;
 
@@ -866,8 +853,6 @@ public static class EntitySkills
     {
         try
         {
-            EnsureTypesLoaded();
-
             var templateType = _skillTemplateType?.ManagedType;
             if (templateType == null) return GameObj.Null;
 
@@ -891,18 +876,6 @@ public static class EntitySkills
         {
             return GameObj.Null;
         }
-    }
-
-    /// <summary>
-    /// Ensure all required IL2CPP types are loaded and cached.
-    /// </summary>
-    private static void EnsureTypesLoaded()
-    {
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _skillType ??= GameType.Find("Menace.Tactical.Skills.BaseSkill");
-        _skillContainerType ??= GameType.Find("Menace.Tactical.Skills.SkillContainer");
-        _skillTemplateType ??= GameType.Find("Menace.Tactical.Skills.SkillTemplate");
-        _cooldownHandlerType ??= GameType.Find("Menace.Tactical.Skills.CooldownEffectHandler");
     }
 
     /// <summary>

@@ -30,9 +30,10 @@ public static class AICoordination
     private static readonly Dictionary<int, FactionTurnState> _factionStates = new();
     private static readonly object _stateLock = new();
 
-    // Cached types for reflection
-    private static GameType _actorType;
-    private static GameType _baseFactionType;
+    // Cached types
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _baseFactionType = GameType.Of<Il2CppMenace.Tactical.AI.BaseFaction>();
+    private static readonly GameType _agentType = GameType.Of<Il2CppMenace.Tactical.AI.Agent>();
 
     // Offset for SkillBehavior target tile reference (verified via audit)
     private const uint OFFSET_SKILL_BEHAVIOR_TARGET_TILE = 0x58;
@@ -515,8 +516,6 @@ public static class AICoordination
 
         try
         {
-            EnsureTypesLoaded();
-
             // Use Actor.GetTile() method - the correct API per audit
             var actorType = _actorType?.ManagedType;
             if (actorType != null)
@@ -571,8 +570,6 @@ public static class AICoordination
 
         try
         {
-            EnsureTypesLoaded();
-
             // Use GetIndex() method from BaseFaction - the correct API
             var factionType = _baseFactionType?.ManagedType;
             if (factionType != null)
@@ -615,7 +612,7 @@ public static class AICoordination
             if (faction.IsNull)
             {
                 // Try calling GetAIFaction() method
-                var agentType = GameType.Find("Menace.Tactical.AI.Agent")?.ManagedType;
+                var agentType = _agentType.ManagedType;
                 if (agentType != null)
                 {
                     var agentProxy = GetManagedProxy(agent, agentType);
@@ -726,12 +723,6 @@ public static class AICoordination
     // ═══════════════════════════════════════════════════════════════════
     //  Internal Helpers
     // ═══════════════════════════════════════════════════════════════════
-
-    private static void EnsureTypesLoaded()
-    {
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _baseFactionType ??= GameType.Find("Menace.Tactical.AI.BaseFaction");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
