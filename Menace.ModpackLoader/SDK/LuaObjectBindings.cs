@@ -126,15 +126,16 @@ public static class LuaObjectBindings
         {
             try
             {
-                var gameActors = GameQuery.FindAll("Menace.Tactical.Actor");
+                var gameActors = GameQuery.FindAll<Il2CppMenace.Tactical.Actor>();
                 var table = new Table(script);
                 int i = 1;
                 foreach (var actor in gameActors)
                 {
-                    if (!actor.IsNull && actor.IsAlive)
-                    {
-                        table[i++] = UserData.Create(new LuaActor(actor.Pointer));
-                    }
+                    if (actor == null) continue;
+                    if (!actor.IsAlive()) continue;
+                    if (actor.IsDying() || actor.IsLeavingMap()) continue;
+
+                    table[i++] = UserData.Create(new LuaActor(actor.Pointer));
                 }
                 return DynValue.NewTable(table);
             }
@@ -149,17 +150,17 @@ public static class LuaObjectBindings
         {
             try
             {
-                var gameActors = GameQuery.FindAll("Menace.Tactical.Actor");
+                var gameActors = GameQuery.FindAll<Il2CppMenace.Tactical.Actor>();
                 var table = new Table(script);
                 int i = 1;
                 foreach (var actor in gameActors)
                 {
-                    if (actor.IsNull || !actor.IsAlive) continue;
-                    var factionId = actor.ReadInt(0xBC);
-                    if (factionId == 1 || factionId == 2) // Player factions
-                    {
-                        table[i++] = UserData.Create(new LuaActor(actor.Pointer));
-                    }
+                    if (actor == null) continue;
+                    if (!actor.IsAlive()) continue;
+                    if (actor.IsDying() || actor.IsLeavingMap()) continue;
+                    if (!actor.IsAlliedWithPlayer()) continue;
+
+                    table[i++] = UserData.Create(new LuaActor(actor.Pointer));
                 }
                 return DynValue.NewTable(table);
             }
@@ -174,17 +175,17 @@ public static class LuaObjectBindings
         {
             try
             {
-                var gameActors = GameQuery.FindAll("Menace.Tactical.Actor");
+                var gameActors = GameQuery.FindAll<Il2CppMenace.Tactical.Actor>();
                 var table = new Table(script);
                 int i = 1;
                 foreach (var actor in gameActors)
                 {
-                    if (actor.IsNull || !actor.IsAlive) continue;
-                    var factionId = actor.ReadInt(0xBC);
-                    if (factionId > 3) // Enemy factions
-                    {
-                        table[i++] = UserData.Create(new LuaActor(actor.Pointer));
-                    }
+                    if (actor == null) continue;
+                    if (!actor.IsAlive()) continue;
+                    if (actor.IsDying() || actor.IsLeavingMap()) continue;
+                    if (actor.IsAlliedWithPlayer()) continue;
+
+                    table[i++] = UserData.Create(new LuaActor(actor.Pointer));
                 }
                 return DynValue.NewTable(table);
             }
