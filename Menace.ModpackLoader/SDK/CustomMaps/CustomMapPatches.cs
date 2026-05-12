@@ -225,13 +225,11 @@ public static class CustomMapPatches
     /// Prefix patch for Map.ClampToBounds
     /// Uses dynamic map size instead of hardcoded 42.
     /// </summary>
-    private static bool ClampToBounds_Prefix(ref UnityEngine.Vector3 _worldPos, ref UnityEngine.Vector3 __result)
+    private static bool ClampToBounds_Prefix(ref UnityEngine.RectInt _input, ref UnityEngine.RectInt __result)
     {
-        __result = new UnityEngine.Vector3(
-            UnityEngine.Mathf.Clamp(_worldPos.x, 0, CurrentMapSize),
-            _worldPos.y, // don't clamp height
-            UnityEngine.Mathf.Clamp(_worldPos.z, 0, CurrentMapSize)
-        );
+        int clampedX = UnityEngine.Mathf.Clamp(_input.x, 0, CurrentMapSize - _input.width);
+        int clampedY = UnityEngine.Mathf.Clamp(_input.y, 0, CurrentMapSize - _input.height);
+        __result = new UnityEngine.RectInt(clampedX, clampedY, _input.width, _input.height);
         return false;
     }
 
