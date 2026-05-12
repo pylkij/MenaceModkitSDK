@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -965,7 +966,7 @@ public static class Emotions
     {
         try
         {
-            var templates = GameQuery.FindAll("EmotionalStateTemplate");
+            var templates = GameQuery.FindAll<EmotionalStateTemplate>();
             var names = new List<string>();
             foreach (var template in templates)
             {
