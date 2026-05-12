@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+
+using Il2CppMenace.Tactical.AI;
 
 namespace Menace.SDK;
 
@@ -433,27 +434,19 @@ public static class AI
         try
         {
             // Find AIFaction for this faction
-            var aiFactions = GameQuery.FindAll("AIFaction");
+            var aiFactions = GameQuery.FindAll<AIFaction>();
             foreach (var aiFaction in aiFactions)
             {
-                int index = aiFaction.ReadInt("FactionIndex");
-                if (index == factionIndex)
+                if (aiFaction.m_FactionIndex == factionIndex)
                 {
                     // AIFaction uses m_Actors, not m_Agents
-                    var actors = aiFaction.ReadObj("m_Actors");
-                    if (!actors.IsNull)
-                    {
-                        info.ActorCount = actors.ReadInt("_size");
-                    }
+                    info.ActorCount = aiFaction.m_Actors?.Count ?? 0;
 
-                    var opponents = aiFaction.ReadObj("m_Opponents");
-                    if (!opponents.IsNull)
-                    {
-                        info.OpponentCount = opponents.ReadInt("_size");
-                    }
+                    // m_Opponents is List<Opponent> on AIFaction
+                    info.OpponentCount = aiFaction.m_Opponents?.Count ?? 0;
 
-                    // m_IsEvaluating doesn't exist - try m_IsThinking or m_Thinking field
-                    info.IsThinking = aiFaction.ReadBool("m_IsThinking") || aiFaction.ReadBool("m_Thinking");
+                    // IsThinking() is a real method on AIFaction
+                    info.IsThinking = aiFaction.IsThinking();
                     break;
                 }
             }
@@ -667,12 +660,11 @@ public static class AI
     {
         try
         {
-            var aiFactions = GameQuery.FindAll("AIFaction");
+            var aiFactions = GameQuery.FindAll<AIFaction>();
             foreach (var aiFaction in aiFactions)
             {
                 // Try m_IsThinking or m_Thinking field
-                if (aiFaction.ReadBool("m_IsThinking") || aiFaction.ReadBool("m_Thinking"))
-                    return true;
+                if (aiFaction.IsThinking()) return true;
             }
             return false;
         }
