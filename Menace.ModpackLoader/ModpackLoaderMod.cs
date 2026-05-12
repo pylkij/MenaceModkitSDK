@@ -1,24 +1,23 @@
+using HarmonyLib;
+using Il2CppInterop.Runtime;
+using MelonLoader;
+using Menace.ModpackLoader.Diagnostics;
+using Menace.ModpackLoader.Mcp;
+using Menace.ModpackLoader.TemplateLoading;
+using Menace.ModpackLoader.VisualEditor.Runtime;
+using Menace.SDK;
+using Menace.SDK.CustomMaps;
+using Menace.SDK.Internal;
+using Menace.SDK.Repl;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-
-using HarmonyLib;
-using Il2CppInterop.Runtime;
-using MelonLoader;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using UnityEngine;
-
-using Menace.SDK;
-using Menace.SDK.CustomMaps;
-using Menace.SDK.Internal;
-using Menace.SDK.Repl;
-using Menace.ModpackLoader.Mcp;
-using Menace.ModpackLoader.Diagnostics;
-using Menace.ModpackLoader.VisualEditor.Runtime;
-using Menace.ModpackLoader.TemplateLoading;
+using static Menace.SDK.Modpacks;
 
 [assembly: MelonInfo(typeof(Menace.ModpackLoader.ModpackLoaderMod), "Menace Modpack Loader", Menace.ModkitVersion.MelonVersion, "Menace Modkit")]
 [assembly: MelonGame(null, null)]
@@ -134,20 +133,21 @@ public partial class ModpackLoaderMod : MelonMod
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
         PlayerLog(ModkitVersion.LoaderFull);
-        PlayerLog($"Loaded {_loadedModpacks.Count} modpack(s):");
-        foreach (var mp in _loadedModpacks.Values.OrderBy(m => m.LoadOrder))
-            PlayerLog($"  - {mp.Name} v{mp.Version} by {mp.Author ?? "Unknown"} (order: {mp.LoadOrder})");
-        PlayerLog($"Bundles: {BundleLoader.LoadedBundleCount} ({BundleLoader.LoadedAssetCount} assets)");
-        PlayerLog($"Asset replacements registered: {AssetReplacer.RegisteredCount}");
-        PlayerLog($"Custom sprites loaded: {AssetReplacer.CustomSpriteCount}");
-        PlayerLog($"Compiled assets in manifest: {CompiledAssetLoader.ManifestAssetCount}");
-        PlayerLog($"Mod DLLs: {DllLoader.GetLoadedAssemblies().Count}");
+        PlayerLog($"Loaded {_loadedModpacks?.Count ?? 0} modpack(s):");
+        if (_loadedModpacks != null)
+            foreach (var mp in _loadedModpacks.Values.OrderBy(m => m.LoadOrder))
+                PlayerLog($"  - {mp.Name} v{mp.Version} by {mp.Author ?? "Unknown"} (order: {mp.LoadOrder})");
+        try { PlayerLog($"Bundles: {BundleLoader.LoadedBundleCount} ({BundleLoader.LoadedAssetCount} assets)"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] BundleLoader failed: {ex.Message}"); }
+        try { PlayerLog($"Asset replacements registered: {AssetReplacer.RegisteredCount}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] AssetReplacer.RegisteredCount failed: {ex.Message}"); }
+        try { PlayerLog($"Custom sprites loaded: {AssetReplacer.CustomSpriteCount}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] AssetReplacer.CustomSpriteCount failed: {ex.Message}"); }
+        try { PlayerLog($"Compiled assets in manifest: {CompiledAssetLoader.ManifestAssetCount}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] CompiledAssetLoader failed: {ex.Message}"); }
+        try { PlayerLog($"Mod DLLs: {DllLoader.GetLoadedAssemblies()?.Count ?? 0}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] DllLoader failed: {ex.Message}"); }
         var pluginSummary = DllLoader.GetPluginSummary();
         if (pluginSummary != null)
             PlayerLog($"Modpack plugins: {pluginSummary}");
-        PlayerLog($"Lua scripts loaded: {LuaScriptEngine.Instance.LoadedScriptCount}");
-        PlayerLog($"Visual mods loaded: {GraphInterpreter.Instance.LoadedMods.Count}");
-        PlayerLog($"Custom maps registered: {CustomMapRegistry.Count}");
+        try { PlayerLog($"Lua scripts loaded: {LuaScriptEngine.Instance?.LoadedScriptCount ?? 0}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] LuaScriptEngine failed: {ex.Message}"); }
+        try { PlayerLog($"Visual mods loaded: {GraphInterpreter.Instance?.LoadedMods?.Count ?? 0}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] GraphInterpreter failed: {ex.Message}"); }
+        try { PlayerLog($"Custom maps registered: {CustomMapRegistry.Count}"); } catch (Exception ex) { SdkLogger.Warning($"[Summary] CustomMapRegistry failed: {ex.Message}"); }
         PlayerLog("========================================");
     }
 
