@@ -20,10 +20,10 @@ namespace Menace.SDK;
 public static class TileEffects
 {
     // Cached types
-    private static GameType _tileEffectHandlerType;
-    private static GameType _tileEffectTemplateType;
-    private static GameType _tileType;
-    private static GameType _tacticalManagerType;
+    private static readonly GameType _tileEffectHandlerType = GameType.Of<Il2CppMenace.Tactical.TileEffects.TileEffectHandler>();
+    private static readonly GameType _tileEffectTemplateType = GameType.Of<Il2CppMenace.Tactical.TileEffects.TileEffectTemplate>();
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
 
     /// <summary>
     /// Effect information structure.
@@ -58,8 +58,6 @@ public static class TileEffects
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return result;
 
@@ -165,8 +163,6 @@ public static class TileEffects
 
         try
         {
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return false;
 
@@ -257,8 +253,6 @@ public static class TileEffects
             var effects = GetEffects(tile);
             int count = effects.Count;
 
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return 0;
 
@@ -317,8 +311,6 @@ public static class TileEffects
                 ModError.ReportInternal("TileEffects.SpawnEffect", $"Template '{templateName}' not found");
                 return false;
             }
-
-            EnsureTypesLoaded();
 
             var templateType = _tileEffectTemplateType?.ManagedType;
             if (templateType == null) return false;
@@ -460,14 +452,6 @@ public static class TileEffects
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _tileEffectHandlerType ??= GameType.Find("Menace.Tactical.TileEffects.TileEffectHandler");
-        _tileEffectTemplateType ??= GameType.Find("Menace.Tactical.TileEffects.TileEffectTemplate");
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _tacticalManagerType ??= GameType.Find("Menace.Tactical.TacticalManager");
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
