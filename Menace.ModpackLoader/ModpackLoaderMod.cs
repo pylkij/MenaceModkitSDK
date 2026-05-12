@@ -92,7 +92,7 @@ public partial class ModpackLoaderMod : MelonMod
 
         BootSkip.Initialize(HarmonyInstance);
 
-        CustomMaps.Initialize(HarmonyInstance);
+        //CustomMaps.Initialize(HarmonyInstance); // CRASHES
 
         try
         {
@@ -107,7 +107,7 @@ public partial class ModpackLoaderMod : MelonMod
             SdkLogger.Error($"[LuaEngine] Stack: {ex.StackTrace}");
         }
 
-        LoadCustomMaps();
+        //LoadCustomMaps(); // CRASHES
 
         try
         {

@@ -74,7 +74,7 @@ public static class StrategyEventHooks
             var rosterType = typeof(Il2CppMenace.Strategy.Roster);
             var storyFactionType = typeof(Il2CppMenace.Strategy.StoryFaction);
             var squaddiesType = typeof(Il2CppMenace.Strategy.Squaddies);
-            var baseGameEffect = typeof(Il2CppMenace.Strategy.BaseGameEffect);
+            //var baseGameEffect = typeof(Il2CppMenace.Strategy.BaseGameEffect); // BaseGameEffect causes a CRASH. DO NOT USE
             var baseUnitLeaderType = typeof(Il2CppMenace.Strategy.BaseUnitLeader);
             var blackMarketType = typeof(Il2CppMenace.Strategy.BlackMarket);
             var emotionalStatesType = typeof(Il2CppMenace.Strategy.EmotionalStates);
@@ -102,10 +102,10 @@ public static class StrategyEventHooks
             patchCount += GamePatch.Postfix(harmony, squaddiesType, "AddAlive", hooks.GetMethod(nameof(SquaddieAddAlive_Postfix), flags)) ? 1 : 0;
 
             // Operation patches
-            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationStarted", hooks.GetMethod(nameof(OnOperationStarted_Postfix), flags)) ? 1 : 0;
-            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationFinished", hooks.GetMethod(nameof(OnOperationFinished_Postfix), flags)) ? 1 : 0;
-            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnMissionStarted", hooks.GetMethod(nameof(OnMissionStarted_Postfix), flags)) ? 1 : 0;
-            patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnMissionFinished", hooks.GetMethod(nameof(OnMissionFinished_Postfix), flags)) ? 1 : 0;
+            //patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationStarted", hooks.GetMethod(nameof(OnOperationStarted_Postfix), flags)) ? 1 : 0;
+            //patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationFinished", hooks.GetMethod(nameof(OnOperationFinished_Postfix), flags)) ? 1 : 0;
+            //patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnMissionStarted", hooks.GetMethod(nameof(OnMissionStarted_Postfix), flags)) ? 1 : 0;
+            //patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnMissionFinished", hooks.GetMethod(nameof(OnMissionFinished_Postfix), flags)) ? 1 : 0;
 
             // BlackMarket patches
             patchCount += GamePatch.Postfix(harmony, blackMarketType, "AddItem", hooks.GetMethod(nameof(BlackMarketAddItem_Postfix), flags)) ? 1 : 0;
