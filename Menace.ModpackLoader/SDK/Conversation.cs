@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Conversations;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -486,10 +487,10 @@ public static class Conversation
 
         try
         {
-            var templates = GameQuery.FindAll("ConversationTemplate");
+            var templates = GameQuery.FindAll<ConversationTemplate>();
             foreach (var template in templates)
             {
-                var info = GetConversationInfo(template);
+                var info = GetConversationInfo(new GameObj(template.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -958,10 +959,10 @@ public static class Conversation
 
         try
         {
-            var speakers = GameQuery.FindAll("SpeakerTemplate");
+            var speakers = GameQuery.FindAll<SpeakerTemplate>();
             foreach (var speaker in speakers)
             {
-                var info = GetSpeakerInfo(speaker);
+                var info = GetSpeakerInfo(new GameObj(speaker.Pointer));
                 if (info != null)
                     result.Add(info);
             }
