@@ -168,6 +168,7 @@ public static class GameQuery
             return Array.Empty<T>();
         }
     }
+
     /// <summary>
     /// Find an object by type name and Unity object name.
     /// </summary>

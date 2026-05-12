@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Strategy;
+using Il2CppMenace.Tactical;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -236,7 +238,7 @@ public static class ArmyGeneration
     /// </summary>
     public static List<string> GetArmyTemplates()
     {
-        var templates = GameQuery.FindAll("ArmyTemplate");
+        var templates = GameQuery.FindAll<ArmyTemplate>();
         var result = new List<string>();
         foreach (var t in templates)
         {
@@ -364,7 +366,7 @@ public static class ArmyGeneration
 
             // Get all entity templates and check for ones that might be clones
             // (Clones typically have a naming pattern like original_suffix)
-            var entities = GameQuery.FindAll("EntityTemplate");
+            var entities = GameQuery.FindAll<EntityTemplate>();
             int cloneCount = 0;
 
             foreach (var entity in entities)
@@ -480,10 +482,10 @@ public static class ArmyGeneration
 
         try
         {
-            var armyTemplates = GameQuery.FindAll("ArmyTemplate");
+            var armyTemplates = GameQuery.FindAll<ArmyTemplate>();
             foreach (var army in armyTemplates)
             {
-                var entries = GetArmyTemplateEntries(army);
+                var entries = GetArmyTemplateEntries(new GameObj(army.Pointer));
                 foreach (var entry in entries)
                 {
                     if (string.Equals(entry.TemplateName, entityTemplateName, StringComparison.OrdinalIgnoreCase))
