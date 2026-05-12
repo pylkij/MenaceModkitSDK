@@ -1,9 +1,9 @@
+using Il2CppSystem.Runtime.Remoting.Proxies;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -21,11 +21,11 @@ namespace Menace.SDK;
 public static class Pathfinding
 {
     // Cached types
-    private static GameType _pathfindingManagerType;
-    private static GameType _pathfindingProcessType;
-    private static GameType _actorType;
-    private static GameType _tileType;
-    private static GameType _directionType;
+    private static readonly GameType _pathfindingManagerType = GameType.Of<Il2CppMenace.Tactical.PathfindingManager>();
+    private static readonly GameType _pathfindingProcessType = GameType.Of<Il2CppMenace.Tactical.PathfindingProcess>();
+    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
+    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
+    private static readonly GameType _mapType = GameType.Of<Il2CppMenace.Tactical.Map>();
 
     /// <summary>
     /// Surface types in the game (SurfaceType enum).
@@ -105,8 +105,6 @@ public static class Pathfinding
 
         try
         {
-            EnsureTypesLoaded();
-
             var startTile = TileMap.GetTile(startX, startY);
             var goalTile = TileMap.GetTile(goalX, goalY);
 
@@ -143,7 +141,6 @@ public static class Pathfinding
 
             try
             {
-                // Create output list - must use Il2CppSystem.Collections.Generic.List<Vector3>
                 var moverType = _actorType?.ManagedType;
                 var moverProxy = moverType != null ? GetManagedProxy(mover, moverType) : null;
                 var startProxy = GetManagedProxy(startTile, _tileType?.ManagedType);
@@ -155,16 +152,8 @@ public static class Pathfinding
                     return result;
                 }
 
-                // Get current facing direction as int, then convert to Direction enum
                 int directionInt = EntityMovement.GetFacing(mover);
-                var directionEnum = ConvertToDirectionEnum(directionInt);
-                if (directionEnum == null)
-                {
-                    result.Error = "Could not convert direction to enum";
-                    return result;
-                }
 
-                // Call FindPath
                 var findPathMethod = process.GetType().GetMethod("FindPath", BindingFlags.Public | BindingFlags.Instance);
                 if (findPathMethod == null)
                 {
@@ -172,20 +161,18 @@ public static class Pathfinding
                     return result;
                 }
 
-                // Create Il2Cpp list for output - FindPath expects Il2CppSystem.Collections.Generic.List<Vector3>
                 var il2cppListType = typeof(Il2CppSystem.Collections.Generic.List<Vector3>);
                 var pathList = Activator.CreateInstance(il2cppListType);
 
                 var success = findPathMethod.Invoke(process, new object[]
                 {
-                    startProxy, goalProxy, moverProxy, pathList, directionEnum, maxAP, false
+                    startProxy, goalProxy, moverProxy, pathList, directionInt, maxAP, false
                 });
 
                 result.Success = (bool)success;
 
                 if (result.Success)
                 {
-                    // Extract waypoints from the Il2Cpp list
                     var countProp = il2cppListType.GetProperty("Count");
                     var indexer = il2cppListType.GetProperty("Item");
                     int count = (int)countProp.GetValue(pathList);
@@ -204,7 +191,6 @@ public static class Pathfinding
             }
             finally
             {
-                // Return process to pool
                 var returnMethod = pmType.GetMethod("ReturnProcess", BindingFlags.Public | BindingFlags.Instance);
                 returnMethod?.Invoke(pm, new[] { process });
             }
@@ -252,8 +238,6 @@ public static class Pathfinding
             if (TileMap.HasActor(tile)) return false;
 
             // Check traversability via reflection if available
-            EnsureTypesLoaded();
-
             var tileType = _tileType?.ManagedType;
             if (tileType != null)
             {
@@ -333,7 +317,7 @@ public static class Pathfinding
             var mapObj = TileMap.GetMap();
             if (mapObj.IsNull) return SurfaceType.Concrete;
 
-            var mapType = GameType.Find("Menace.Tactical.Map")?.ManagedType;
+            var mapType = _mapType.ManagedType;
             if (mapType == null) return SurfaceType.Concrete;
 
             var proxy = GetManagedProxy(mapObj, mapType);
@@ -594,33 +578,6 @@ public static class Pathfinding
     }
 
     // --- Internal helpers ---
-
-    private static void EnsureTypesLoaded()
-    {
-        _pathfindingManagerType ??= GameType.Find("Menace.Tactical.PathfindingManager");
-        _pathfindingProcessType ??= GameType.Find("Menace.Tactical.PathfindingProcess");
-        _actorType ??= GameType.Find("Menace.Tactical.Actor");
-        _tileType ??= GameType.Find("Menace.Tactical.Tile");
-        _directionType ??= GameType.Find("Menace.Tactical.Direction");
-    }
-
-    /// <summary>
-    /// Convert an integer direction (0-7) to the game's Direction enum type.
-    /// </summary>
-    private static object ConvertToDirectionEnum(int directionInt)
-    {
-        try
-        {
-            EnsureTypesLoaded();
-            var dirType = _directionType?.ManagedType;
-            if (dirType == null || !dirType.IsEnum) return null;
-            return Enum.ToObject(dirType, directionInt);
-        }
-        catch
-        {
-            return null;
-        }
-    }
 
     private static object GetManagedProxy(GameObj obj, Type managedType)
         => Il2CppUtils.GetManagedProxy(obj, managedType);
