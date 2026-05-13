@@ -203,7 +203,7 @@ public readonly struct GameObj : IEquatable<GameObj>
 
     public GameType GetGameType()
     {
-        if (Pointer == IntPtr.Zero) return GameType.Invalid;
+        if (Pointer == IntPtr.Zero) return null;
 
         try
         {
@@ -213,15 +213,8 @@ public readonly struct GameObj : IEquatable<GameObj>
         catch (Exception ex)
         {
             ModError.ReportInternal("GameObj.GetGameType", "Failed", ex);
-            return GameType.Invalid;
+            return null;
         }
-    }
-
-    public bool Is(GameType type)
-    {
-        if (type == null || !type.IsValid || Pointer == IntPtr.Zero)
-            return false;
-        return type.IsAssignableFrom(Pointer);
     }
 
     public string GetTypeName()
