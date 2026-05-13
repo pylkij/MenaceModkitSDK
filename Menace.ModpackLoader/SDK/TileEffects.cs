@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Tactical.TileEffects;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -348,7 +349,7 @@ public static class TileEffects
     /// </summary>
     public static string[] GetAvailableEffectTemplates()
     {
-        var templates = GameQuery.FindAll("TileEffectTemplate");
+        var templates = GameQuery.FindAll<TileEffectTemplate>();
         var result = new List<string>();
         foreach (var t in templates)
         {
