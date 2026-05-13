@@ -1,9 +1,10 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
 
-using Menace.SDK.Internal;
+using Il2CppMenace.Strategy;
 
 namespace Menace.SDK;
 
@@ -222,10 +223,10 @@ public static class OCI
 
         try
         {
-            var templates = GameQuery.FindAll("ShipUpgradeTemplate");
+            var templates = GameQuery.FindAll<ShipUpgradeTemplate>();
             foreach (var t in templates)
             {
-                var info = GetUpgradeInfo(t);
+                var info = GetUpgradeInfo(new GameObj(t.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -688,10 +689,10 @@ public static class OCI
     /// <summary>
     /// Find upgrade template by name.
     /// </summary>
-    public static GameObj FindUpgrade(string name)
+    public static ShipUpgradeTemplate FindUpgrade(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("ShipUpgradeTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<ShipUpgradeTemplate>(name);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -823,11 +824,12 @@ public static class OCI
 
             var name = string.Join(" ", args);
             var upgrade = FindUpgrade(name);
-            if (upgrade.IsNull)
+            if (upgrade == null)
                 return $"Upgrade '{name}' not found";
 
-            var info = GetUpgradeInfo(upgrade);
-            if (InstallUpgrade(upgrade))
+            var upgradeObj = new GameObj(upgrade.Pointer);
+            var info = GetUpgradeInfo(upgradeObj);
+            if (InstallUpgrade(upgradeObj))
                 return $"Installed: {info?.DisplayName ?? name}";
             return "Failed to install upgrade";
         });

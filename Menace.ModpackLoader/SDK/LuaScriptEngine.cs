@@ -1217,13 +1217,16 @@ public class LuaScriptEngine
     {
         try
         {
-            var actors = GameQuery.FindAll("Menace.Tactical.Actor");
+            var actors = GameQuery.FindAll<Il2CppMenace.Tactical.Actor>();
             var table = new Table(_lua);
             int i = 1;
             foreach (var actor in actors)
             {
-                if (!actor.IsNull)
-                    table[i++] = GameObjToLuaActor(actor);
+                if (actor == null) continue;
+                if (!actor.IsAlive()) continue;
+                if (actor.IsDying() || actor.IsLeavingMap()) continue;
+
+                table[i++] = GameObjToLuaActor(new GameObj(actor.Pointer));
             }
             return DynValue.NewTable(table);
         }
@@ -1238,16 +1241,17 @@ public class LuaScriptEngine
     {
         try
         {
-            var actors = GameQuery.FindAll("Menace.Tactical.Actor");
+            var actors = GameQuery.FindAll<Il2CppMenace.Tactical.Actor>();
             var table = new Table(_lua);
             int i = 1;
             foreach (var actor in actors)
             {
-                if (actor.IsNull || !actor.IsAlive) continue;
-                // Check if player faction (1 or 2)
-                var factionId = actor.ReadInt(0xBC); // OFFSET_ACTOR_FACTION_ID
-                if (factionId == 1 || factionId == 2)
-                    table[i++] = GameObjToLuaActor(actor);
+                if (actor == null) continue;
+                if (!actor.IsAlive()) continue;
+                if (actor.IsDying() || actor.IsLeavingMap()) continue;
+                if (!actor.IsAlliedWithPlayer()) continue;
+
+                table[i++] = GameObjToLuaActor(new GameObj(actor.Pointer));
             }
             return DynValue.NewTable(table);
         }
@@ -1262,16 +1266,17 @@ public class LuaScriptEngine
     {
         try
         {
-            var actors = GameQuery.FindAll("Menace.Tactical.Actor");
+            var actors = GameQuery.FindAll<Il2CppMenace.Tactical.Actor>();
             var table = new Table(_lua);
             int i = 1;
             foreach (var actor in actors)
             {
-                if (actor.IsNull || !actor.IsAlive) continue;
-                // Check if enemy faction (not 0, 1, 2, 3)
-                var factionId = actor.ReadInt(0xBC);
-                if (factionId > 3) // EnemyLocalForces, Pirates, etc.
-                    table[i++] = GameObjToLuaActor(actor);
+                if (actor == null) continue;
+                if (!actor.IsAlive()) continue;
+                if (actor.IsDying() || actor.IsLeavingMap()) continue;
+                if (actor.GetFactionID() <= 3) continue;
+
+                table[i++] = GameObjToLuaActor(new GameObj(actor.Pointer));
             }
             return DynValue.NewTable(table);
         }
@@ -1286,8 +1291,9 @@ public class LuaScriptEngine
     {
         try
         {
-            var actor = GameQuery.FindByName("Menace.Tactical.Actor", name);
-            return GameObjToLuaActor(actor);
+            var actor = GameQuery.FindByName<Il2CppMenace.Tactical.Actor>(name);
+            if (actor == null) return DynValue.Nil;
+            return GameObjToLuaActor(new GameObj(actor.Pointer));
         }
         catch (Exception ex)
         {

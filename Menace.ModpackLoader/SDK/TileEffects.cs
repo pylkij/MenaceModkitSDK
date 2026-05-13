@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Tactical.TileEffects;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -299,14 +300,10 @@ public static class TileEffects
 
         try
         {
-            // Find template
-            var template = GameQuery.FindByName("TileEffectTemplate", templateName);
-            if (template.IsNull)
-            {
-                // Try with suffix
-                template = GameQuery.FindByName("TileEffectTemplate", templateName + "TileEffectTemplate");
-            }
-            if (template.IsNull)
+            var template = GameQuery.FindByName<TileEffectTemplate>(templateName);
+            if (template == null)
+                template = GameQuery.FindByName<TileEffectTemplate>(templateName + "TileEffectTemplate");
+            if (template == null)
             {
                 ModError.ReportInternal("TileEffects.SpawnEffect", $"Template '{templateName}' not found");
                 return false;
@@ -315,16 +312,14 @@ public static class TileEffects
             var templateType = _tileEffectTemplateType?.ManagedType;
             if (templateType == null) return false;
 
-            var templateProxy = GetManagedProxy(template, templateType);
+            var templateProxy = GetManagedProxy(new GameObj(template.Pointer), templateType);
             if (templateProxy == null) return false;
 
-            // Create handler from template
             var createMethod = templateType.GetMethod("Create",
                 BindingFlags.Public | BindingFlags.Instance);
             var handler = createMethod?.Invoke(templateProxy, new object[] { delay });
             if (handler == null) return false;
 
-            // Add to tile
             var tileType = _tileType?.ManagedType;
             if (tileType == null) return false;
 
@@ -348,7 +343,7 @@ public static class TileEffects
     /// </summary>
     public static string[] GetAvailableEffectTemplates()
     {
-        var templates = GameQuery.FindAll("TileEffectTemplate");
+        var templates = GameQuery.FindAll<TileEffectTemplate>();
         var result = new List<string>();
         foreach (var t in templates)
         {

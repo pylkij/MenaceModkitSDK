@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Strategy;
+using Il2CppMenace.Strategy.Missions;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -149,10 +151,10 @@ public static class StrategicContent
     /// <summary>
     /// Find a mission template by name.
     /// </summary>
-    public static GameObj FindMissionTemplate(string name)
+    public static GenericMissionTemplate FindMissionTemplate(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("GenericMissionTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<GenericMissionTemplate>(name);
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -207,10 +209,10 @@ public static class StrategicContent
     /// <summary>
     /// Find an operation template by name.
     /// </summary>
-    public static GameObj FindOperationTemplate(string name)
+    public static OperationTemplate FindOperationTemplate(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("OperationTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<OperationTemplate>(name);
     }
 
     /// <summary>
@@ -359,10 +361,10 @@ public static class StrategicContent
 
         try
         {
-            var planets = GameQuery.FindAll("PlanetTemplate");
+            var planets = GameQuery.FindAll<PlanetTemplate>();
             foreach (var p in planets)
             {
-                var info = GetPlanetInfo(p);
+                var info = GetPlanetInfo(new GameObj(p.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -427,10 +429,10 @@ public static class StrategicContent
     /// <summary>
     /// Find a planet template by name.
     /// </summary>
-    public static GameObj FindPlanet(string name)
+    public static PlanetTemplate FindPlanet(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("PlanetTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<PlanetTemplate>(name);
     }
 
     /// <summary>
@@ -442,10 +444,10 @@ public static class StrategicContent
 
         try
         {
-            var biomes = GameQuery.FindAll("BiomeTemplate");
+            var biomes = GameQuery.FindAll<BiomeTemplate>();
             foreach (var b in biomes)
             {
-                var info = GetBiomeInfo(b);
+                var info = GetBiomeInfo(new GameObj(b.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -598,10 +600,10 @@ public static class StrategicContent
 
             var name = string.Join(" ", args);
             var template = FindOperationTemplate(name);
-            if (template.IsNull)
+            if (template == null)
                 return $"Operation template '{name}' not found";
 
-            var op = StartOperation(template);
+            var op = StartOperation(new GameObj(template.Pointer));
             return !op.IsNull
                 ? $"Started operation: {name}"
                 : $"Failed to start operation: {name}";
@@ -631,7 +633,7 @@ public static class StrategicContent
         // missiontemplates - List mission templates
         DevConsole.RegisterCommand("missiontemplates", "[filter]", "List mission templates", args =>
         {
-            var templates = GameQuery.FindAll("GenericMissionTemplate");
+            var templates = GameQuery.FindAll<GenericMissionTemplate>();
             if (templates.Length == 0)
                 return "No mission templates found";
 

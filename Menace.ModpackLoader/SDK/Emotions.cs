@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -537,7 +538,7 @@ public static class Emotions
     /// <param name="target">Optional target leader for targeted emotions.</param>
     /// <returns>EmotionResult indicating success/failure.</returns>
     public static EmotionResult ApplyEmotion(GameObj leader, string templateName,
-        EmotionalTrigger trigger = EmotionalTrigger.Cheat, GameObj target = default)
+    EmotionalTrigger trigger = EmotionalTrigger.Cheat, GameObj target = default)
     {
         if (leader.IsNull)
             return EmotionResult.Failed("Invalid leader");
@@ -547,9 +548,8 @@ public static class Emotions
 
         try
         {
-            // Find the template
-            var template = GameQuery.FindByName("EmotionalStateTemplate", templateName);
-            if (template.IsNull)
+            var template = GameQuery.FindByName<EmotionalStateTemplate>(templateName);
+            if (template == null)
                 return EmotionResult.Failed($"Template '{templateName}' not found");
 
             var emotions = GetEmotionalStates(leader);
@@ -562,11 +562,10 @@ public static class Emotions
                 return EmotionResult.Failed("Required types not available");
 
             var proxy = GetManagedProxy(emotions, emotionsType);
-            var templateProxy = GetManagedProxy(template, templateType);
+            var templateProxy = GetManagedProxy(new GameObj(template.Pointer), templateType);
             if (proxy == null || templateProxy == null)
                 return EmotionResult.Failed("Failed to create proxies");
 
-            // Get target leader template if provided
             object targetTemplate = null;
             if (!target.IsNull)
             {
@@ -583,7 +582,6 @@ public static class Emotions
                 }
             }
 
-            // Get a random instance for duration calculation
             var random = GetPseudoRandom();
 
             var applyMethod = emotionsType.GetMethod("TryApplyEmotionalState",
@@ -591,16 +589,14 @@ public static class Emotions
             if (applyMethod == null)
                 return EmotionResult.Failed("TryApplyEmotionalState method not found");
 
-            // TryApplyEmotionalState takes 5 params: template, trigger, targetTemplate, random, showAsReward
             var result = (bool)applyMethod.Invoke(proxy,
                 new object[] { templateProxy, trigger, targetTemplate, random, false });
 
             if (result)
             {
-                var stateType = (EmotionalStateType)template.ReadInt(OFFSET_TEMPLATE_TYPE);
                 ModError.Info("Menace.SDK",
                     $"Applied emotion '{templateName}' to {leader.GetName()}");
-                return EmotionResult.Ok(stateType, "Applied");
+                return EmotionResult.Ok((Menace.SDK.Emotions.EmotionalStateType)(int)template.StateType, "Applied");
             }
             else
             {
@@ -965,7 +961,7 @@ public static class Emotions
     {
         try
         {
-            var templates = GameQuery.FindAll("EmotionalStateTemplate");
+            var templates = GameQuery.FindAll<EmotionalStateTemplate>();
             var names = new List<string>();
             foreach (var template in templates)
             {

@@ -21,6 +21,7 @@
 - [x] New class `GameMethods`, mirroring GameObj utility for methods
 - [x] `TacticalEventHooks` refactored and repaired.
 - [x] `StrategyEventHooks` migrated to GamePatch; expanded event coverage
+- [x] Refactored `GameQuery` to avoid string based lookups. Old legacy methods remain for compatability with certain SDK elements in a seperate partial - legacy directory.
 
 
 ## Notes

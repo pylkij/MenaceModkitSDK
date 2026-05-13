@@ -1,10 +1,11 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
 
-using Menace.SDK.Internal;
+using Il2CppMenace.Strategy;
 
 namespace Menace.SDK;
 
@@ -976,10 +977,10 @@ public static class Roster
     /// <summary>
     /// Find a perk template by name.
     /// </summary>
-    public static GameObj FindPerk(string perkName)
+    public static PerkTemplate FindPerk(string perkName)
     {
-        if (string.IsNullOrEmpty(perkName)) return GameObj.Null;
-        return GameQuery.FindByName("PerkTemplate", perkName);
+        if (string.IsNullOrEmpty(perkName)) return null;
+        return GameQuery.FindByName<PerkTemplate>(perkName);
     }
 
     /// <summary>
@@ -1229,10 +1230,10 @@ public static class Roster
                 return $"Leader '{nickname}' not found";
 
             var perk = FindPerk(perkName);
-            if (perk.IsNull)
+            if (perk == null)
                 return $"Perk '{perkName}' not found";
 
-            if (AddPerk(leader, perk))
+            if (AddPerk(leader, new GameObj(perk.Pointer)))
                 return $"Added perk '{perkName}' to {nickname}";
             return "Failed to add perk";
         });

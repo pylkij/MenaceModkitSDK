@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Strategy;
+using Il2CppMenace.Tactical;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -236,7 +238,7 @@ public static class ArmyGeneration
     /// </summary>
     public static List<string> GetArmyTemplates()
     {
-        var templates = GameQuery.FindAll("ArmyTemplate");
+        var templates = GameQuery.FindAll<ArmyTemplate>();
         var result = new List<string>();
         foreach (var t in templates)
         {
@@ -277,11 +279,11 @@ public static class ArmyGeneration
                 return "Usage: entitycost <template_name>";
 
             var name = string.Join(" ", args);
-            var template = GameQuery.FindByName("EntityTemplate", name);
-            if (template.IsNull)
+            var template = GameQuery.FindByName<EntityTemplate>(name);
+            if (template == null)
                 return $"Entity template '{name}' not found";
 
-            var cost = GetEntityCost(template);
+            var cost = GetEntityCost(new GameObj(template.Pointer));
             return $"Entity: {name}\nCost: {cost} points";
         });
 
@@ -292,11 +294,11 @@ public static class ArmyGeneration
                 return "Usage: armyentries <army_template_name>";
 
             var name = string.Join(" ", args);
-            var template = GameQuery.FindByName("ArmyTemplate", name);
-            if (template.IsNull)
+            var template = GameQuery.FindByName<ArmyTemplate>(name);
+            if (template == null)
                 return $"Army template '{name}' not found";
 
-            var entries = GetArmyTemplateEntries(template);
+            var entries = GetArmyTemplateEntries(new GameObj(template.Pointer));
             if (entries.Count == 0)
                 return $"Army '{name}' has no entries";
 
@@ -318,11 +320,10 @@ public static class ArmyGeneration
             var name = string.Join(" ", args);
             var lines = new List<string> { $"Checking template '{name}':" };
 
-            // Try EntityTemplate first (most common clone target)
-            var entityTemplate = GameQuery.FindByName("EntityTemplate", name);
-            if (!entityTemplate.IsNull)
+            var entityTemplate = GameQuery.FindByName<EntityTemplate>(name);
+            if (entityTemplate != null)
             {
-                var cost = GetEntityCost(entityTemplate);
+                var cost = GetEntityCost(new GameObj(entityTemplate.Pointer));
                 lines.Add($"  [OK] Found as EntityTemplate (cost: {cost})");
             }
             else
@@ -330,14 +331,12 @@ public static class ArmyGeneration
                 lines.Add($"  [--] Not found as EntityTemplate");
             }
 
-            // Try ArmyTemplate
-            var armyTemplate = GameQuery.FindByName("ArmyTemplate", name);
-            if (!armyTemplate.IsNull)
+            var armyTemplate = GameQuery.FindByName<ArmyTemplate>(name);
+            if (armyTemplate != null)
             {
                 lines.Add($"  [OK] Found as ArmyTemplate");
             }
 
-            // Check if it appears in any army entries
             var inArmies = FindTemplateInArmies(name);
             if (inArmies.Count > 0)
             {
@@ -364,7 +363,7 @@ public static class ArmyGeneration
 
             // Get all entity templates and check for ones that might be clones
             // (Clones typically have a naming pattern like original_suffix)
-            var entities = GameQuery.FindAll("EntityTemplate");
+            var entities = GameQuery.FindAll<EntityTemplate>();
             int cloneCount = 0;
 
             foreach (var entity in entities)
@@ -480,10 +479,10 @@ public static class ArmyGeneration
 
         try
         {
-            var armyTemplates = GameQuery.FindAll("ArmyTemplate");
+            var armyTemplates = GameQuery.FindAll<ArmyTemplate>();
             foreach (var army in armyTemplates)
             {
-                var entries = GetArmyTemplateEntries(army);
+                var entries = GetArmyTemplateEntries(new GameObj(army.Pointer));
                 foreach (var entry in entries)
                 {
                     if (string.Equals(entry.TemplateName, entityTemplateName, StringComparison.OrdinalIgnoreCase))
