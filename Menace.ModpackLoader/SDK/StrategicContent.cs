@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Strategy;
+using Il2CppMenace.Strategy.Missions;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -359,10 +361,10 @@ public static class StrategicContent
 
         try
         {
-            var planets = GameQuery.FindAll("PlanetTemplate");
+            var planets = GameQuery.FindAll<PlanetTemplate>();
             foreach (var p in planets)
             {
-                var info = GetPlanetInfo(p);
+                var info = GetPlanetInfo(new GameObj(p.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -442,10 +444,10 @@ public static class StrategicContent
 
         try
         {
-            var biomes = GameQuery.FindAll("BiomeTemplate");
+            var biomes = GameQuery.FindAll<BiomeTemplate>();
             foreach (var b in biomes)
             {
-                var info = GetBiomeInfo(b);
+                var info = GetBiomeInfo(new GameObj(b.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -631,7 +633,7 @@ public static class StrategicContent
         // missiontemplates - List mission templates
         DevConsole.RegisterCommand("missiontemplates", "[filter]", "List mission templates", args =>
         {
-            var templates = GameQuery.FindAll("GenericMissionTemplate");
+            var templates = GameQuery.FindAll<GenericMissionTemplate>();
             if (templates.Length == 0)
                 return "No mission templates found";
 
