@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 
+using Il2CppMenace.Tactical;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -416,11 +417,11 @@ public static class LineOfSight
             if (actor.IsNull) return "No actor selected";
 
             var targetName = string.Join(" ", args);
-            var target = GameQuery.FindByName("Actor", targetName);
-            if (target.IsNull)
+            var target = GameQuery.FindByName<Actor>(targetName);
+            if (target == null)
                 return $"Target '{targetName}' not found";
 
-            var canSee = CanActorSee(actor, target);
+            var canSee = CanActorSee(actor, new GameObj(target.Pointer));
             return $"Can see '{targetName}': {canSee}";
         });
 
