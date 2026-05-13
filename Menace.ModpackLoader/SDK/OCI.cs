@@ -1,9 +1,10 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
 
-using Menace.SDK.Internal;
+using Il2CppMenace.Strategy;
 
 namespace Menace.SDK;
 
@@ -222,10 +223,10 @@ public static class OCI
 
         try
         {
-            var templates = GameQuery.FindAll("ShipUpgradeTemplate");
+            var templates = GameQuery.FindAll<ShipUpgradeTemplate>();
             foreach (var t in templates)
             {
-                var info = GetUpgradeInfo(t);
+                var info = GetUpgradeInfo(new GameObj(t.Pointer));
                 if (info != null)
                     result.Add(info);
             }
