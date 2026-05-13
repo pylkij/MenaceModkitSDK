@@ -209,10 +209,10 @@ public static class StrategicContent
     /// <summary>
     /// Find an operation template by name.
     /// </summary>
-    public static GameObj FindOperationTemplate(string name)
+    public static OperationTemplate FindOperationTemplate(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("OperationTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<OperationTemplate>(name);
     }
 
     /// <summary>
@@ -429,10 +429,10 @@ public static class StrategicContent
     /// <summary>
     /// Find a planet template by name.
     /// </summary>
-    public static GameObj FindPlanet(string name)
+    public static PlanetTemplate FindPlanet(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("PlanetTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<PlanetTemplate>(name);
     }
 
     /// <summary>
@@ -600,10 +600,10 @@ public static class StrategicContent
 
             var name = string.Join(" ", args);
             var template = FindOperationTemplate(name);
-            if (template.IsNull)
+            if (template == null)
                 return $"Operation template '{name}' not found";
 
-            var op = StartOperation(template);
+            var op = StartOperation(new GameObj(template.Pointer));
             return !op.IsNull
                 ? $"Started operation: {name}"
                 : $"Failed to start operation: {name}";
