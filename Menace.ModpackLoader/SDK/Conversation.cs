@@ -777,15 +777,14 @@ public static class Conversation
 
         try
         {
-            // Find the template
-            var template = GameQuery.FindByName("ConversationTemplate", templateName);
-            if (template.IsNull)
+            var template = GameQuery.FindByName<ConversationTemplate>(templateName);
+            if (template == null)
             {
                 ModError.Warn("Menace.SDK", $"Conversation template '{templateName}' not found");
                 return false;
             }
 
-            return TriggerConversation(template);
+            return TriggerConversation(new GameObj(template.Pointer));
         }
         catch (Exception ex)
         {
@@ -1026,10 +1025,10 @@ public static class Conversation
     /// </summary>
     /// <param name="name">Name to search for.</param>
     /// <returns>GameObj wrapping the speaker template, or GameObj.Null if not found.</returns>
-    public static GameObj FindSpeaker(string name)
+    public static SpeakerTemplate FindSpeaker(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("SpeakerTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<SpeakerTemplate>(name);
     }
 
     /// <summary>
@@ -1037,10 +1036,10 @@ public static class Conversation
     /// </summary>
     /// <param name="name">Name to search for.</param>
     /// <returns>GameObj wrapping the template, or GameObj.Null if not found.</returns>
-    public static GameObj FindConversation(string name)
+    public static ConversationTemplate FindConversation(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("ConversationTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<ConversationTemplate>(name);
     }
 
     /// <summary>
@@ -1260,14 +1259,15 @@ public static class Conversation
 
             var name = string.Join(" ", args);
             var template = FindConversation(name);
-            if (template.IsNull)
+            if (template == null)
                 return $"Conversation '{name}' not found";
 
-            var info = GetConversationInfo(template);
+            var templateObj = new GameObj(template.Pointer);
+            var info = GetConversationInfo(templateObj);
             if (info == null)
                 return "Could not get conversation info";
 
-            var roles = GetRoles(template);
+            var roles = GetRoles(templateObj);
             var roleDesc = string.Join(", ", roles.ConvertAll(r =>
                 $"Role{r.Guid}" + (r.IsOptional ? "?" : "") + (r.Tags.Count > 0 ? $"[{string.Join(",", r.Tags)}]" : "")));
 
