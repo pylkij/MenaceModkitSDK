@@ -151,10 +151,10 @@ public static class StrategicContent
     /// <summary>
     /// Find a mission template by name.
     /// </summary>
-    public static GameObj FindMissionTemplate(string name)
+    public static GenericMissionTemplate FindMissionTemplate(string name)
     {
-        if (string.IsNullOrEmpty(name)) return GameObj.Null;
-        return GameQuery.FindByName("GenericMissionTemplate", name);
+        if (string.IsNullOrEmpty(name)) return null;
+        return GameQuery.FindByName<GenericMissionTemplate>(name);
     }
 
     // ═══════════════════════════════════════════════════════════════════
