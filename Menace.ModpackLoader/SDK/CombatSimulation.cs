@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
+using Il2CppMenace.Tactical;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -252,19 +253,19 @@ public static class CombatSimulation
     {
         DevConsole.RegisterCommand("hitchance", "<target_name>", "Calculate hit chance against target", args =>
         {
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull)
+            var actor = new Actor(TacticalController.GetActiveActor().Pointer);
+            if (actor == null)
                 return "No actor selected";
 
             if (args.Length == 0)
                 return "Usage: hitchance <target_name>";
 
             var targetName = string.Join(" ", args);
-            var target = GameQuery.FindByName("Actor", targetName);
-            if (target.IsNull)
+            var target = GameQuery.FindByName<Actor>(targetName);
+            if (target == null)
                 return $"Target '{targetName}' not found";
 
-            var result = GetHitChance(actor, target);
+            var result = GetHitChance(new GameObj(actor.Pointer), new GameObj(target.Pointer));
             if (result.FinalValue < 0)
                 return "Could not calculate hit chance";
 
@@ -275,11 +276,11 @@ public static class CombatSimulation
 
         DevConsole.RegisterCommand("hitchances", "", "Show hit chances against all enemies", args =>
         {
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull)
+            var actor = new Actor(TacticalController.GetActiveActor().Pointer);
+            if (actor == null)
                 return "No actor selected";
 
-            var results = GetAllHitChances(actor);
+            var results = GetAllHitChances(new GameObj(actor.Pointer));
             if (results.Count == 0)
                 return "No valid targets";
 
