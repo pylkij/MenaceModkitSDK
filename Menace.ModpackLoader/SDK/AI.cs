@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 
 using Il2CppMenace.Tactical.AI;
+using Il2CppMenace.Tactical;
 
 namespace Menace.SDK;
 
@@ -496,29 +497,29 @@ public static class AI
     {
         DevConsole.RegisterCommand("ai", "[actor_name]", "Show AI agent info for actor", args =>
         {
-            GameObj actor;
+            Actor actor;
             if (args.Length > 0)
             {
                 var name = string.Join(" ", args);
-                actor = GameQuery.FindByName("Actor", name);
-                if (actor.IsNull)
+                actor = GameQuery.FindByName<Actor>(name);
+                if (actor == null)
                     return $"Actor '{name}' not found";
             }
             else
             {
-                actor = TacticalController.GetActiveActor();
-                if (actor.IsNull)
+                actor = new Actor(TacticalController.GetActiveActor().Pointer);
+                if (actor == null)
                     return "No active actor";
             }
 
-            var info = GetAgentInfo(actor);
+            var info = GetAgentInfo(new GameObj(actor.Pointer));
             if (!info.HasAgent)
-                return $"{actor.GetName()}: No AI agent (player unit?)";
+                return $"{actor.DebugName}: No AI agent (player unit?)";
 
             string targetStr = !string.IsNullOrEmpty(info.TargetActorName)
                 ? info.TargetActorName
                 : $"({info.TargetTileX ?? 0}, {info.TargetTileZ ?? 0})";
-            return $"{actor.GetName()}:\n" +
+            return $"{actor.DebugName}:\n" +
                    $"  State: {info.StateName}\n" +
                    $"  Tiles evaluated: {info.EvaluatedTileCount}\n" +
                    $"  Behaviors: {info.AvailableBehaviorCount}\n" +
@@ -528,23 +529,23 @@ public static class AI
 
         DevConsole.RegisterCommand("airole", "[actor_name]", "Show AI RoleData for actor", args =>
         {
-            GameObj actor;
+            Actor actor;
             if (args.Length > 0)
             {
                 var name = string.Join(" ", args);
-                actor = GameQuery.FindByName("Actor", name);
-                if (actor.IsNull)
+                actor = GameQuery.FindByName<Actor>(name);
+                if (actor == null)
                     return $"Actor '{name}' not found";
             }
             else
             {
-                actor = TacticalController.GetActiveActor();
-                if (actor.IsNull)
+                actor = new Actor(TacticalController.GetActiveActor().Pointer);
+                if (actor == null)
                     return "No active actor";
             }
 
-            var role = GetRoleData(actor);
-            return $"{actor.GetName()} RoleData:\n" +
+            var role = GetRoleData(new GameObj(actor.Pointer));
+            return $"{actor.DebugName} RoleData:\n" +
                    $"  Utility: {role.UtilityScale:F1}, Safety: {role.SafetyScale:F1}, Distance: {role.DistanceScale:F1}\n" +
                    $"  Move: {role.MoveWeight:F1}, Damage: {role.InflictDamageWeight:F1}, Suppress: {role.InflictSuppressionWeight:F1}\n" +
                    $"  Evade: {role.IsAllowedToEvadeEnemies}, StayHidden: {role.AttemptToStayOutOfSight}, Peek: {role.PeekInAndOutOfCover}";
@@ -552,26 +553,26 @@ public static class AI
 
         DevConsole.RegisterCommand("aibehaviors", "[actor_name]", "List AI behaviors for actor", args =>
         {
-            GameObj actor;
+            Actor actor;
             if (args.Length > 0)
             {
                 var name = string.Join(" ", args);
-                actor = GameQuery.FindByName("Actor", name);
-                if (actor.IsNull)
+                actor = GameQuery.FindByName<Actor>(name);
+                if (actor == null)
                     return $"Actor '{name}' not found";
             }
             else
             {
-                actor = TacticalController.GetActiveActor();
-                if (actor.IsNull)
+                actor = new Actor(TacticalController.GetActiveActor().Pointer);
+                if (actor == null)
                     return "No active actor";
             }
 
-            var behaviors = GetBehaviors(actor);
+            var behaviors = GetBehaviors(new GameObj(actor.Pointer));
             if (behaviors.Count == 0)
-                return $"{actor.GetName()}: No behaviors";
+                return $"{actor.DebugName}: No behaviors";
 
-            var lines = new List<string> { $"{actor.GetName()} behaviors:" };
+            var lines = new List<string> { $"{actor.DebugName} behaviors:" };
             foreach (var b in behaviors)
             {
                 string marker = b.IsSelected ? " [SELECTED]" : "";
@@ -585,7 +586,7 @@ public static class AI
 
         DevConsole.RegisterCommand("aitiles", "[actor_name] [count]", "Show top tile scores for actor", args =>
         {
-            GameObj actor;
+            Actor actor;
             int count = 5;
 
             if (args.Length > 0 && int.TryParse(args[^1], out int n))
@@ -597,22 +598,22 @@ public static class AI
             if (args.Length > 0)
             {
                 var name = string.Join(" ", args);
-                actor = GameQuery.FindByName("Actor", name);
-                if (actor.IsNull)
+                actor = GameQuery.FindByName<Actor>(name);
+                if (actor == null)
                     return $"Actor '{name}' not found";
             }
             else
             {
-                actor = TacticalController.GetActiveActor();
-                if (actor.IsNull)
+                actor = new Actor(TacticalController.GetActiveActor().Pointer);
+                if (actor == null)
                     return "No active actor";
             }
 
-            var tiles = GetTileScores(actor, count);
+            var tiles = GetTileScores(new GameObj(actor.Pointer), count);
             if (tiles.Count == 0)
-                return $"{actor.GetName()}: No tile scores";
+                return $"{actor.DebugName}: No tile scores";
 
-            var lines = new List<string> { $"{actor.GetName()} top {count} tiles:" };
+            var lines = new List<string> { $"{actor.DebugName} top {count} tiles:" };
             foreach (var t in tiles)
             {
                 lines.Add($"  ({t.X}, {t.Z}): score={t.CombinedScore:F1} (util={t.UtilityScore:F1}, safe={t.SafetyScore:F1})");
@@ -622,22 +623,22 @@ public static class AI
 
         DevConsole.RegisterCommand("aiintent", "[actor_name]", "Show what the AI is planning", args =>
         {
-            GameObj actor;
+            Actor actor;
             if (args.Length > 0)
             {
                 var name = string.Join(" ", args);
-                actor = GameQuery.FindByName("Actor", name);
-                if (actor.IsNull)
+                actor = GameQuery.FindByName<Actor>(name);
+                if (actor == null)
                     return $"Actor '{name}' not found";
             }
             else
             {
-                actor = TacticalController.GetActiveActor();
-                if (actor.IsNull)
+                actor = new Actor(TacticalController.GetActiveActor().Pointer);
+                if (actor == null)
                     return "No active actor";
             }
 
-            return $"{actor.GetName()}: {GetAIIntent(actor)}";
+            return $"{actor.DebugName}: {GetAIIntent(new GameObj(actor.Pointer))}";
         });
     }
 
