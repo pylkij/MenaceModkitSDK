@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 
+using Il2CppMenace.Tactical;
 using Menace.SDK.Internal;
 
 namespace Menace.SDK;
@@ -693,26 +694,27 @@ public static class AICoordination
 
         DevConsole.RegisterCommand("aiclassify", "[actor_name]", "Classify actor's role and formation band", args =>
         {
-            GameObj actor;
+            Actor actor;
             if (args.Length > 0)
             {
                 var name = string.Join(" ", args);
-                actor = GameQuery.FindByName("Actor", name);
-                if (actor.IsNull)
+                actor = GameQuery.FindByName<Actor>(name);
+                if (actor == null)
                     return $"Actor '{name}' not found";
             }
             else
             {
-                actor = TacticalController.GetActiveActor();
-                if (actor.IsNull)
+                actor = new Actor(TacticalController.GetActiveActor().Pointer);
+                if (actor == null)
                     return "No active actor";
             }
 
-            var role = ClassifyUnit(actor);
-            var band = ClassifyFormationBand(actor);
-            var roleData = AI.GetRoleData(actor);
+            var actorObj = new GameObj(actor.Pointer);
+            var role = ClassifyUnit(actorObj);
+            var band = ClassifyFormationBand(actorObj);
+            var roleData = AI.GetRoleData(actorObj);
 
-            return $"{actor.GetName()}:\n" +
+            return $"{actor.DebugName}:\n" +
                    $"  Role: {role}\n" +
                    $"  Formation band: {band}\n" +
                    $"  Weights: damage={roleData.InflictDamageWeight:F1} suppress={roleData.InflictSuppressionWeight:F1} " +
