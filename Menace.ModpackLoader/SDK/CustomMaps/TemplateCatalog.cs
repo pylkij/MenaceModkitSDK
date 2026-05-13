@@ -128,13 +128,13 @@ public static class TemplateCatalog
         try
         {
             // Find all EntityTemplate instances
-            var templates = Templates.FindAll("Menace.Tactical.EntityTemplate");
+            var templates = GameQuery.FindAll<Il2CppMenace.Tactical.EntityTemplate>();
 
             foreach (var template in templates)
             {
-                if (template.IsNull) continue;
+                if (template == null) continue;
 
-                var entry = CreateEntry(template);
+                var entry = CreateEntry(new GameObj(template.Pointer));
                 if (entry == null) continue;
 
                 _catalog[entry.Name] = entry;
