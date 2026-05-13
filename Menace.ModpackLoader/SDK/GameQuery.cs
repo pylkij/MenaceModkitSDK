@@ -82,6 +82,4 @@ public static partial class GameQuery
     {
         _cache.Clear();
     }
-
-
 }
