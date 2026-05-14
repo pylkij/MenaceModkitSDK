@@ -1,10 +1,10 @@
-using System;
-using System.Linq;
-using System.Collections.Generic;
-using System.Reflection;
+using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
-
 using Menace.SDK.Internal;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 namespace Menace.SDK;
 
@@ -110,32 +110,30 @@ public static class Perks
 
         try
         {
+            var klass = IL2CPP.il2cpp_object_get_class(perkTemplate.Pointer);
+            if (klass == IntPtr.Zero) return null;
+
             var info = new PerkInfo
             {
                 Pointer = perkTemplate.Pointer,
                 Name = perkTemplate.GetName()
             };
 
-            // PerkTemplate inherits from SkillTemplate
-            // Get Title (LocalizedLine) - read text directly from m_DefaultTranslation at offset 0x38
-            var title = perkTemplate.ReadObj("Title");
-            if (!title.IsNull)
-            {
-                info.Title = ReadLocalizedText(title) ?? info.Name;
-            }
+            var titleOffset = OffsetCache.GetOrResolve(klass, "Title");
+            var titlePtr = perkTemplate.ReadPtr(titleOffset);
+            if (titlePtr != IntPtr.Zero)
+                info.Title = ReadLocalizedText(GameObj.FromPointer(titlePtr)) ?? info.Name;
 
-            // Get Description (LocalizedLine)
-            var desc = perkTemplate.ReadObj("Description");
-            if (!desc.IsNull)
-            {
-                info.Description = ReadLocalizedText(desc);
-            }
+            var descOffset = OffsetCache.GetOrResolve(klass, "Description");
+            var descPtr = perkTemplate.ReadPtr(descOffset);
+            if (descPtr != IntPtr.Zero)
+                info.Description = ReadLocalizedText(GameObj.FromPointer(descPtr));
 
-            // Get ActionPointCost
-            info.ActionPointCost = perkTemplate.ReadInt("ActionPointCost");
+            info.ActionPointCost = perkTemplate.ReadInt(
+                OffsetCache.GetOrResolve(klass, "ActionPointCost"));
 
-            // Get IsActive
-            info.IsActive = perkTemplate.ReadBool("IsActive");
+            info.IsActive = perkTemplate.ReadInt(
+                OffsetCache.GetOrResolve(klass, "IsActive")) != 0;
 
             return info;
         }
