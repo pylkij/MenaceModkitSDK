@@ -1,7 +1,7 @@
-using System;
-using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime;
 using Menace.SDK.Internal;
+using System;
+using System.Runtime.InteropServices;
 
 namespace Menace.SDK;
 
@@ -9,33 +9,30 @@ namespace Menace.SDK;
 /// Safe handle for an IL2CPP object. All reads return defaults on failure;
 /// all writes return false on failure. Never throws.
 /// </summary>
-public readonly struct GameObj : IEquatable<GameObj>
+public readonly partial struct GameObj : IEquatable<GameObj>
 {
     public IntPtr Pointer { get; }
 
     public bool IsNull => Pointer == IntPtr.Zero;
 
     /// <summary>
-    /// Check if the underlying Unity object is still alive (m_CachedPtr != 0).
+    /// Represents a managed handle to a native game object, providing typed field access,
+    /// memory reads/writes by pre-cached offset, and lifetime validation via pointer checks.
     /// </summary>
-    public bool IsAlive
+    
+    public AliveStatus CheckAlive()
     {
-        get
+        if (Pointer == IntPtr.Zero) return AliveStatus.Dead;
+        var offset = OffsetCache.ObjectCachedPtrOffset;
+        if (offset == 0) return AliveStatus.Unknown;
+        try
         {
-            if (Pointer == IntPtr.Zero) return false;
-
-            try
-            {
-                var offset = OffsetCache.ObjectCachedPtrOffset;
-                if (offset == 0) return true; // can't verify, assume alive
-
-                var cachedPtr = Marshal.ReadIntPtr(Pointer + (int)offset);
-                return cachedPtr != IntPtr.Zero;
-            }
-            catch
-            {
-                return false;
-            }
+            var cachedPtr = Marshal.ReadIntPtr(Pointer + (int)offset);
+            return cachedPtr != IntPtr.Zero ? AliveStatus.Alive : AliveStatus.Dead;
+        }
+        catch
+        {
+            return AliveStatus.Unknown;
         }
     }
 
@@ -45,114 +42,6 @@ public readonly struct GameObj : IEquatable<GameObj>
     }
 
     public static GameObj Null => default;
-
-    // --- Field reads by name (resolve offset each time unless cached) ---
-
-    public int ReadInt(string fieldName)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        return offset == 0 ? 0 : ReadInt(offset);
-    }
-
-    public float ReadFloat(string fieldName)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        return offset == 0 ? 0f : ReadFloat(offset);
-    }
-
-    public bool ReadBool(string fieldName)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        if (offset == 0) return false;
-        try
-        {
-            return Marshal.ReadByte(Pointer + (int)offset) != 0;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("GameObj.ReadBool", $"Failed at offset {offset}", ex);
-            return false;
-        }
-    }
-
-    public IntPtr ReadPtr(string fieldName)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        return offset == 0 ? IntPtr.Zero : ReadPtr(offset);
-    }
-
-    public string ReadString(string fieldName)
-    {
-        var ptr = ReadPtr(fieldName);
-        if (ptr == IntPtr.Zero) return null;
-
-        try
-        {
-            return IL2CPP.Il2CppStringToManaged(ptr);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("GameObj.ReadString", $"Failed to read '{fieldName}'", ex);
-            return null;
-        }
-    }
-
-    public GameObj ReadObj(string fieldName)
-    {
-        var ptr = ReadPtr(fieldName);
-        return new GameObj(ptr);
-    }
-
-    // --- Field writes by name ---
-
-    public bool WriteInt(string fieldName, int value)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        if (offset == 0) return false;
-        try
-        {
-            Marshal.WriteInt32(Pointer + (int)offset, value);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("GameObj.WriteInt", $"Failed '{fieldName}'", ex);
-            return false;
-        }
-    }
-
-    public bool WriteFloat(string fieldName, float value)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        if (offset == 0) return false;
-        try
-        {
-            var intVal = BitConverter.SingleToInt32Bits(value);
-            Marshal.WriteInt32(Pointer + (int)offset, intVal);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("GameObj.WriteFloat", $"Failed '{fieldName}'", ex);
-            return false;
-        }
-    }
-
-    public bool WritePtr(string fieldName, IntPtr value)
-    {
-        var offset = ResolveFieldOffset(fieldName);
-        if (offset == 0) return false;
-        try
-        {
-            Marshal.WriteIntPtr(Pointer + (int)offset, value);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("GameObj.WritePtr", $"Failed '{fieldName}'", ex);
-            return false;
-        }
-    }
 
     // --- Field reads by pre-cached offset ---
 
@@ -199,6 +88,30 @@ public readonly struct GameObj : IEquatable<GameObj>
         }
     }
 
+    // --- Field writes by pre-cached offset ---
+
+    public void WriteInt(uint offset, int value)
+    {
+        if (Pointer == IntPtr.Zero) throw new GameObjException("WriteInt: pointer is null");
+        if (offset == 0) throw new GameObjException("WriteInt: offset is zero");
+        Marshal.WriteInt32(Pointer + (int)offset, value);
+    }
+
+    public void WriteFloat(uint offset, float value)
+    {
+        if (Pointer == IntPtr.Zero) throw new GameObjException("WriteFloat: pointer is null");
+        if (offset == 0) throw new GameObjException("WriteFloat: offset is zero");
+        var intVal = BitConverter.SingleToInt32Bits(value);
+        Marshal.WriteInt32(Pointer + (int)offset, intVal);
+    }
+
+    public void WritePtr(uint offset, IntPtr value)
+    {
+        if (Pointer == IntPtr.Zero) throw new GameObjException("WritePtr: pointer is null");
+        if (offset == 0) throw new GameObjException("WritePtr: offset is zero");
+        Marshal.WriteIntPtr(Pointer + (int)offset, value);
+    }
+
     // --- Type operations ---
 
     public GameType GetGameType()
@@ -219,41 +132,8 @@ public readonly struct GameObj : IEquatable<GameObj>
 
     public string GetTypeName()
     {
-        return GetGameType().FullName;
-    }
-
-    /// <summary>
-    /// Convert this GameObj to its managed IL2CPP proxy type.
-    /// Returns null if conversion fails.
-    /// </summary>
-    public object ToManaged()
-    {
-        if (Pointer == IntPtr.Zero) return null;
-
-        try
-        {
-            var gameType = GetGameType();
-            var managedType = gameType?.ManagedType;
-            if (managedType == null)
-            {
-                ModError.WarnInternal("GameObj.ToManaged", $"No managed type for {gameType?.FullName}");
-                return null;
-            }
-
-            var ptrCtor = managedType.GetConstructor(new[] { typeof(IntPtr) });
-            if (ptrCtor == null)
-            {
-                ModError.WarnInternal("GameObj.ToManaged", $"No IntPtr constructor on {managedType.Name}");
-                return null;
-            }
-
-            return ptrCtor.Invoke(new object[] { Pointer });
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("GameObj.ToManaged", "Conversion failed", ex);
-            return null;
-        }
+        var gameType = GetGameType();
+        return gameType?.FullName ?? "<unknown>";
     }
 
     /// <summary>
@@ -373,4 +253,16 @@ public readonly struct GameObj : IEquatable<GameObj>
             return 0;
         }
     }
+}
+
+/// <summary>
+/// Indicates whether a native game object is considered alive, dead, or in an
+/// indeterminate state when the required offset is unavailable.
+/// </summary>
+
+public enum AliveStatus
+{
+    Alive,
+    Dead,
+    Unknown  // offset unavailable — native validity cannot be confirmed
 }
