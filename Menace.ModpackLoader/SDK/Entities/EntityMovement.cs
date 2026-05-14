@@ -89,8 +89,14 @@ public static class EntityMovement
     /// <returns>MoveResult with success status</returns>
     public static MoveResult MoveTo(GameObj actor, int destX, int destY, MovementFlags flags = MovementFlags.None)
     {
-        if (actor.IsNull || !actor.IsAlive)
-            return MoveResult.Failed("Invalid or dead actor");
+        if (actor.IsNull)
+            return MoveResult.Failed("Invalid actor");
+
+        var actorStatus = actor.CheckAlive();
+        if (actorStatus == AliveStatus.Dead)
+            return MoveResult.Failed("Actor is dead");
+        if (actorStatus == AliveStatus.Unknown)
+            return MoveResult.Failed("Actor status unknown");
 
         try
         {
@@ -215,7 +221,7 @@ public static class EntityMovement
     {
         var result = new List<(int x, int y)>();
 
-        if (actor.IsNull || !actor.IsAlive)
+        if (actor.IsNull || actor.CheckAlive() != AliveStatus.Alive)
             return result;
 
         try
@@ -294,7 +300,7 @@ public static class EntityMovement
     {
         var result = new List<(int x, int y)>();
 
-        if (actor.IsNull || !actor.IsAlive)
+        if (actor.IsNull || actor.CheckAlive() != AliveStatus.Alive)
             return result;
 
         try

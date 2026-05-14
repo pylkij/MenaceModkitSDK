@@ -279,7 +279,7 @@ public static class EntitySpawner
     /// <returns>True if successful</returns>
     public static bool DestroyEntity(GameObj entity, bool immediate = false)
     {
-        if (entity.IsNull || !entity.IsAlive)
+        if (entity.IsNull || entity.CheckAlive() != AliveStatus.Alive)
             return false;
 
         try
