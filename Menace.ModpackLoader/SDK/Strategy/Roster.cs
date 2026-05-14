@@ -1,11 +1,11 @@
+using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-
-using Il2CppMenace.Strategy;
 
 namespace Menace.SDK;
 
@@ -438,6 +438,9 @@ public static class Roster
 
         try
         {
+            var klass = IL2CPP.il2cpp_object_get_class(template.Pointer);
+            if (klass == IntPtr.Zero) return null;
+
             var info = new UnitLeaderTemplateInfo
             {
                 Pointer = template.Pointer,
@@ -445,32 +448,36 @@ public static class Roster
             };
 
             // Get title (localized)
-            var title = template.ReadObj("UnitTitle");
-            if (!title.IsNull)
+            var titlePtr = template.ReadPtr(OffsetCache.GetOrResolve(klass, "UnitTitle"));
+            if (titlePtr != IntPtr.Zero)
             {
-                var titleType = title.GetGameType().ManagedType;
-                var getText = titleType?.GetMethod("ToString", BindingFlags.Public | BindingFlags.Instance);
+                var title = GameObj.FromPointer(titlePtr);
+                var titleType = title.GetGameType()?.ManagedType;
+                var getText = titleType?.GetMethod("ToString",
+                                    BindingFlags.Public | BindingFlags.Instance);
                 if (getText != null)
                 {
                     var proxy = GetManagedProxy(title, titleType);
-                    info.DisplayName = Il2CppUtils.ToManagedString(getText.Invoke(proxy, null)) ?? info.TemplateName;
+                    info.DisplayName = Il2CppUtils.ToManagedString(getText.Invoke(proxy, null))
+                                       ?? info.TemplateName;
                 }
             }
 
             // Get hiring costs
-            var costs = template.ReadObj("HiringCosts");
-            if (!costs.IsNull)
+            var costsPtr = template.ReadPtr(OffsetCache.GetOrResolve(klass, "HiringCosts"));
+            if (costsPtr != IntPtr.Zero)
             {
-                // OperationResources has fields like Supplies, Fuel, etc.
-                // For simplicity, try to get a total
-                info.HiringCost = template.ReadInt("HiringCosts");
+                var costs = GameObj.FromPointer(costsPtr);
+                var costsKlass = IL2CPP.il2cpp_object_get_class(costsPtr);
+                info.HiringCost = costs.ReadInt(OffsetCache.GetOrResolve(costsKlass, "Supplies"));
             }
 
             // Get rarity
-            info.Rarity = template.ReadInt("Rarity");
+            info.Rarity = template.ReadInt(OffsetCache.GetOrResolve(klass, "Rarity"));
 
             // Get min campaign progress
-            info.MinCampaignProgress = template.ReadInt("MinCampaignProgress");
+            info.MinCampaignProgress = template.ReadInt(
+                OffsetCache.GetOrResolve(klass, "MinCampaignProgress"));
 
             return info;
         }
