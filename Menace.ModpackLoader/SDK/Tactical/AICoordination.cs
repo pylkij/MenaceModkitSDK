@@ -1,10 +1,10 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Tactical;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
-
-using Il2CppMenace.Tactical;
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -316,18 +316,19 @@ public static class AICoordination
     /// Only modify tiles for the current agent, not shared state.
     /// </summary>
     public static void ApplyTileScoreModifiers(
-        GameObj agent,
-        FactionTurnState state,
-        CoordinationConfig config)
+    GameObj agent,
+    FactionTurnState state,
+    CoordinationConfig config)
     {
         if (agent.IsNull)
             return;
 
-        var actor = agent.ReadObj("m_Actor");
+        var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+        var actor = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Actor"));
         if (actor.IsNull)
             return;
 
-        var tilesDict = agent.ReadObj("m_Tiles");
+        var tilesDict = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Tiles"));
         if (tilesDict.IsNull)
             return;
 
@@ -345,8 +346,9 @@ public static class AICoordination
             float deltaUtility = 0f;
 
             // Get tile position
-            int tileX = tileKey.ReadInt("X");
-            int tileY = tileKey.ReadInt("Y");
+            var tileKlass = IL2CPP.il2cpp_object_get_class(tileKey.Pointer);
+            int tileX = tileKey.ReadInt(OffsetCache.GetOrResolve(tileKlass, "X"));
+            int tileY = tileKey.ReadInt(OffsetCache.GetOrResolve(tileKlass, "Y"));
 
             // === Center of Forces ===
             if (config.EnableCenterOfForces && state.AllyPositions.Count >= config.CenterOfForcesMinAllies)
@@ -376,8 +378,10 @@ public static class AICoordination
             // Apply delta to utility score
             if (Math.Abs(deltaUtility) > 0.001f)
             {
-                float current = tileScore.ReadFloat("UtilityScore");
-                tileScore.WriteFloat("UtilityScore", current + deltaUtility);
+                var tileScoreKlass = IL2CPP.il2cpp_object_get_class(tileScore.Pointer);
+                var utilityOffset = OffsetCache.GetOrResolve(tileScoreKlass, "UtilityScore");
+                float current = tileScore.ReadFloat(utilityOffset);
+                tileScore.WriteFloat(utilityOffset, current + deltaUtility);
             }
         }
     }
@@ -418,7 +422,8 @@ public static class AICoordination
             return;
 
         var state = GetFactionState(factionIndex);
-        var actor = agent.ReadObj("m_Actor");
+        var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+        var actor = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Actor"));
 
         state.ActedCount++;
 
@@ -430,11 +435,11 @@ public static class AICoordination
 
         // Track targeted tile
         // SkillBehavior stores target tile reference at +0x58 (TargetTile property)
-        var activeBehavior = agent.ReadObj("m_ActiveBehavior");
+        var activeBehavior = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_ActiveBehavior"));
         if (!activeBehavior.IsNull)
         {
-            // Try property-based access first (via reflection or ReadObj with property name)
-            var targetTile = activeBehavior.ReadObj("TargetTile");
+            var behaviorKlass = IL2CPP.il2cpp_object_get_class(activeBehavior.Pointer);
+            var targetTile = activeBehavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetTile"));
             if (targetTile.IsNull)
             {
                 // Fallback: read tile pointer directly at offset +0x58 for SkillBehavior
@@ -533,9 +538,9 @@ public static class AICoordination
                             var tile = new GameObj(((Il2CppObjectBase)tileObj).Pointer);
                             if (!tile.IsNull)
                             {
-                                // Read tile coordinates - use m_X/m_Z properties
-                                int x = tile.ReadInt("m_X");
-                                int y = tile.ReadInt("m_Z");
+                                var tileKlass = IL2CPP.il2cpp_object_get_class(tile.Pointer);
+                                int x = tile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_X"));
+                                int y = tile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_Z"));
                                 return (x, y);
                             }
                         }
@@ -544,18 +549,21 @@ public static class AICoordination
             }
 
             // Fallback: try property accessor
-            var tileFallback = actor.ReadObj("Tile");
+            var actorKlass = IL2CPP.il2cpp_object_get_class(actor.Pointer);
+            var tileFallback = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "Tile"));
             if (!tileFallback.IsNull)
             {
-                int x = tileFallback.ReadInt("m_X");
-                int y = tileFallback.ReadInt("m_Z");
+                var tileKlass = IL2CPP.il2cpp_object_get_class(tileFallback.Pointer);
+                int x = tileFallback.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_X"));
+                int y = tileFallback.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_Z"));
                 return (x, y);
             }
 
             return (-1, -1);
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("EntityAI.GetActorTilePosition", "Failed", ex);
             return (-1, -1);
         }
     }
@@ -589,10 +597,12 @@ public static class AICoordination
             }
 
             // Fallback: try property-based access
-            return aiFaction.ReadInt("FactionIndex");
+            var factionKlass = IL2CPP.il2cpp_object_get_class(aiFaction.Pointer);
+            return aiFaction.ReadInt(OffsetCache.GetOrResolve(factionKlass, "FactionIndex"));
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("EntityAI.GetFactionIndex", "Failed", ex);
             return -1;
         }
     }
@@ -608,8 +618,8 @@ public static class AICoordination
 
         try
         {
-            // Agent has GetAIFaction() method that returns the AIFaction
-            var faction = agent.ReadObj("m_Faction");
+            var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+            var faction = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Faction"));
             if (faction.IsNull)
             {
                 // Try calling GetAIFaction() method
@@ -635,8 +645,9 @@ public static class AICoordination
 
             return GetFactionIndex(faction);
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("EntityAI.GetAgentFactionIndex", "Failed", ex);
             return -1;
         }
     }
