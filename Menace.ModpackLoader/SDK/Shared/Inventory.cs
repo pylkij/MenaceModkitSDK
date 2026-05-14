@@ -771,7 +771,12 @@ public static class Inventory
                 if (ss != null)
                 {
                     var ssObj = new GameObj(((Il2CppObjectBase)ss).Pointer);
-                    var ownedItemsPtr = ssObj.ReadPtr("m_OwnedItems");
+
+                    // Resolve offset once from the class pointer, then use the cached uint overload
+                    var ssKlass = IL2CPP.il2cpp_object_get_class(ssObj.Pointer);
+                    var ownedItemsOffset = OffsetCache.GetOrResolve(ssKlass, "m_OwnedItems");
+                    var ownedItemsPtr = ssObj.ReadPtr(ownedItemsOffset);
+
                     lines.Add($"  StrategyState.m_OwnedItems: {(ownedItemsPtr != IntPtr.Zero ? "Available" : "NULL")}");
                 }
             }

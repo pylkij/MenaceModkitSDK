@@ -1,3 +1,5 @@
+using Il2CppInterop.Runtime;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -140,7 +142,9 @@ public static class EntityVisibility
         try
         {
             // Get viewer's faction
-            var viewerFaction = viewer.ReadInt("m_Faction");
+            var klass = IL2CPP.il2cpp_object_get_class(viewer.Pointer);
+            var factionOffset = OffsetCache.GetOrResolve(klass, "m_Faction");
+            var viewerFaction = viewer.ReadInt(factionOffset);
             if (viewerFaction < 0 || viewerFaction >= 32)
                 return false;
 
@@ -185,7 +189,9 @@ public static class EntityVisibility
         try
         {
             // Get viewer's faction
-            var viewerFaction = viewer.ReadInt("m_Faction");
+            var klass = IL2CPP.il2cpp_object_get_class(viewer.Pointer);
+            var factionOffset = OffsetCache.GetOrResolve(klass, "m_Faction");
+            var viewerFaction = viewer.ReadInt(factionOffset);
             if (viewerFaction < 0 || viewerFaction >= 32)
                 return false;
 

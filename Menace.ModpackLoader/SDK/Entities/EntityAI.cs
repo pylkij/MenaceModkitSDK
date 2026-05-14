@@ -1,8 +1,10 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Il2CppInterop.Runtime.InteropTypes;
 
 namespace Menace.SDK;
 
@@ -114,8 +116,8 @@ public static class EntityAI
             var behaviors = new GameObj(behaviorsPtr);
 
             // Iterate behaviors and boost matching ones
-            int count = behaviors.ReadInt("_size");
-            var itemsPtr = behaviors.ReadPtr("_items");
+            int count = behaviors.ReadInt(OffsetCache.ListSizeOffset);
+            var itemsPtr = behaviors.ReadPtr(OffsetCache.ListItemsOffset);
             if (itemsPtr == IntPtr.Zero)
                 return AIResult.Failed("Behaviors list is empty");
 
@@ -134,7 +136,8 @@ public static class EntityAI
                     // Check if target matches (for targeted behaviors)
                     if (!target.IsNull)
                     {
-                        var behaviorTarget = behavior.ReadObj("TargetEntity");
+                        var behaviorKlass = IL2CPP.il2cpp_object_get_class(behavior.Pointer);
+                        var behaviorTarget = behavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetEntity"));
                         if (!behaviorTarget.IsNull && behaviorTarget.Pointer != target.Pointer)
                             continue; // Skip if target doesn't match
                     }
