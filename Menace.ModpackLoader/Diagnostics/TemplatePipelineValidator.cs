@@ -1,4 +1,7 @@
 #nullable disable
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK;
+using Menace.SDK.Repl;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,8 +9,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using Menace.SDK;
-using Menace.SDK.Repl;
 using UnityEngine;
 
 namespace Menace.ModpackLoader.Diagnostics;
@@ -341,7 +342,7 @@ public static class TemplatePipelineValidator
             report.AppendLine();
 
             var testInstance = instances[0];
-            var managed = testInstance.ToManaged();
+            var managed = GameObj<Il2CppObjectBase>.Wrap(testInstance).AsManaged();
 
             if (managed == null)
             {

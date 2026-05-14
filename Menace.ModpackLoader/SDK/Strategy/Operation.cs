@@ -65,7 +65,7 @@ public static class Operation
             var strategyStateObj = new GameObj(((Il2CppObjectBase)strategyState).Pointer);
             var omPtr = strategyStateObj.ReadPtr(0x58);
             if (omPtr == IntPtr.Zero) return GameObj.Null;
-            var om = new GameObj(omPtr).ToManaged();
+            var om = GameObj<Il2CppObjectBase>.Wrap(new GameObj(omPtr)).AsManaged();
             if (om == null) return GameObj.Null;
 
             var omType = _operationsManagerType?.ManagedType;
