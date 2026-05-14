@@ -16,10 +16,10 @@ public readonly partial struct GameObj : IEquatable<GameObj>
     public bool IsNull => Pointer == IntPtr.Zero;
 
     /// <summary>
-    /// Represents a managed handle to a native game object, providing typed field access,
-    /// memory reads/writes by pre-cached offset, and lifetime validation via pointer checks.
+    /// Checks whether the underlying native Unity object is still alive by reading m_CachedPtr from unmanaged memory.
+    /// Returns <see cref="AliveStatus.Alive"/> or <see cref="AliveStatus.Dead"/> when the check is conclusive,
+    /// or <see cref="AliveStatus.Unknown"/> if the cached pointer offset is unavailable or the memory read fails.
     /// </summary>
-    
     public AliveStatus CheckAlive()
     {
         if (Pointer == IntPtr.Zero) return AliveStatus.Dead;
@@ -259,7 +259,6 @@ public readonly partial struct GameObj : IEquatable<GameObj>
 /// Indicates whether a native game object is considered alive, dead, or in an
 /// indeterminate state when the required offset is unavailable.
 /// </summary>
-
 public enum AliveStatus
 {
     Alive,
