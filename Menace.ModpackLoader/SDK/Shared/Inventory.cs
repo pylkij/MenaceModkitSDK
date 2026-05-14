@@ -1,11 +1,11 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -311,15 +311,16 @@ public static class Inventory
             var template = getTemplateMethod?.Invoke(proxy, null);
             if (template != null)
             {
-                var templateObj = new GameObj(((Il2CppObjectBase)template).Pointer);
+                var templateObj = GameObj.FromPointer(((Il2CppObjectBase)template).Pointer);
                 info.TemplateName = templateObj.GetName();
 
-                // Get slot type from template using m_SlotType field at offset +0xe8
-                info.SlotType = templateObj.ReadInt(0xe8);
+                // Get slot type from template — resolve offset by name, not hardcoded 0xe8
+                var templateKlass = IL2CPP.il2cpp_object_get_class(templateObj.Pointer);
+                info.SlotType = templateObj.ReadInt(OffsetCache.GetOrResolve(templateKlass, "m_SlotType"));
                 info.SlotTypeName = GetSlotTypeName(info.SlotType);
             }
 
-            // Get trade value
+            // Get trade value, rarity, IsTemporary via managed proxy
             var baseItemType = _baseItemType?.ManagedType;
             if (baseItemType != null)
             {
@@ -343,8 +344,9 @@ public static class Inventory
                 }
             }
 
-            // Get skill count using m_Skills field (Item.Skills @ +0x30)
-            var skillsPtr = item.ReadPtr("m_Skills");
+            // Get skill count
+            var itemKlass = IL2CPP.il2cpp_object_get_class(item.Pointer);
+            var skillsPtr = item.ReadPtr(OffsetCache.GetOrResolve(itemKlass, "m_Skills"));
             if (skillsPtr != IntPtr.Zero)
             {
                 var skillsList = new GameList(skillsPtr);
