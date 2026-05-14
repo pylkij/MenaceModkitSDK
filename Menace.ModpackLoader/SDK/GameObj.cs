@@ -82,6 +82,20 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         }
     }
 
+    public bool ReadBool(uint offset)
+    {
+        if (Pointer == IntPtr.Zero || offset == 0) return false;
+        try
+        {
+            return Marshal.ReadByte(Pointer + (int)offset) != 0;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("GameObj.ReadBool", $"Failed at offset {offset}", ex);
+            return false;
+        }
+    }
+
     public GameObj ReadObj(uint offset)
     {
         if (Pointer == IntPtr.Zero || offset == 0) return GameObj.Null;

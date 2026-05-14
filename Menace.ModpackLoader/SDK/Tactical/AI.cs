@@ -1,8 +1,9 @@
+using Il2CppInterop.Runtime;
+using Il2CppMenace.Tactical;
+using Il2CppMenace.Tactical.AI;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
-
-using Il2CppMenace.Tactical.AI;
-using Il2CppMenace.Tactical;
 
 namespace Menace.SDK;
 
@@ -126,14 +127,13 @@ public static class AI
 
         try
         {
-            // Agent is typically stored on Actor or accessible via AIFaction
-            // Try Actor.Agent property first
-            var agentObj = actor.ReadObj("Agent");
+            var actorKlass = IL2CPP.il2cpp_object_get_class(actor.Pointer);
+
+            var agentObj = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "Agent"));
             if (!agentObj.IsNull)
                 return agentObj;
 
-            // Try via m_Agent field
-            agentObj = actor.ReadObj("m_Agent");
+            agentObj = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "m_Agent"));
             if (!agentObj.IsNull)
                 return agentObj;
 
@@ -164,44 +164,50 @@ public static class AI
 
             info.HasAgent = true;
 
+            var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+
             // Read state
-            int state = agent.ReadInt("m_State");
+            int state = agent.ReadInt(OffsetCache.GetOrResolve(agentKlass, "m_State"));
             info.State = state;
             info.StateName = GetStateName(state);
 
             // Read evaluated tile count
-            var tilesDict = agent.ReadObj("m_Tiles");
+            var tilesDict = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Tiles"));
             if (!tilesDict.IsNull)
             {
-                info.EvaluatedTileCount = tilesDict.ReadInt("_count");
+                var tilesDictKlass = IL2CPP.il2cpp_object_get_class(tilesDict.Pointer);
+                info.EvaluatedTileCount = tilesDict.ReadInt(OffsetCache.GetOrResolve(tilesDictKlass, "_count"));
             }
 
             // Read behaviors
-            var behaviors = agent.ReadObj("m_Behaviors");
+            var behaviors = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Behaviors"));
             if (!behaviors.IsNull)
             {
-                info.AvailableBehaviorCount = behaviors.ReadInt("_size");
+                info.AvailableBehaviorCount = behaviors.ReadInt(OffsetCache.ListSizeOffset);
             }
 
             // Get active behavior if ready to execute
             if (state >= STATE_READY_TO_EXECUTE)
             {
-                var activeBehavior = agent.ReadObj("m_ActiveBehavior");
+                var activeBehavior = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_ActiveBehavior"));
                 if (!activeBehavior.IsNull)
                 {
+                    var behaviorKlass = IL2CPP.il2cpp_object_get_class(activeBehavior.Pointer);
+
                     info.ActiveBehavior = activeBehavior.GetType()?.Name ?? "Unknown";
-                    info.BehaviorScore = activeBehavior.ReadInt("Score");
+                    info.BehaviorScore = activeBehavior.ReadInt(OffsetCache.GetOrResolve(behaviorKlass, "Score"));
 
                     // TargetTile and TargetEntity only exist on SkillBehavior subclass
                     // Try to read them gracefully - will return null/default if not present
-                    var targetTile = activeBehavior.ReadObj("TargetTile");
+                    var targetTile = activeBehavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetTile"));
                     if (!targetTile.IsNull)
                     {
-                        info.TargetTileX = targetTile.ReadInt("X");
-                        info.TargetTileZ = targetTile.ReadInt("Z");
+                        var tileKlass = IL2CPP.il2cpp_object_get_class(targetTile.Pointer);
+                        info.TargetTileX = targetTile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "X"));
+                        info.TargetTileZ = targetTile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "Z"));
                     }
 
-                    var targetEntity = activeBehavior.ReadObj("TargetEntity");
+                    var targetEntity = activeBehavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetEntity"));
                     if (!targetEntity.IsNull)
                     {
                         info.TargetActorName = targetEntity.GetName();
@@ -231,48 +237,57 @@ public static class AI
 
         try
         {
+            var actorKlass = IL2CPP.il2cpp_object_get_class(actor.Pointer);
+
             // Get EntityTemplate from actor - try various possible field paths
-            var template = actor.ReadObj("Template");
+            var template = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "Template"));
             if (template.IsNull)
-                template = actor.ReadObj("m_Template");
+                template = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "m_Template"));
             if (template.IsNull)
             {
                 // Try via Entity base class hierarchy
-                var entity = actor.ReadObj("m_Entity");
+                var entity = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "m_Entity"));
                 if (!entity.IsNull)
-                    template = entity.ReadObj("Template");
+                {
+                    var entityKlass = IL2CPP.il2cpp_object_get_class(entity.Pointer);
+                    template = entity.ReadObj(OffsetCache.GetOrResolve(entityKlass, "Template"));
+                }
             }
             if (template.IsNull)
                 return info;
 
+            var templateKlass = IL2CPP.il2cpp_object_get_class(template.Pointer);
+
             // Get AIRole/RoleData from template
-            var roleData = template.ReadObj("AIRole");
+            var roleData = template.ReadObj(OffsetCache.GetOrResolve(templateKlass, "AIRole"));
             if (roleData.IsNull)
-                roleData = template.ReadObj("m_AIRole");
+                roleData = template.ReadObj(OffsetCache.GetOrResolve(templateKlass, "m_AIRole"));
             if (roleData.IsNull)
                 return info;
 
+            var roleKlass = IL2CPP.il2cpp_object_get_class(roleData.Pointer);
+
             // Read criterion weights
-            info.UtilityScale = roleData.ReadFloat("UtilityScale");
-            info.SafetyScale = roleData.ReadFloat("SafetyScale");
-            info.DistanceScale = roleData.ReadFloat("DistanceScale");
-            info.FriendlyFirePenalty = roleData.ReadFloat("FriendlyFirePenalty");
+            info.UtilityScale = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "UtilityScale"));
+            info.SafetyScale = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "SafetyScale"));
+            info.DistanceScale = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "DistanceScale"));
+            info.FriendlyFirePenalty = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "FriendlyFirePenalty"));
 
             // Read behavior weights
-            info.MoveWeight = roleData.ReadFloat("Move");
-            info.InflictDamageWeight = roleData.ReadFloat("InflictDamage");
-            info.InflictSuppressionWeight = roleData.ReadFloat("InflictSuppression");
-            info.StunWeight = roleData.ReadFloat("Stun");
+            info.MoveWeight = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "Move"));
+            info.InflictDamageWeight = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "InflictDamage"));
+            info.InflictSuppressionWeight = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "InflictSuppression"));
+            info.StunWeight = roleData.ReadFloat(OffsetCache.GetOrResolve(roleKlass, "Stun"));
 
             // Read behavioral settings
-            info.IsAllowedToEvadeEnemies = roleData.ReadBool("IsAllowedToEvadeEnemies");
-            info.AttemptToStayOutOfSight = roleData.ReadBool("AttemptToStayOutOfSight");
-            info.PeekInAndOutOfCover = roleData.ReadBool("PeekInAndOutOfCover");
+            info.IsAllowedToEvadeEnemies = roleData.ReadBool(OffsetCache.GetOrResolve(roleKlass, "IsAllowedToEvadeEnemies"));
+            info.AttemptToStayOutOfSight = roleData.ReadBool(OffsetCache.GetOrResolve(roleKlass, "AttemptToStayOutOfSight"));
+            info.PeekInAndOutOfCover = roleData.ReadBool(OffsetCache.GetOrResolve(roleKlass, "PeekInAndOutOfCover"));
 
             // Read criterion toggles
-            info.AvoidOpponents = roleData.ReadBool("AvoidOpponents");
-            info.CoverAgainstOpponents = roleData.ReadBool("CoverAgainstOpponents");
-            info.ThreatFromOpponents = roleData.ReadBool("ThreatFromOpponents");
+            info.AvoidOpponents = roleData.ReadBool(OffsetCache.GetOrResolve(roleKlass, "AvoidOpponents"));
+            info.CoverAgainstOpponents = roleData.ReadBool(OffsetCache.GetOrResolve(roleKlass, "CoverAgainstOpponents"));
+            info.ThreatFromOpponents = roleData.ReadBool(OffsetCache.GetOrResolve(roleKlass, "ThreatFromOpponents"));
 
             return info;
         }
@@ -299,15 +314,17 @@ public static class AI
             if (agent.IsNull)
                 return result;
 
-            var behaviors = agent.ReadObj("m_Behaviors");
+            var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+
+            var behaviors = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Behaviors"));
             if (behaviors.IsNull)
                 return result;
 
-            var activeBehavior = agent.ReadObj("m_ActiveBehavior");
+            var activeBehavior = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_ActiveBehavior"));
 
             // Iterate behaviors list
-            int count = behaviors.ReadInt("_size");
-            var itemsPtr = behaviors.ReadPtr("_items");
+            int count = behaviors.ReadInt(OffsetCache.ListSizeOffset);
+            var itemsPtr = behaviors.ReadPtr(OffsetCache.ListItemsOffset);
             if (itemsPtr == IntPtr.Zero)
                 return result;
 
@@ -318,26 +335,28 @@ public static class AI
                 if (behavior.IsNull)
                     continue;
 
+                var behaviorKlass = IL2CPP.il2cpp_object_get_class(behavior.Pointer);
+
                 var info = new BehaviorInfo
                 {
                     TypeName = behavior.GetType()?.Name ?? "Unknown",
-                    Score = behavior.ReadInt("Score"),
+                    Score = behavior.ReadInt(OffsetCache.GetOrResolve(behaviorKlass, "Score")),
                     IsSelected = !activeBehavior.IsNull && behavior.Pointer == activeBehavior.Pointer
                 };
 
-                // Try to get name from type
                 info.Name = info.TypeName;
 
                 // TargetTile and TargetEntity only exist on SkillBehavior subclass
                 // Read gracefully - will be null if not present on this behavior type
-                var targetTile = behavior.ReadObj("TargetTile");
+                var targetTile = behavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetTile"));
                 if (!targetTile.IsNull)
                 {
-                    info.TargetTileX = targetTile.ReadInt("X");
-                    info.TargetTileZ = targetTile.ReadInt("Z");
+                    var tileKlass = IL2CPP.il2cpp_object_get_class(targetTile.Pointer);
+                    info.TargetTileX = targetTile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "X"));
+                    info.TargetTileZ = targetTile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "Z"));
                 }
 
-                var targetEntity = behavior.ReadObj("TargetEntity");
+                var targetEntity = behavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetEntity"));
                 if (!targetEntity.IsNull)
                 {
                     info.TargetActorName = targetEntity.GetName();
@@ -372,7 +391,8 @@ public static class AI
             if (agent.IsNull)
                 return result;
 
-            var tilesDict = agent.ReadObj("m_Tiles");
+            var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+            var tilesDict = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Tiles"));
             if (tilesDict.IsNull)
                 return result;
 
@@ -385,16 +405,16 @@ public static class AI
                 if (tileKey.IsNull || tileScore.IsNull)
                     continue;
 
-                // TileScore has UtilityScore, SafetyScore, DistanceScore, Tile
-                // CombinedScore would be computed via GetScore() method, but we can't call methods
-                // so we approximate by summing the component scores
-                float utilScore = tileScore.ReadFloat("UtilityScore");
-                float safeScore = tileScore.ReadFloat("SafetyScore");
-                float distScore = tileScore.ReadFloat("DistanceScore");
+                var tileKlass = IL2CPP.il2cpp_object_get_class(tileKey.Pointer);
+                var tileScoreKlass = IL2CPP.il2cpp_object_get_class(tileScore.Pointer);
+
+                float utilScore = tileScore.ReadFloat(OffsetCache.GetOrResolve(tileScoreKlass, "UtilityScore"));
+                float safeScore = tileScore.ReadFloat(OffsetCache.GetOrResolve(tileScoreKlass, "SafetyScore"));
+                float distScore = tileScore.ReadFloat(OffsetCache.GetOrResolve(tileScoreKlass, "DistanceScore"));
                 var info = new TileScoreInfo
                 {
-                    X = tileKey.ReadInt("X"),
-                    Z = tileKey.ReadInt("Z"),
+                    X = tileKey.ReadInt(OffsetCache.GetOrResolve(tileKlass, "X")),
+                    Z = tileKey.ReadInt(OffsetCache.GetOrResolve(tileKlass, "Z")),
                     UtilityScore = utilScore,
                     SafetyScore = safeScore,
                     DistanceScore = distScore,
@@ -686,23 +706,28 @@ public static class AI
 
         try
         {
-            // Try various possible field paths for template access
-            var template = actor.ReadObj("Template");
+            var actorKlass = IL2CPP.il2cpp_object_get_class(actor.Pointer);
+
+            var template = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "Template"));
             if (template.IsNull)
-                template = actor.ReadObj("m_Template");
+                template = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "m_Template"));
             if (template.IsNull)
             {
-                // Try via Entity base class hierarchy
-                var entity = actor.ReadObj("m_Entity");
+                var entity = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "m_Entity"));
                 if (!entity.IsNull)
-                    template = entity.ReadObj("Template");
+                {
+                    var entityKlass = IL2CPP.il2cpp_object_get_class(entity.Pointer);
+                    template = entity.ReadObj(OffsetCache.GetOrResolve(entityKlass, "Template"));
+                }
             }
             if (template.IsNull)
                 return GameObj.Null;
 
-            var roleData = template.ReadObj("AIRole");
+            var templateKlass = IL2CPP.il2cpp_object_get_class(template.Pointer);
+
+            var roleData = template.ReadObj(OffsetCache.GetOrResolve(templateKlass, "AIRole"));
             if (roleData.IsNull)
-                roleData = template.ReadObj("m_AIRole");
+                roleData = template.ReadObj(OffsetCache.GetOrResolve(templateKlass, "m_AIRole"));
 
             return roleData;
         }
@@ -736,7 +761,16 @@ public static class AI
             return false;
         }
 
-        return roleData.WriteFloat(fieldName, value);
+        var roleKlass = IL2CPP.il2cpp_object_get_class(roleData.Pointer);
+        var offset = OffsetCache.GetOrResolve(roleKlass, fieldName);
+        if (offset == 0)
+        {
+            ModError.ReportInternal("AI.SetRoleDataFloat", $"Could not resolve offset for field: {fieldName}");
+            return false;
+        }
+
+        roleData.WriteFloat(offset, value);
+        return true;
     }
 
     /// <summary>
@@ -762,8 +796,16 @@ public static class AI
             return false;
         }
 
-        // Write bool as int (0 or 1)
-        return roleData.WriteInt(fieldName, value ? 1 : 0);
+        var roleKlass = IL2CPP.il2cpp_object_get_class(roleData.Pointer);
+        var offset = OffsetCache.GetOrResolve(roleKlass, fieldName);
+        if (offset == 0)
+        {
+            ModError.ReportInternal("AI.SetRoleDataBool", $"Could not resolve offset for field: {fieldName}");
+            return false;
+        }
+
+        roleData.WriteInt(offset, value ? 1 : 0);
+        return true;
     }
 
     /// <summary>
@@ -786,31 +828,39 @@ public static class AI
             return false;
         }
 
-        bool success = true;
+        var roleKlass = IL2CPP.il2cpp_object_get_class(roleData.Pointer);
 
-        // Write criterion weights
-        success &= roleData.WriteFloat("UtilityScale", newRole.UtilityScale);
-        success &= roleData.WriteFloat("SafetyScale", newRole.SafetyScale);
-        success &= roleData.WriteFloat("DistanceScale", newRole.DistanceScale);
-        success &= roleData.WriteFloat("FriendlyFirePenalty", newRole.FriendlyFirePenalty);
+        try
+        {
+            // Write criterion weights
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "UtilityScale"), newRole.UtilityScale);
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "SafetyScale"), newRole.SafetyScale);
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "DistanceScale"), newRole.DistanceScale);
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "FriendlyFirePenalty"), newRole.FriendlyFirePenalty);
 
-        // Write behavior weights
-        success &= roleData.WriteFloat("Move", newRole.MoveWeight);
-        success &= roleData.WriteFloat("InflictDamage", newRole.InflictDamageWeight);
-        success &= roleData.WriteFloat("InflictSuppression", newRole.InflictSuppressionWeight);
-        success &= roleData.WriteFloat("Stun", newRole.StunWeight);
+            // Write behavior weights
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "Move"), newRole.MoveWeight);
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "InflictDamage"), newRole.InflictDamageWeight);
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "InflictSuppression"), newRole.InflictSuppressionWeight);
+            roleData.WriteFloat(OffsetCache.GetOrResolve(roleKlass, "Stun"), newRole.StunWeight);
 
-        // Write behavioral settings (as ints)
-        success &= roleData.WriteInt("IsAllowedToEvadeEnemies", newRole.IsAllowedToEvadeEnemies ? 1 : 0);
-        success &= roleData.WriteInt("AttemptToStayOutOfSight", newRole.AttemptToStayOutOfSight ? 1 : 0);
-        success &= roleData.WriteInt("PeekInAndOutOfCover", newRole.PeekInAndOutOfCover ? 1 : 0);
+            // Write behavioral settings
+            roleData.WriteInt(OffsetCache.GetOrResolve(roleKlass, "IsAllowedToEvadeEnemies"), newRole.IsAllowedToEvadeEnemies ? 1 : 0);
+            roleData.WriteInt(OffsetCache.GetOrResolve(roleKlass, "AttemptToStayOutOfSight"), newRole.AttemptToStayOutOfSight ? 1 : 0);
+            roleData.WriteInt(OffsetCache.GetOrResolve(roleKlass, "PeekInAndOutOfCover"), newRole.PeekInAndOutOfCover ? 1 : 0);
 
-        // Write criterion toggles
-        success &= roleData.WriteInt("AvoidOpponents", newRole.AvoidOpponents ? 1 : 0);
-        success &= roleData.WriteInt("CoverAgainstOpponents", newRole.CoverAgainstOpponents ? 1 : 0);
-        success &= roleData.WriteInt("ThreatFromOpponents", newRole.ThreatFromOpponents ? 1 : 0);
+            // Write criterion toggles
+            roleData.WriteInt(OffsetCache.GetOrResolve(roleKlass, "AvoidOpponents"), newRole.AvoidOpponents ? 1 : 0);
+            roleData.WriteInt(OffsetCache.GetOrResolve(roleKlass, "CoverAgainstOpponents"), newRole.CoverAgainstOpponents ? 1 : 0);
+            roleData.WriteInt(OffsetCache.GetOrResolve(roleKlass, "ThreatFromOpponents"), newRole.ThreatFromOpponents ? 1 : 0);
 
-        return success;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("AI.ApplyRoleData", "Failed during write", ex);
+            return false;
+        }
     }
 
     /// <summary>
@@ -830,12 +880,14 @@ public static class AI
         if (agent.IsNull)
             return false;
 
-        var behaviors = agent.ReadObj("m_Behaviors");
+        var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
+
+        var behaviors = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Behaviors"));
         if (behaviors.IsNull)
             return false;
 
-        int count = behaviors.ReadInt("_size");
-        var itemsPtr = behaviors.ReadPtr("_items");
+        int count = behaviors.ReadInt(OffsetCache.ListSizeOffset);
+        var itemsPtr = behaviors.ReadPtr(OffsetCache.ListItemsOffset);
         if (itemsPtr == IntPtr.Zero)
             return false;
 
@@ -849,7 +901,9 @@ public static class AI
             var typeName = behavior.GetType()?.Name;
             if (typeName == behaviorTypeName)
             {
-                return behavior.WriteInt("Score", score);
+                var behaviorKlass = IL2CPP.il2cpp_object_get_class(behavior.Pointer);
+                behavior.WriteInt(OffsetCache.GetOrResolve(behaviorKlass, "Score"), score);
+                return true;
             }
         }
 
