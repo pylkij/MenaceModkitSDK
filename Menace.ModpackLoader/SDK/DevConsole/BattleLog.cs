@@ -370,7 +370,7 @@ public static class BattleLog
 
         // Try DebugName first (common on Actor / Entity in Menace.Tactical)
         // DebugName is a PROPERTY, not a field - use reflection via the proxy object
-        var name = ReadPropertyString(obj.Pointer, "DebugName");
+        var name = ReadPropertyString<Il2CppObjectBase>(obj.Pointer, "DebugName");
         if (!string.IsNullOrEmpty(name)) return name;
 
         // Fall back to Unity object name
@@ -381,18 +381,17 @@ public static class BattleLog
     /// <summary>
     /// Read a string property from an IL2CPP object via reflection on its proxy type.
     /// </summary>
-    private static string ReadPropertyString(IntPtr ptr, string propertyName)
+    private static string ReadPropertyString<T>(IntPtr ptr, string propertyName)
+        where T : Il2CppObjectBase
     {
         if (ptr == IntPtr.Zero) return null;
 
         try
         {
-            // Use GameObj.ToManaged() to get the proxy object, then invoke property getter
-            var obj = new GameObj(ptr);
-            var proxy = obj.ToManaged();
+            var proxy = GameObj<T>.Wrap(GameObj.FromPointer(ptr)).AsManaged();
             if (proxy == null) return null;
 
-            var prop = proxy.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+            var prop = typeof(T).GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
             if (prop == null) return null;
 
             return Il2CppUtils.ToManagedString(prop.GetValue(proxy));
