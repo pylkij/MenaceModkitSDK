@@ -96,6 +96,22 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         }
     }
 
+    public string ReadString(uint offset)
+    {
+        var ptr = ReadPtr(offset);
+        if (ptr == IntPtr.Zero) return null;
+
+        try
+        {
+            return IL2CPP.Il2CppStringToManaged(ptr);
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("GameObj.ReadString", $"Failed at offset {offset}", ex);
+            return null;
+        }
+    }
+
     public GameObj ReadObj(uint offset)
     {
         if (Pointer == IntPtr.Zero || offset == 0) return GameObj.Null;

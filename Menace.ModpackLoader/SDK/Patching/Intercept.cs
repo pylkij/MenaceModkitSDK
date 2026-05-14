@@ -1,10 +1,11 @@
+using HarmonyLib;
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using HarmonyLib;
-using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes;
 
 namespace Menace.SDK;
 
@@ -6170,11 +6171,10 @@ public static class Intercept
             if (effectDataPtr != IntPtr.Zero)
             {
                 var effectData = new GameObj(effectDataPtr);
-                // Set flat damage to the modified total
-                effectData.WriteFloat("DamageFlatAmount", damage);
-                // Zero out percentage damages to prevent double-application
-                effectData.WriteFloat("DamagePctCurrentHitpoints", 0f);
-                effectData.WriteFloat("DamagePctMaxHitpoints", 0f);
+                var effectKlass = IL2CPP.il2cpp_object_get_class(effectData.Pointer);
+                effectData.WriteFloat(OffsetCache.GetOrResolve(effectKlass, "DamageFlatAmount"), damage);
+                effectData.WriteFloat(OffsetCache.GetOrResolve(effectKlass, "DamagePctCurrentHitpoints"), 0f);
+                effectData.WriteFloat(OffsetCache.GetOrResolve(effectKlass, "DamagePctMaxHitpoints"), 0f);
             }
 
             FireLuaEvent("damage_applied", new Dictionary<string, object>
