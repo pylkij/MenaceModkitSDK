@@ -36,13 +36,20 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         }
     }
 
-    public GameObj(IntPtr pointer)
+    internal GameObj(IntPtr pointer)
     {
         Pointer = pointer;
     }
 
+    // Used internally by the SDK.
+    internal static GameObj FromPointer(IntPtr pointer) => new GameObj(pointer);
+
+    // Temporary escape hatch for untyped construction during migration.
+    // Every call site outside the SDK assembly must be resolved before Phase 4.3.
+    // Search for UntypedFromPointer_Migrate to find remaining sites.
+    internal static GameObj UntypedFromPointer_Migrate(IntPtr pointer) => new GameObj(pointer);
+
     public static GameObj Null => default;
-    public static GameObj FromPointer(IntPtr ptr) => new GameObj(ptr);
 
     // --- Field reads by pre-cached offset ---
 
