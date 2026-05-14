@@ -1,6 +1,7 @@
-﻿using Il2CppInterop.Runtime;
+﻿using System;
+using System.Runtime.InteropServices;
+using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
-using System;
 
 namespace Menace.SDK;
 
@@ -10,7 +11,9 @@ namespace Menace.SDK;
 /// <see cref="Read"/> and <see cref="Write"/> throw <see cref="GameObjException"/> if the object is not alive or the offset is zero;
 /// use <see cref="TryRead"/> for a non-throwing read path.
 /// </summary>
-public readonly struct FieldHandle<T, TVal> where TVal : unmanaged
+public readonly struct FieldHandle<T, TVal>
+    where T : Il2CppObjectBase
+    where TVal : unmanaged
 {
     private readonly uint _offset;
     private readonly string _fieldName;
@@ -70,7 +73,9 @@ public readonly struct FieldHandle<T, TVal> where TVal : unmanaged
 /// <see cref="Read"/> throws <see cref="GameObjException"/> if the object is not alive, the offset is zero, or the field pointer is null;
 /// use <see cref="TryRead"/> if the field may legitimately be unset.
 /// </summary>
-public readonly struct ObjFieldHandle<T, TObj> where TObj : Il2CppObjectBase
+public readonly struct ObjFieldHandle<T, TObj>
+    where T : Il2CppObjectBase
+    where TObj : Il2CppObjectBase
 {
     private readonly uint _offset;
     private readonly string _fieldName;
@@ -134,6 +139,7 @@ public readonly struct ObjFieldHandle<T, TObj> where TObj : Il2CppObjectBase
 /// use <see cref="TryRead"/> if the field may legitimately be unset.
 /// </summary>
 public readonly struct StringFieldHandle<T>
+    where T : Il2CppObjectBase
 {
     private readonly uint _offset;
     private readonly string _fieldName;

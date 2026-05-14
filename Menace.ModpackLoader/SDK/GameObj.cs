@@ -42,6 +42,7 @@ public readonly partial struct GameObj : IEquatable<GameObj>
     }
 
     public static GameObj Null => default;
+    public static GameObj FromPointer(IntPtr ptr) => new GameObj(ptr);
 
     // --- Field reads by pre-cached offset ---
 
