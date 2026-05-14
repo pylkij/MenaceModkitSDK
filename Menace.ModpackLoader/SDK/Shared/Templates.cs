@@ -98,7 +98,7 @@ public static class Templates
     public static object GetManaged(string templateTypeName, string instanceName)
     {
         var obj = Find(templateTypeName, instanceName);
-        return obj.IsNull ? null : obj.ToManaged();
+        return obj.IsNull ? null : GameObj<Il2CppObjectBase>.Wrap(obj).AsManaged();
     }
 
     /// <summary>
