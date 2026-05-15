@@ -334,6 +334,9 @@ public static class EntitySpawner
     /// <summary>
     /// Get entity information as a summary object.
     /// </summary>
+    // Cached offset — add alongside your other OFFSET_ constants
+    private const uint OFFSET_ENTITY_DEBUG_NAME = 0x88;
+
     public static EntityInfo GetEntityInfo(GameObj entity)
     {
         if (entity.IsNull)
@@ -344,7 +347,7 @@ public static class EntitySpawner
             return new EntityInfo
             {
                 EntityId = entity.ReadInt(OFFSET_ENTITY_ID),
-                Name = entity.GetName() ?? entity.ReadString("Name"),
+                Name = entity.GetName() ?? entity.ReadString(OFFSET_ENTITY_DEBUG_NAME),
                 TypeName = entity.GetTypeName(),
                 FactionIndex = entity.ReadInt(OFFSET_ENTITY_FACTION_INDEX),
                 IsAlive = ReadBoolAtOffset(entity, OFFSET_ENTITY_IS_ALIVE),

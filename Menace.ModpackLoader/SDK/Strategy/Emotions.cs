@@ -991,11 +991,11 @@ public static class Emotions
                 return "Usage: emotions <nickname>";
 
             var nickname = string.Join(" ", args);
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
-            var info = GetEmotionalStatesInfo(leader);
+            var info = GetEmotionalStatesInfo(leader.Untyped);
             if (info == null)
                 return "Could not get emotional states";
 
@@ -1003,10 +1003,10 @@ public static class Emotions
                 return $"{info.OwnerName} has no active emotions";
 
             var lines = new List<string>
-            {
-                $"Emotional States for {info.OwnerName} ({info.StateCount} active):",
-                $"  Positive: {info.PositiveCount}, Negative: {info.NegativeCount}"
-            };
+    {
+        $"Emotional States for {info.OwnerName} ({info.StateCount} active):",
+        $"  Positive: {info.PositiveCount}, Negative: {info.NegativeCount}"
+    };
 
             foreach (var state in info.ActiveStates)
             {
@@ -1023,7 +1023,7 @@ public static class Emotions
 
         // triggeremotion <nickname> <trigger> - Trigger an emotion
         DevConsole.RegisterCommand("triggeremotion", "<nickname> <trigger>",
-            "Trigger an emotion (KilledEnemy, WasWounded, AllyKilled, etc.)", args =>
+        "Trigger an emotion (KilledEnemy, WasWounded, AllyKilled, etc.)", args =>
         {
             if (args.Length < 2)
                 return "Usage: triggeremotion <nickname> <trigger>";
@@ -1031,22 +1031,22 @@ public static class Emotions
             var nickname = args[0];
             var triggerName = args[1];
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalTrigger>(triggerName, true, out var trigger))
                 return $"Unknown trigger '{triggerName}'. Valid: StabilizedBy, StabilizedOthers, KilledXEnemyEntities, GameEffect, Event, Cheat, etc.";
 
-            var result = TriggerEmotion(leader, trigger);
+            var result = TriggerEmotion(leader.Untyped, trigger);
             return result.Success
-                ? $"Triggered {trigger} on {leader.GetName()}"
+                ? $"Triggered {trigger} on {leader.AsManaged().GetNickname()}"
                 : $"Failed: {result.Error}";
         });
 
         // applyemotion <nickname> <template> - Apply an emotion template
         DevConsole.RegisterCommand("applyemotion", "<nickname> <template>",
-            "Apply an emotion template to a unit", args =>
+        "Apply an emotion template to a unit", args =>
         {
             if (args.Length < 2)
                 return "Usage: applyemotion <nickname> <template>";
@@ -1054,19 +1054,19 @@ public static class Emotions
             var nickname = args[0];
             var templateName = string.Join(" ", args, 1, args.Length - 1);
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
-            var result = ApplyEmotion(leader, templateName);
+            var result = ApplyEmotion(leader.Untyped, templateName);
             return result.Success
-                ? $"Applied '{templateName}' to {leader.GetName()}: {result.Action}"
+                ? $"Applied '{templateName}' to {leader.AsManaged().GetNickname()}: {result.Action}"
                 : $"Failed: {result.Error}";
         });
 
         // removeemotion <nickname> <type> - Remove an emotion
         DevConsole.RegisterCommand("removeemotion", "<nickname> <type>",
-            "Remove an emotion type (Angry, Confident, Grief, etc.)", args =>
+        "Remove an emotion type (Angry, Confident, Grief, etc.)", args =>
         {
             if (args.Length < 2)
                 return "Usage: removeemotion <nickname> <type>";
@@ -1074,22 +1074,22 @@ public static class Emotions
             var nickname = args[0];
             var typeName = args[1];
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalStateType>(typeName, true, out var type))
                 return $"Unknown emotion type '{typeName}'. Valid: Determined, Weary, Eager, Frustrated, Euphoric, Miserable, etc.";
 
-            var result = RemoveEmotion(leader, type);
+            var result = RemoveEmotion(leader.Untyped, type);
             return result.Success
-                ? $"Removed {type} from {leader.GetName()}"
+                ? $"Removed {type} from {leader.AsManaged().GetNickname()}"
                 : $"Failed: {result.Error}";
         });
 
         // clearemotions <nickname> [negative|positive] - Clear emotions
         DevConsole.RegisterCommand("clearemotions", "<nickname> [negative|positive]",
-            "Clear all, negative, or positive emotions from a unit", args =>
+        "Clear all, negative, or positive emotions from a unit", args =>
         {
             if (args.Length == 0)
                 return "Usage: clearemotions <nickname> [negative|positive]";
@@ -1097,18 +1097,18 @@ public static class Emotions
             var nickname = args[0];
             var filter = args.Length > 1 ? args[1].ToLowerInvariant() : "all";
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
             int removed = filter switch
             {
-                "negative" => ClearNegativeEmotions(leader),
-                "positive" => ClearPositiveEmotions(leader),
-                _ => ClearEmotions(leader)
+                "negative" => ClearNegativeEmotions(leader.Untyped),
+                "positive" => ClearPositiveEmotions(leader.Untyped),
+                _ => ClearEmotions(leader.Untyped)
             };
 
-            return $"Removed {removed} {filter} emotion(s) from {leader.GetName()}";
+            return $"Removed {removed} {filter} emotion(s) from {leader.AsManaged().GetNickname()}";
         });
 
         // emotemplates - List available emotion templates
@@ -1128,7 +1128,7 @@ public static class Emotions
 
         // hasemotion <nickname> <type> - Check if unit has emotion
         DevConsole.RegisterCommand("hasemotion", "<nickname> <type>",
-            "Check if a unit has a specific emotion type", args =>
+        "Check if a unit has a specific emotion type", args =>
         {
             if (args.Length < 2)
                 return "Usage: hasemotion <nickname> <type>";
@@ -1136,25 +1136,25 @@ public static class Emotions
             var nickname = args[0];
             var typeName = args[1];
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalStateType>(typeName, true, out var type))
                 return $"Unknown emotion type '{typeName}'";
 
-            var has = HasEmotion(leader, type);
+            var has = HasEmotion(leader.Untyped, type);
             if (has)
             {
-                var duration = GetRemainingDuration(leader, type);
-                return $"{leader.GetName()} HAS {type} ({duration} missions remaining)";
+                var duration = GetRemainingDuration(leader.Untyped, type);
+                return $"{leader.AsManaged().GetNickname()} HAS {type} ({duration} missions remaining)";
             }
-            return $"{leader.GetName()} does NOT have {type}";
+            return $"{leader.AsManaged().GetNickname()} does NOT have {type}";
         });
 
         // extendemotion <nickname> <type> [missions] - Extend emotion duration
         DevConsole.RegisterCommand("extendemotion", "<nickname> <type> [missions]",
-            "Extend the duration of an active emotion", args =>
+        "Extend the duration of an active emotion", args =>
         {
             if (args.Length < 2)
                 return "Usage: extendemotion <nickname> <type> [missions]";
@@ -1163,17 +1163,17 @@ public static class Emotions
             var typeName = args[1];
             var missions = args.Length > 2 && int.TryParse(args[2], out int m) ? m : 1;
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalStateType>(typeName, true, out var type))
                 return $"Unknown emotion type '{typeName}'";
 
-            var result = ExtendDuration(leader, type, missions);
+            var result = ExtendDuration(leader.Untyped, type, missions);
             return result.Success
-                ? $"Extended {type} by {missions} mission(s)"
-                : $"Failed: {result.Error}";
+        ? $"Extended {type} by {missions} mission(s)"
+        : $"Failed: {result.Error}";
         });
     }
 
