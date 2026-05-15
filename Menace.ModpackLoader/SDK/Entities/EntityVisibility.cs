@@ -1,4 +1,5 @@
 using Il2CppInterop.Runtime;
+using Il2CppMenace.Tactical;
 using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
@@ -11,13 +12,23 @@ namespace Menace.SDK;
 /// Provides control over faction-based detection and temporary visibility overrides.
 ///
 /// Based on reverse engineering findings:
-/// - Actor.m_DetectedByFactionMask @ 0x138 (int32 bitmask, one bit per faction)
-/// - Supports 32 factions (bits 0-31)
+/// - Actor.m_DetectedMask @ 0x138 (ulong bitmask, one bit per faction)
+/// - Supports 64 factions (bits 0-63)
 /// </summary>
 public static class EntityVisibility
 {
-    // Field offset from Intercept.cs
-    private const uint OFFSET_ACTOR_DETECTED_BY_FACTION_MASK = 0x138;
+    private static class Offsets
+    {
+        // Actor.m_DetectedMask @ 0x138, typed ulong (64-faction mask).
+        internal static readonly Lazy<FieldHandle<Actor, ulong>> DetectedMask
+            = new(() => GameObj<Actor>.ResolveField(x => x.m_DetectedMask));
+
+        // Entity.m_FactionID @ 0x4C, typed int.
+        // Prior code resolved "m_Faction" via OffsetCache — that field does not exist.
+        // Correct name is m_FactionID on Entity.
+        internal static readonly Lazy<FieldHandle<Entity, int>> FactionID
+            = new(() => GameObj<Entity>.ResolveField(x => x.m_FactionID));
+    }
 
     // Temporary visibility override storage
     private static Dictionary<IntPtr, VisibilityOverride> _overrides = new();
@@ -27,28 +38,28 @@ public static class EntityVisibility
     /// </summary>
     private class VisibilityOverride
     {
-        public int OriginalMask { get; set; }
-        public int OverrideMask { get; set; }
+        public ulong OriginalMask { get; set; }
+        public ulong OverrideMask { get; set; }
         public int TurnsRemaining { get; set; }
-        public GameObj Viewer { get; set; }
+        public GameObj<Actor> Viewer { get; set; }
     }
 
     /// <summary>
     /// Reveal actor to a specific faction.
     /// </summary>
     /// <param name="actor">The actor to reveal</param>
-    /// <param name="factionIndex">Faction index (0-31)</param>
+    /// <param name="factionIndex">Faction index (0-63)</param>
     /// <returns>True if successful</returns>
-    public static bool RevealToFaction(GameObj actor, int factionIndex)
+    public static bool RevealToFaction(GameObj<Actor> actor, int factionIndex)
     {
-        if (actor.IsNull || factionIndex < 0 || factionIndex >= 32)
+        if (actor.Untyped.IsNull || factionIndex < 0 || factionIndex >= 64)
             return false;
 
         try
         {
-            var mask = Marshal.ReadInt32(actor.Pointer + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK);
-            mask |= (1 << factionIndex);
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK, mask);
+            var mask = Offsets.DetectedMask.Value.Read(actor);
+            mask |= (1UL << factionIndex);
+            Offsets.DetectedMask.Value.Write(actor, mask);
             return true;
         }
         catch (Exception ex)
@@ -62,18 +73,18 @@ public static class EntityVisibility
     /// Conceal actor from a specific faction.
     /// </summary>
     /// <param name="actor">The actor to conceal</param>
-    /// <param name="factionIndex">Faction index (0-31)</param>
+    /// <param name="factionIndex">Faction index (0-63)</param>
     /// <returns>True if successful</returns>
-    public static bool ConcealFromFaction(GameObj actor, int factionIndex)
+    public static bool ConcealFromFaction(GameObj<Actor> actor, int factionIndex)
     {
-        if (actor.IsNull || factionIndex < 0 || factionIndex >= 32)
+        if (actor.Untyped.IsNull || factionIndex < 0 || factionIndex >= 64)
             return false;
 
         try
         {
-            var mask = Marshal.ReadInt32(actor.Pointer + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK);
-            mask &= ~(1 << factionIndex);
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK, mask);
+            var mask = Offsets.DetectedMask.Value.Read(actor);
+            mask &= ~(1UL << factionIndex);
+            Offsets.DetectedMask.Value.Write(actor, mask);
             return true;
         }
         catch (Exception ex)
@@ -87,16 +98,16 @@ public static class EntityVisibility
     /// Set the entire detection mask at once.
     /// </summary>
     /// <param name="actor">The actor to modify</param>
-    /// <param name="bitmask">The detection bitmask (one bit per faction)</param>
+    /// <param name="bitmask">The detection bitmask (one bit per faction, 64 factions supported)</param>
     /// <returns>True if successful</returns>
-    public static bool SetDetectionMask(GameObj actor, int bitmask)
+    public static bool SetDetectionMask(GameObj<Actor> actor, ulong bitmask)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return false;
 
         try
         {
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK, bitmask);
+            Offsets.DetectedMask.Value.Write(actor, bitmask);
             return true;
         }
         catch (Exception ex)
@@ -111,18 +122,18 @@ public static class EntityVisibility
     /// </summary>
     /// <param name="actor">The actor to query</param>
     /// <returns>The detection bitmask (one bit per faction)</returns>
-    public static int GetDetectionMask(GameObj actor)
+    public static ulong GetDetectionMask(GameObj<Actor> actor)
     {
-        if (actor.IsNull)
-            return 0;
+        if (actor.Untyped.IsNull)
+            return 0UL;
 
         try
         {
-            return Marshal.ReadInt32(actor.Pointer + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK);
+            return Offsets.DetectedMask.Value.Read(actor);
         }
         catch
         {
-            return 0;
+            return 0UL;
         }
     }
 
@@ -134,27 +145,22 @@ public static class EntityVisibility
     /// <param name="viewer">The viewing actor</param>
     /// <param name="turns">Number of turns to maintain visibility (default: 1)</param>
     /// <returns>True if successful</returns>
-    public static bool ForceVisibleTo(GameObj actor, GameObj viewer, int turns = 1)
+    public static bool ForceVisibleTo(GameObj<Actor> actor, GameObj<Actor> viewer, int turns = 1)
     {
-        if (actor.IsNull || viewer.IsNull || turns <= 0)
+        if (actor.Untyped.IsNull || viewer.Untyped.IsNull || turns <= 0)
             return false;
 
         try
         {
-            // Get viewer's faction
-            var klass = IL2CPP.il2cpp_object_get_class(viewer.Pointer);
-            var factionOffset = OffsetCache.GetOrResolve(klass, "m_Faction");
-            var viewerFaction = viewer.ReadInt(factionOffset);
-            if (viewerFaction < 0 || viewerFaction >= 32)
+            var viewerAsEntity = GameObj<Entity>.Wrap(viewer.Untyped);
+            var viewerFaction = Offsets.FactionID.Value.Read(viewerAsEntity);
+            if (viewerFaction < 0 || viewerFaction >= 64)
                 return false;
 
-            // Store original mask
             var originalMask = GetDetectionMask(actor);
+            var newMask = originalMask | (1UL << viewerFaction);
 
-            // Create override
-            var newMask = originalMask | (1 << viewerFaction);
-
-            _overrides[actor.Pointer] = new VisibilityOverride
+            _overrides[actor.Untyped.Pointer] = new VisibilityOverride
             {
                 OriginalMask = originalMask,
                 OverrideMask = newMask,
@@ -162,7 +168,6 @@ public static class EntityVisibility
                 Viewer = viewer
             };
 
-            // Apply override
             SetDetectionMask(actor, newMask);
             return true;
         }
@@ -181,27 +186,22 @@ public static class EntityVisibility
     /// <param name="viewer">The viewing actor</param>
     /// <param name="turns">Number of turns to maintain concealment (default: 1)</param>
     /// <returns>True if successful</returns>
-    public static bool ForceConcealedFrom(GameObj actor, GameObj viewer, int turns = 1)
+    public static bool ForceConcealedFrom(GameObj<Actor> actor, GameObj<Actor> viewer, int turns = 1)
     {
-        if (actor.IsNull || viewer.IsNull || turns <= 0)
+        if (actor.Untyped.IsNull || viewer.Untyped.IsNull || turns <= 0)
             return false;
 
         try
         {
-            // Get viewer's faction
-            var klass = IL2CPP.il2cpp_object_get_class(viewer.Pointer);
-            var factionOffset = OffsetCache.GetOrResolve(klass, "m_Faction");
-            var viewerFaction = viewer.ReadInt(factionOffset);
-            if (viewerFaction < 0 || viewerFaction >= 32)
+            var viewerAsEntity = GameObj<Entity>.Wrap(viewer.Untyped);
+            var viewerFaction = Offsets.FactionID.Value.Read(viewerAsEntity);
+            if (viewerFaction < 0 || viewerFaction >= 64)
                 return false;
 
-            // Store original mask
             var originalMask = GetDetectionMask(actor);
+            var newMask = originalMask & ~(1UL << viewerFaction);
 
-            // Create override
-            var newMask = originalMask & ~(1 << viewerFaction);
-
-            _overrides[actor.Pointer] = new VisibilityOverride
+            _overrides[actor.Untyped.Pointer] = new VisibilityOverride
             {
                 OriginalMask = originalMask,
                 OverrideMask = newMask,
@@ -209,7 +209,6 @@ public static class EntityVisibility
                 Viewer = viewer
             };
 
-            // Apply override
             SetDetectionMask(actor, newMask);
             return true;
         }
@@ -229,29 +228,24 @@ public static class EntityVisibility
 
         foreach (var kvp in _overrides)
         {
-            var actorPtr = kvp.Key;
             var over = kvp.Value;
-
             over.TurnsRemaining--;
 
             if (over.TurnsRemaining <= 0)
             {
-                // Restore original mask
                 try
                 {
-                    Marshal.WriteInt32(actorPtr + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK, over.OriginalMask);
+                    var actor = GameObj<Actor>.Wrap(GameObj.FromPointer(kvp.Key));
+                    SetDetectionMask(actor, over.OriginalMask);
                 }
                 catch { }
 
-                expired.Add(actorPtr);
+                expired.Add(kvp.Key);
             }
         }
 
-        // Remove expired overrides
         foreach (var ptr in expired)
-        {
             _overrides.Remove(ptr);
-        }
     }
 
     /// <summary>
@@ -263,7 +257,8 @@ public static class EntityVisibility
         {
             try
             {
-                Marshal.WriteInt32(kvp.Key + (int)OFFSET_ACTOR_DETECTED_BY_FACTION_MASK, kvp.Value.OriginalMask);
+                var actor = GameObj<Actor>.Wrap(GameObj.FromPointer(kvp.Key));
+                SetDetectionMask(actor, kvp.Value.OriginalMask);
             }
             catch { }
         }
