@@ -1,10 +1,10 @@
-using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppMenace.Tactical;
-using Menace.SDK.Internal;
+using Il2CppMenace.Tactical.AI;
+using Il2CppMenace.Tactical.AI.Data;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+
+using AISkillBehavior = Il2CppMenace.Tactical.AI.SkillBehavior;
 
 namespace Menace.SDK;
 
@@ -31,13 +31,38 @@ public static class AICoordination
     private static readonly Dictionary<int, FactionTurnState> _factionStates = new();
     private static readonly object _stateLock = new();
 
-    // Cached types
-    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
-    private static readonly GameType _baseFactionType = GameType.Of<Il2CppMenace.Tactical.AI.BaseFaction>();
-    private static readonly GameType _agentType = GameType.Of<Il2CppMenace.Tactical.AI.Agent>();
+    private static class Offsets
+    {
+        // Agent fields
+        internal static readonly Lazy<ObjFieldHandle<Agent, Actor>> Agent_Actor
+            = new(() => GameObj<Agent>.ResolveObjField(x => x.m_Actor));
 
-    // Offset for SkillBehavior target tile reference (verified via audit)
-    private const uint OFFSET_SKILL_BEHAVIOR_TARGET_TILE = 0x58;
+        internal static readonly Lazy<ObjFieldHandle<Agent, AIFaction>> Agent_Faction
+            = new(() => GameObj<Agent>.ResolveObjField(x => x.m_Faction));
+
+        internal static readonly Lazy<ObjFieldHandle<Agent, Behavior>> Agent_ActiveBehavior
+            = new(() => GameObj<Agent>.ResolveObjField(x => x.m_ActiveBehavior));
+
+        internal static readonly Lazy<FieldHandle<Agent, IntPtr>> Agent_Tiles
+            = new(() => GameObj<Agent>.FieldAt<IntPtr>(0x58, "m_Tiles"));
+
+        // BaseTile coordinate fields (inherited by Menace.Tactical.Tile)
+        internal static readonly Lazy<FieldHandle<Tile, int>> Tile_X
+            = new(() => GameObj<Tile>.ResolveField(x => x.m_X));
+
+        internal static readonly Lazy<FieldHandle<Tile, int>> Tile_Z
+            = new(() => GameObj<Tile>.ResolveField(x => x.m_Z));
+
+        // TileScore fields
+        internal static readonly Lazy<FieldHandle<TileScore, float>> TileScore_UtilityScore
+            = new(() => GameObj<TileScore>.ResolveField(x => x.UtilityScore));
+
+        internal static readonly Lazy<ObjFieldHandle<Il2CppMenace.Tactical.AI.SkillBehavior, Tile>> SkillBehavior_TargetTile
+            = new(() => GameObj<Il2CppMenace.Tactical.AI.SkillBehavior>.ResolveObjField(x => x.m_TargetTile));
+
+        internal static readonly Lazy<FieldHandle<BaseFaction, int>> BaseFaction_FactionIndex
+            = new(() => GameObj<BaseFaction>.ResolveField(x => x.m_FactionIndex));
+    }
 
     /// <summary>
     /// State tracked per faction per turn.
@@ -167,7 +192,7 @@ public static class AICoordination
     /// <summary>
     /// Classify a unit's role based on its RoleData.
     /// </summary>
-    public static UnitRole ClassifyUnit(GameObj actor)
+    public static UnitRole ClassifyUnit(GameObj<Actor> actor)
     {
         var role = AI.GetRoleData(actor);
 
@@ -195,7 +220,7 @@ public static class AICoordination
     /// <summary>
     /// Check if a unit is primarily a suppressor.
     /// </summary>
-    public static bool IsSuppressor(GameObj actor)
+    public static bool IsSuppressor(GameObj<Actor> actor)
     {
         var role = AI.GetRoleData(actor);
         return role.InflictSuppressionWeight > role.InflictDamageWeight &&
@@ -205,7 +230,7 @@ public static class AICoordination
     /// <summary>
     /// Check if a unit is primarily a damage dealer.
     /// </summary>
-    public static bool IsDamageDealer(GameObj actor)
+    public static bool IsDamageDealer(GameObj<Actor> actor)
     {
         var role = AI.GetRoleData(actor);
         return role.InflictDamageWeight > role.InflictSuppressionWeight &&
@@ -217,7 +242,7 @@ public static class AICoordination
     /// </summary>
     public enum FormationBand { Frontline, Midline, Backline }
 
-    public static FormationBand ClassifyFormationBand(GameObj actor)
+    public static FormationBand ClassifyFormationBand(GameObj<Actor> actor)
     {
         var role = AI.GetRoleData(actor);
 
@@ -243,7 +268,7 @@ public static class AICoordination
     /// Returns a multiplier (1.0 = no change, >1.0 = prioritize, <1.0 = deprioritize).
     /// </summary>
     public static float CalculateAgentScoreMultiplier(
-        GameObj actor,
+        GameObj<Actor> actor,
         FactionTurnState state,
         CoordinationConfig config)
     {
@@ -316,24 +341,22 @@ public static class AICoordination
     /// Only modify tiles for the current agent, not shared state.
     /// </summary>
     public static void ApplyTileScoreModifiers(
-    GameObj agent,
+    GameObj<Agent> agent,
     FactionTurnState state,
     CoordinationConfig config)
     {
-        if (agent.IsNull)
+        if (agent.Untyped.IsNull)
             return;
 
-        var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
-        var actor = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Actor"));
-        if (actor.IsNull)
+        if (!Offsets.Agent_Actor.Value.TryRead(agent, out var actorObj))
             return;
 
-        var tilesDict = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Tiles"));
-        if (tilesDict.IsNull)
+        if (!Offsets.Agent_Tiles.Value.TryRead(agent, out var tilesDictPtr))
             return;
+        var tilesDict = GameObj.FromPointer(tilesDictPtr);
 
         // Get formation band for this unit
-        FormationBand band = ClassifyFormationBand(actor);
+        FormationBand band = ClassifyFormationBand(actorObj);
 
         // Iterate tiles and apply modifiers
         var dict = new GameDict(tilesDict);
@@ -345,17 +368,17 @@ public static class AICoordination
 
             float deltaUtility = 0f;
 
-            // Get tile position
-            var tileKlass = IL2CPP.il2cpp_object_get_class(tileKey.Pointer);
-            int tileX = tileKey.ReadInt(OffsetCache.GetOrResolve(tileKlass, "X"));
-            int tileY = tileKey.ReadInt(OffsetCache.GetOrResolve(tileKlass, "Y"));
+            // Get tile position (m_X/m_Z on BaseTile — "X"/"Y" were incorrect field names)
+            var tileObj = GameObj<Tile>.Wrap(tileKey.Pointer);
+            int tileX = Offsets.Tile_X.Value.Read(tileObj);
+            int tileZ = Offsets.Tile_Z.Value.Read(tileObj);
 
             // === Center of Forces ===
             if (config.EnableCenterOfForces && state.AllyPositions.Count >= config.CenterOfForcesMinAllies)
             {
                 float dx = tileX - state.AllyCentroid.x;
-                float dy = tileY - state.AllyCentroid.y;
-                float dist = (float)Math.Sqrt(dx * dx + dy * dy);
+                float dz = tileZ - state.AllyCentroid.y;
+                float dist = (float)Math.Sqrt(dx * dx + dz * dz);
 
                 if (dist < config.CenterOfForcesMaxRange)
                 {
@@ -368,8 +391,8 @@ public static class AICoordination
             if (config.EnableFormationDepth && state.EnemyPositions.Count >= config.FormationDepthMinEnemies)
             {
                 float dx = tileX - state.EnemyCentroid.x;
-                float dy = tileY - state.EnemyCentroid.y;
-                float distToEnemy = (float)Math.Sqrt(dx * dx + dy * dy);
+                float dz = tileZ - state.EnemyCentroid.y;
+                float distToEnemy = (float)Math.Sqrt(dx * dx + dz * dz);
 
                 float depthScore = ComputeDepthScore(distToEnemy, band, config);
                 deltaUtility += depthScore * config.FormationDepthWeight;
@@ -378,10 +401,9 @@ public static class AICoordination
             // Apply delta to utility score
             if (Math.Abs(deltaUtility) > 0.001f)
             {
-                var tileScoreKlass = IL2CPP.il2cpp_object_get_class(tileScore.Pointer);
-                var utilityOffset = OffsetCache.GetOrResolve(tileScoreKlass, "UtilityScore");
-                float current = tileScore.ReadFloat(utilityOffset);
-                tileScore.WriteFloat(utilityOffset, current + deltaUtility);
+                var tsObj = GameObj<TileScore>.Wrap(tileScore.Pointer);
+                float current = Offsets.TileScore_UtilityScore.Value.Read(tsObj);
+                Offsets.TileScore_UtilityScore.Value.Write(tsObj, current + deltaUtility);
             }
         }
     }
@@ -416,46 +438,37 @@ public static class AICoordination
     /// Record that an agent has executed its action.
     /// Call this from an Agent.Execute postfix.
     /// </summary>
-    public static void RecordAgentExecution(GameObj agent, int factionIndex)
+    public static void RecordAgentExecution(GameObj<Agent> agent, int factionIndex)
     {
-        if (agent.IsNull)
+        if (agent.Untyped.IsNull)
             return;
 
         var state = GetFactionState(factionIndex);
-        var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
-        var actor = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Actor"));
+
+        if (!Offsets.Agent_Actor.Value.TryRead(agent, out var actorObj))
+            return;
 
         state.ActedCount++;
 
         // Track if suppressor/damage dealer acted
-        if (IsSuppressor(actor))
+        if (IsSuppressor(actorObj))
             state.HasSuppressorActed = true;
-        if (IsDamageDealer(actor))
+        if (IsDamageDealer(actorObj))
             state.HasDamageDealerActed = true;
 
         // Track targeted tile
-        // SkillBehavior stores target tile reference at +0x58 (TargetTile property)
-        var activeBehavior = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_ActiveBehavior"));
-        if (!activeBehavior.IsNull)
+        // m_TargetTile is on SkillBehavior at 0x58 — "TargetTile" was incorrect field name
+        if (Offsets.Agent_ActiveBehavior.Value.TryRead(agent, out var activeBehavior))
         {
-            var behaviorKlass = IL2CPP.il2cpp_object_get_class(activeBehavior.Pointer);
-            var targetTile = activeBehavior.ReadObj(OffsetCache.GetOrResolve(behaviorKlass, "TargetTile"));
-            if (targetTile.IsNull)
+            var skillBehavior = GameObj<AISkillBehavior>.Wrap(activeBehavior.Untyped);
+            if (Offsets.SkillBehavior_TargetTile.Value.TryRead(skillBehavior, out var targetTile))
             {
-                // Fallback: read tile pointer directly at offset +0x58 for SkillBehavior
-                var targetTilePtr = activeBehavior.ReadPtr(OFFSET_SKILL_BEHAVIOR_TARGET_TILE);
-                if (targetTilePtr != IntPtr.Zero)
-                    targetTile = new GameObj(targetTilePtr);
-            }
+                state.TargetedTiles.Add(targetTile.Untyped.Pointer);
 
-            if (!targetTile.IsNull)
-            {
-                state.TargetedTiles.Add(targetTile.Pointer);
-
-                if (state.TargetedTileCounts.TryGetValue(targetTile.Pointer, out int count))
-                    state.TargetedTileCounts[targetTile.Pointer] = count + 1;
+                if (state.TargetedTileCounts.TryGetValue(targetTile.Untyped.Pointer, out int count))
+                    state.TargetedTileCounts[targetTile.Untyped.Pointer] = count + 1;
                 else
-                    state.TargetedTileCounts[targetTile.Pointer] = 1;
+                    state.TargetedTileCounts[targetTile.Untyped.Pointer] = 1;
             }
         }
     }
@@ -483,11 +496,9 @@ public static class AICoordination
             if (info == null || !info.IsAlive)
                 continue;
 
-            var pos = GetActorTilePosition(ally);
+            var pos = GetActorTilePosition(GameObj<Actor>.Wrap(ally));
             if (pos.x >= 0 && pos.y >= 0)
-            {
                 state.AllyPositions.Add(pos);
-            }
         }
 
         // Collect enemy positions (faction 0 = player, others are enemies relative to each other)
@@ -500,11 +511,9 @@ public static class AICoordination
             if (info == null || !info.IsAlive)
                 continue;
 
-            var pos = GetActorTilePosition(enemy);
+            var pos = GetActorTilePosition(GameObj<Actor>.Wrap(enemy));
             if (pos.x >= 0 && pos.y >= 0)
-            {
                 state.EnemyPositions.Add(pos);
-            }
         }
 
         // Compute centroids
@@ -515,51 +524,21 @@ public static class AICoordination
     /// Get an actor's current tile position.
     /// Uses Actor.GetTile() method (not direct field access) per audit findings.
     /// </summary>
-    public static (int x, int y) GetActorTilePosition(GameObj actor)
+    public static (int x, int y) GetActorTilePosition(GameObj<Actor> actor)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return (-1, -1);
 
         try
         {
-            // Use Actor.GetTile() method - the correct API per audit
-            var actorType = _actorType?.ManagedType;
-            if (actorType != null)
-            {
-                var actorProxy = GetManagedProxy(actor, actorType);
-                if (actorProxy != null)
-                {
-                    var getTileMethod = actorType.GetMethod("GetTile", BindingFlags.Public | BindingFlags.Instance);
-                    if (getTileMethod != null)
-                    {
-                        var tileObj = getTileMethod.Invoke(actorProxy, null);
-                        if (tileObj != null)
-                        {
-                            var tile = new GameObj(((Il2CppObjectBase)tileObj).Pointer);
-                            if (!tile.IsNull)
-                            {
-                                var tileKlass = IL2CPP.il2cpp_object_get_class(tile.Pointer);
-                                int x = tile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_X"));
-                                int y = tile.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_Z"));
-                                return (x, y);
-                            }
-                        }
-                    }
-                }
-            }
+            var tile = actor.AsManaged().GetTile();
+            if (tile == null)
+                return (-1, -1);
 
-            // Fallback: try property accessor
-            var actorKlass = IL2CPP.il2cpp_object_get_class(actor.Pointer);
-            var tileFallback = actor.ReadObj(OffsetCache.GetOrResolve(actorKlass, "Tile"));
-            if (!tileFallback.IsNull)
-            {
-                var tileKlass = IL2CPP.il2cpp_object_get_class(tileFallback.Pointer);
-                int x = tileFallback.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_X"));
-                int y = tileFallback.ReadInt(OffsetCache.GetOrResolve(tileKlass, "m_Z"));
-                return (x, y);
-            }
-
-            return (-1, -1);
+            var tileObj = GameObj<Tile>.Wrap(tile.Pointer);
+            int x = Offsets.Tile_X.Value.Read(tileObj);
+            int z = Offsets.Tile_Z.Value.Read(tileObj);
+            return (x, z);
         }
         catch (Exception ex)
         {
@@ -572,33 +551,14 @@ public static class AICoordination
     /// Get faction index from an AIFaction object.
     /// Uses BaseFaction.GetIndex() method per audit findings.
     /// </summary>
-    public static int GetFactionIndex(GameObj aiFaction)
+    public static int GetFactionIndex(GameObj<AIFaction> aiFaction)
     {
-        if (aiFaction.IsNull)
+        if (aiFaction.Untyped.IsNull)
             return -1;
 
         try
         {
-            // Use GetIndex() method from BaseFaction - the correct API
-            var factionType = _baseFactionType?.ManagedType;
-            if (factionType != null)
-            {
-                var factionProxy = GetManagedProxy(aiFaction, factionType);
-                if (factionProxy != null)
-                {
-                    var getIndexMethod = factionType.GetMethod("GetIndex", BindingFlags.Public | BindingFlags.Instance);
-                    if (getIndexMethod != null)
-                    {
-                        var result = getIndexMethod.Invoke(factionProxy, null);
-                        if (result is int index)
-                            return index;
-                    }
-                }
-            }
-
-            // Fallback: try property-based access
-            var factionKlass = IL2CPP.il2cpp_object_get_class(aiFaction.Pointer);
-            return aiFaction.ReadInt(OffsetCache.GetOrResolve(factionKlass, "FactionIndex"));
+            return aiFaction.AsManaged().GetIndex();
         }
         catch (Exception ex)
         {
@@ -611,39 +571,18 @@ public static class AICoordination
     /// Get faction index from an Agent object.
     /// Uses GetAIFaction().GetIndex() method chain per audit findings.
     /// </summary>
-    public static int GetAgentFactionIndex(GameObj agent)
+    public static int GetAgentFactionIndex(GameObj<Agent> agent)
     {
-        if (agent.IsNull)
+        if (agent.Untyped.IsNull)
             return -1;
 
         try
         {
-            var agentKlass = IL2CPP.il2cpp_object_get_class(agent.Pointer);
-            var faction = agent.ReadObj(OffsetCache.GetOrResolve(agentKlass, "m_Faction"));
-            if (faction.IsNull)
-            {
-                // Try calling GetAIFaction() method
-                var agentType = _agentType.ManagedType;
-                if (agentType != null)
-                {
-                    var agentProxy = GetManagedProxy(agent, agentType);
-                    if (agentProxy != null)
-                    {
-                        var getAIFactionMethod = agentType.GetMethod("GetAIFaction", BindingFlags.Public | BindingFlags.Instance);
-                        if (getAIFactionMethod != null)
-                        {
-                            var factionObj = getAIFactionMethod.Invoke(agentProxy, null);
-                            if (factionObj != null)
-                                faction = new GameObj(((Il2CppObjectBase)factionObj).Pointer);
-                        }
-                    }
-                }
-            }
-
-            if (faction.IsNull)
+            var faction = agent.AsManaged().GetFaction();
+            if (faction == null)
                 return -1;
 
-            return GetFactionIndex(faction);
+            return GetFactionIndex(GameObj<AIFaction>.Wrap(faction.Pointer));
         }
         catch (Exception ex)
         {
@@ -720,7 +659,7 @@ public static class AICoordination
                     return "No active actor";
             }
 
-            var actorObj = new GameObj(actor.Pointer);
+            var actorObj = GameObj<Actor>.Wrap(actor.Pointer);
             var role = ClassifyUnit(actorObj);
             var band = ClassifyFormationBand(actorObj);
             var roleData = AI.GetRoleData(actorObj);
@@ -732,11 +671,4 @@ public static class AICoordination
                    $"move={roleData.MoveWeight:F1} safety={roleData.SafetyScale:F1}";
         });
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Internal Helpers
-    // ═══════════════════════════════════════════════════════════════════
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }
