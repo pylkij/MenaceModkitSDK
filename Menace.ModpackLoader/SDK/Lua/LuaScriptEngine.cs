@@ -1806,7 +1806,7 @@ public class LuaScriptEngine
                 itemTable["slot"] = item.SlotTypeName ?? "";
                 itemTable["slot_id"] = item.SlotType;
                 itemTable["value"] = item.TradeValue;
-                itemTable["rarity"] = item.Rarity ?? "Common";
+                itemTable["rarity"] = item.RarityTier;
                 itemTable["skills"] = item.SkillCount;
                 itemTable["temporary"] = item.IsTemporary;
                 table[i++] = itemTable;
@@ -1840,7 +1840,7 @@ public class LuaScriptEngine
                 weaponTable["name"] = weapon.TemplateName ?? "";
                 weaponTable["slot"] = weapon.SlotTypeName ?? "";
                 weaponTable["value"] = weapon.TradeValue;
-                weaponTable["rarity"] = weapon.Rarity ?? "Common";
+                weaponTable["rarity"] = weapon.RarityTier;
                 weaponTable["skills"] = weapon.SkillCount;
                 table[i++] = weaponTable;
             }
@@ -1870,7 +1870,7 @@ public class LuaScriptEngine
             var table = new Table(_lua);
             table["name"] = armor.TemplateName ?? "";
             table["value"] = armor.TradeValue;
-            table["rarity"] = armor.Rarity ?? "Common";
+            table["rarity"] = armor.RarityTier;
             table["skills"] = armor.SkillCount;
             return DynValue.NewTable(table);
         }

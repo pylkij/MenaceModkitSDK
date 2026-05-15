@@ -1064,13 +1064,16 @@ public static class Inventory
     {
         DevConsole.RegisterCommand("inventory", "", "List inventory for selected actor", args =>
         {
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull) return "No actor selected";
+            var actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return "No actor selected";
 
-            var container = GetContainer(actor); // untyped bridge — actor not yet typed
-            if (container.IsNull) return "No inventory container";
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return "No actor selected";
 
-            var items = GetAllItems(container); // untyped bridge
+            var container = GetContainer(actor);
+            if (container.Untyped.IsNull) return "No inventory container";
+
+            var items = GetAllItems(container);
             if (items.Count == 0) return "Inventory empty";
 
             var lines = new List<string> { $"Inventory ({items.Count} items):" };
@@ -1084,10 +1087,13 @@ public static class Inventory
 
         DevConsole.RegisterCommand("weapons", "", "List equipped weapons for selected actor", args =>
         {
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull) return "No actor selected";
+            var actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return "No actor selected";
 
-            var weapons = GetEquippedWeapons(actor); // untyped bridge
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return "No actor selected";
+
+            var weapons = GetEquippedWeapons(actor);
             if (weapons.Count == 0) return "No weapons equipped";
 
             var lines = new List<string> { "Equipped Weapons:" };
@@ -1098,10 +1104,13 @@ public static class Inventory
 
         DevConsole.RegisterCommand("armor", "", "Show equipped armor for selected actor", args =>
         {
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull) return "No actor selected";
+            var actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return "No actor selected";
 
-            var armor = GetEquippedArmor(actor); // untyped bridge
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return "No actor selected";
+
+            var armor = GetEquippedArmor(actor);
             if (armor == null) return "No armor equipped";
 
             return $"Armor: {armor.TemplateName}\n" +
@@ -1115,8 +1124,11 @@ public static class Inventory
             if (args.Length == 0)
                 return "Usage: slot <type>\nTypes: 0-10 or Weapon1/Weapon2/Armor/Accessory1/Accessory2/Consumable1/Consumable2/Grenade";
 
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull) return "No actor selected";
+            var actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return "No actor selected";
+
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return "No actor selected";
 
             int slotType;
             if (!int.TryParse(args[0], out slotType))
@@ -1137,10 +1149,10 @@ public static class Inventory
 
             if (slotType < 0 || slotType >= SLOT_TYPE_COUNT) return "Invalid slot type";
 
-            var container = GetContainer(actor); // untyped bridge
-            if (container.IsNull) return "No inventory container";
+            var container = GetContainer(actor);
+            if (container.Untyped.IsNull) return "No inventory container";
 
-            var items = GetItemsInSlot(container, slotType); // untyped bridge
+            var items = GetItemsInSlot(container, slotType);
             if (items.Count == 0) return $"No items in {GetSlotTypeName(slotType)}";
 
             var lines = new List<string> { $"{GetSlotTypeName(slotType)} ({items.Count} items):" };
@@ -1151,14 +1163,17 @@ public static class Inventory
 
         DevConsole.RegisterCommand("itemvalue", "", "Get total trade value of inventory", args =>
         {
-            var actor = TacticalController.GetActiveActor();
-            if (actor.IsNull) return "No actor selected";
+            var actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return "No actor selected";
 
-            var container = GetContainer(actor); // untyped bridge
-            if (container.IsNull) return "No inventory container";
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return "No actor selected";
 
-            var total = GetTotalTradeValue(container); // untyped bridge
-            var items = GetAllItems(container);        // untyped bridge
+            var container = GetContainer(actor);
+            if (container.Untyped.IsNull) return "No inventory container";
+
+            var total = GetTotalTradeValue(container);
+            var items = GetAllItems(container);
             return $"Total Trade Value: ${total} ({items.Count} items)";
         });
 
@@ -1243,16 +1258,19 @@ public static class Inventory
             {
                 if (args.Length == 0) return "Usage: hastag <tag>";
 
-                var actor = TacticalController.GetActiveActor();
-                if (actor.IsNull) return "No actor selected";
+                var actorUntyped = TacticalController.GetActiveActor();
+                if (actorUntyped.IsNull) return "No actor selected";
 
-                var container = GetContainer(actor); // untyped bridge
-                if (container.IsNull) return "No inventory container";
+                if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                    return "No actor selected";
 
-                var hasTag = HasItemWithTag(container, args[0]); // untyped bridge
+                var container = GetContainer(actor);
+                if (container.Untyped.IsNull) return "No inventory container";
+
+                var hasTag = HasItemWithTag(container, args[0]);
                 if (hasTag)
                 {
-                    var items = GetItemsWithTag(container, args[0]); // untyped bridge
+                    var items = GetItemsWithTag(container, args[0]);
                     return $"Has tag '{args[0]}': Yes ({items.Count} items)";
                 }
                 return $"Has tag '{args[0]}': No";
