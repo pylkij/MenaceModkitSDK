@@ -1,5 +1,6 @@
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
@@ -13,7 +14,7 @@ namespace Menace.SDK;
 /// Provides safe access to perk trees, perk manipulation, and skill inspection.
 ///
 /// Based on reverse engineering findings:
-/// - BaseUnitLeader.m_Perks @ +0x28 (List&lt;PerkTemplate&gt;)
+/// - BaseUnitLeader.m_Perks @ +0x48 (List&lt;PerkTemplate&gt;)
 /// - UnitLeaderTemplate.PerkTrees @ array of PerkTreeTemplate
 /// - PerkTreeTemplate.Perks @ array of Perk (Tier 1-4)
 /// - PerkTemplate extends SkillTemplate
@@ -26,6 +27,28 @@ public static class Perks
     private static readonly GameType _perkType = GameType.Of<Il2CppMenace.Strategy.Perk>();
     private static readonly GameType _skillTemplateType = GameType.Of<Il2CppMenace.Tactical.Skills.SkillTemplate>();
     private static readonly GameType _unitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
+
+    private static class Offsets
+    {
+        // SkillTemplate fields (inherited by PerkTemplate)
+        // Title/Description are LocalizedLine/LocalizedMultiLine object pointers — not strings.
+        // Do NOT use ResolveStringField. ReadLocalizedText handles extraction.
+        internal static readonly Lazy<FieldHandle<PerkTemplate, IntPtr>> Title
+            = new(() => GameObj<PerkTemplate>.FieldAt<IntPtr>(0x78, nameof(Title)));
+
+        internal static readonly Lazy<FieldHandle<PerkTemplate, IntPtr>> Description
+            = new(() => GameObj<PerkTemplate>.FieldAt<IntPtr>(0x80, nameof(Description)));
+
+        internal static readonly Lazy<FieldHandle<PerkTemplate, int>> ActionPointCost
+            = new(() => GameObj<PerkTemplate>.ResolveField(x => x.ActionPointCost));
+
+        internal static readonly Lazy<FieldHandle<PerkTemplate, bool>> IsActive
+            = new(() => GameObj<PerkTemplate>.ResolveField(x => x.IsActive));
+
+        // BaseUnitLeader fields
+        internal static readonly Lazy<FieldHandle<BaseUnitLeader, IntPtr>> m_Perks
+            = new(() => GameObj<BaseUnitLeader>.FieldAt<IntPtr>(0x48, nameof(m_Perks)));
+    }
 
     /// <summary>
     /// Perk information structure.
