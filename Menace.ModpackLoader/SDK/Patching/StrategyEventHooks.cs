@@ -322,7 +322,7 @@ public static class StrategyEventHooks
         });
     }
 
-    private static void SquaddieAddAlive_Postfix(object __instance, string _name)
+    private static void SquaddieAddAlive_Postfix(object __instance, HomePlanetType _homePlanet, object _gender, object _skinColor, string _name, string _nickname)
     {
         int count = GameMethod.CallInt<Squaddies>(__instance, x => x.GetAliveCount());
 
@@ -330,7 +330,9 @@ public static class StrategyEventHooks
 
         FireLuaEvent("squaddie_added", new Dictionary<string, object>
         {
-            ["squaddie"] = _name,
+            ["squaddie"] = _name ?? _nickname ?? "<unknown>",
+            ["nickname"] = _nickname ?? "<unknown>",
+            ["home_planet"] = _homePlanet.ToString(),
             ["alive_count"] = count
         });
     }
