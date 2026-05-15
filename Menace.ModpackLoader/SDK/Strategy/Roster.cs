@@ -1,12 +1,12 @@
 using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.States;
+using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-
-using Il2CppMenace.Strategy;
-using Il2CppMenace.States;
+using UnityEngine.Playables;
 
 namespace Menace.SDK;
 
@@ -248,8 +248,7 @@ public static class Roster
             var rankTemplate = getRankTemplateMethod?.Invoke(proxy, null);
             if (rankTemplate != null)
             {
-                var rankObj = GameObj.UntypedFromPointer_Migrate(((Il2CppObjectBase)rankTemplate).Pointer);
-                info.RankName = rankObj.GetName();
+                info.RankName = GameObj<UnitRankTemplate>.Wrap(((Il2CppObjectBase)rankTemplate).Pointer).Untyped.GetName();
             }
 
             // Get perk count

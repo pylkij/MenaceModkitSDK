@@ -1199,7 +1199,10 @@ public class LuaScriptEngine
         var table = new Table(_lua);
         table["ptr"] = obj.Pointer.ToInt64();
         table["name"] = obj.GetName() ?? "<unnamed>";
-        table["alive"] = obj.IsAlive;
+
+        var aliveStatus = obj.CheckAlive();
+        table["alive"] = aliveStatus == AliveStatus.Alive;
+        table["alive_status"] = aliveStatus.ToString();
 
         var pos = EntityMovement.GetPosition(obj);
         if (pos.HasValue)
