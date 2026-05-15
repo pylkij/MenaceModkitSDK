@@ -1,9 +1,9 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -26,6 +26,8 @@ public static class Operation
     private static readonly GameType _operationsManagerType = GameType.Of<Il2CppMenace.Strategy.OperationsManager>();
     private static readonly GameType _missionType = GameType.Of<Il2CppMenace.Strategy.Mission>();
     private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+
+    private static uint? _planetTemplateOffset = null;
 
     /// <summary>
     /// Operation information structure.
@@ -65,7 +67,7 @@ public static class Operation
             var strategyStateObj = new GameObj(((Il2CppObjectBase)strategyState).Pointer);
             var omPtr = strategyStateObj.ReadPtr(0x58);
             if (omPtr == IntPtr.Zero) return GameObj.Null;
-            var om = new GameObj(omPtr).ToManaged();
+            var om = GameObj<Il2CppObjectBase>.Wrap(new GameObj(omPtr)).AsManaged();
             if (om == null) return GameObj.Null;
 
             var omType = _operationsManagerType?.ManagedType;
@@ -147,12 +149,15 @@ public static class Operation
                 {
                     var planetObj = new GameObj(((Il2CppObjectBase)planet).Pointer);
                     // Planet has m_Template field which contains the name
-                    var planetTemplatePtr = planetObj.ReadPtr("m_Template");
-                    if (planetTemplatePtr != IntPtr.Zero)
+                    if (_planetTemplateOffset == null)
                     {
-                        var planetTemplateObj = new GameObj(planetTemplatePtr);
-                        info.Planet = planetTemplateObj.GetName();
+                        var planetClass = IL2CPP.il2cpp_object_get_class(planetObj.Pointer);
+                        _planetTemplateOffset = OffsetCache.GetOrResolve(planetClass, "m_Template");
                     }
+
+                    var planetTemplatePtr = _planetTemplateOffset.Value != 0
+                        ? planetObj.ReadPtr(_planetTemplateOffset.Value)
+                        : IntPtr.Zero;
                 }
             }
 

@@ -71,11 +71,17 @@ public static class EntityCombat
         if (attacker.IsNull || target.IsNull)
             return CombatResult.Failed("Invalid attacker or target");
 
-        if (!attacker.IsAlive)
+        var attackerStatus = attacker.CheckAlive();
+        if (attackerStatus == AliveStatus.Dead)
             return CombatResult.Failed("Attacker is dead");
+        if (attackerStatus == AliveStatus.Unknown)
+            return CombatResult.Failed("Attacker status unknown");
 
-        if (!target.IsAlive)
+        var targetStatus = target.CheckAlive();
+        if (targetStatus == AliveStatus.Dead)
             return CombatResult.Failed("Target is dead");
+        if (targetStatus == AliveStatus.Unknown)
+            return CombatResult.Failed("Target status unknown");
 
         try
         {
@@ -302,7 +308,7 @@ public static class EntityCombat
     /// </summary>
     public static bool ApplySuppression(GameObj actor, float amount)
     {
-        if (actor.IsNull || !actor.IsAlive)
+        if (actor.IsNull || actor.CheckAlive() != AliveStatus.Alive)
             return false;
 
         try
@@ -389,7 +395,7 @@ public static class EntityCombat
     /// </summary>
     public static bool ApplyDamage(GameObj entity, int damage)
     {
-        if (entity.IsNull || !entity.IsAlive)
+        if (entity.IsNull || entity.CheckAlive() != AliveStatus.Alive)
             return false;
 
         try
@@ -438,7 +444,7 @@ public static class EntityCombat
     /// </summary>
     public static bool Heal(GameObj entity, int amount)
     {
-        if (entity.IsNull || !entity.IsAlive)
+        if (entity.IsNull || entity.CheckAlive() != AliveStatus.Alive)
             return false;
 
         try

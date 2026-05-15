@@ -1,8 +1,10 @@
 #nullable disable
+using Il2CppInterop.Runtime;
+using Menace.SDK;
+using Menace.SDK.Internal;
+using Menace.SDK.Repl;
 using System;
 using System.Text;
-using Menace.SDK;
-using Menace.SDK.Repl;
 
 namespace Menace.ModpackLoader.Diagnostics;
 
@@ -136,7 +138,8 @@ public static class SdkSafetyTesting
             if (weapons.Length > 0)
             {
                 var sample = weapons[0];
-                var sampleName = sample.ReadString("m_Name") ?? "unknown";
+                var sampleKlass = IL2CPP.il2cpp_object_get_class(sample.Pointer);
+                var sampleName = sample.ReadString(OffsetCache.GetOrResolve(sampleKlass, "m_Name")) ?? "unknown";
                 sb.AppendLine($"  Sample: {sampleName}");
 
                 // Test ReadField
@@ -166,11 +169,14 @@ public static class SdkSafetyTesting
             if (equipment.Length > 0)
             {
                 var firstItem = equipment[0];
-                var firstItemName = firstItem.ReadString("m_Name");
+                var firstItemKlass = IL2CPP.il2cpp_object_get_class(firstItem.Pointer);
+                var mNameOffset = OffsetCache.GetOrResolve(firstItemKlass, "m_Name");
+                var firstItemName = firstItem.ReadString(mNameOffset);
                 var found = Templates.Find("ArmorTemplate", firstItemName);
                 if (!found.IsNull)
                 {
-                    var foundName = found.ReadString("m_Name");
+                    var foundKlass = IL2CPP.il2cpp_object_get_class(found.Pointer);
+                    var foundName = found.ReadString(OffsetCache.GetOrResolve(foundKlass, "m_Name"));
                     sb.AppendLine($"  ✓ SUCCESS - Found: {foundName}");
                 }
                 else

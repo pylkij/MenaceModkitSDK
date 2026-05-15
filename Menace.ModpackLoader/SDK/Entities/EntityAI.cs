@@ -1,8 +1,7 @@
+using Il2CppMenace.Tactical;
+using Il2CppMenace.Tactical.AI;
+using Menace.SDK.Internal;
 using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using Il2CppInterop.Runtime.InteropTypes;
 
 namespace Menace.SDK;
 
@@ -14,7 +13,7 @@ namespace Menace.SDK;
 /// - TacticalManager.m_IsAIPaused at 0xB9 (byte/bool)
 /// - Agent.m_Actor at 0x18, m_ActiveBehavior at 0x28, m_State at 0x3C
 /// - Agent.m_Behaviors list at 0x20 (each behavior has Score at +0x18)
-/// - Actor.m_Morale at 0x160 (float) - controls flee/aggressive states
+/// - Actor.m_Morale at 0x158 (float) - controls flee/aggressive states
 /// - No direct threat override mechanism - use morale system as proxy
 ///
 /// THREAD SAFETY WARNING:
@@ -26,26 +25,40 @@ namespace Menace.SDK;
 /// </summary>
 public static class EntityAI
 {
-    // Cached types
-    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
-    private static readonly GameType _agentType = GameType.Of<Il2CppMenace.Tactical.AI.Agent>();
-    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
-    private static readonly GameType _behaviorType = GameType.Of<Il2CppMenace.Tactical.AI.Behavior>();
+    private static class Offsets
+    {
+        // Actor fields
+        // NOTE: OFFSET_ACTOR_MORALE was 0x160 — corrected to 0x158 (m_Morale on Actor)
+        // NOTE: OFFSET_ACTOR_AGENT was 0x18 — corrected to 0xC8 (m_Agent on Actor)
+        internal static readonly Lazy<FieldHandle<Actor, float>> Actor_Morale
+            = new(() => GameObj<Actor>.ResolveField(x => x.m_Morale));
 
-    // TacticalManager offsets
-    private const uint OFFSET_TACTICAL_MANAGER_IS_AI_PAUSED = 0xB9;
+        internal static readonly Lazy<ObjFieldHandle<Actor, Agent>> Actor_Agent
+            = new(() => GameObj<Actor>.ResolveObjField(x => x.m_Agent));
 
-    // Actor offsets
-    private const uint OFFSET_ACTOR_MORALE = 0x160;
-    private const uint OFFSET_ACTOR_AGENT = 0x18;
+        // Agent fields
+        internal static readonly Lazy<ObjFieldHandle<Agent, Behavior>> Agent_ActiveBehavior
+            = new(() => GameObj<Agent>.ResolveObjField(x => x.m_ActiveBehavior));
 
-    // Agent offsets
-    private const uint OFFSET_AGENT_BEHAVIORS = 0x20;
-    private const uint OFFSET_AGENT_ACTIVE_BEHAVIOR = 0x28;
-    private const uint OFFSET_AGENT_STATE = 0x3C;
+        // m_Behaviors is List<Behavior> — accessed via GameArray after reading the raw pointer
+        internal static readonly Lazy<FieldHandle<Agent, IntPtr>> Agent_Behaviors
+            = new(() => GameObj<Agent>.FieldAt<IntPtr>(0x20, "m_Behaviors"));
 
-    // Behavior offsets
-    private const uint OFFSET_BEHAVIOR_SCORE = 0x18;
+        // Behavior fields
+        internal static readonly Lazy<FieldHandle<Behavior, int>> Behavior_Score
+            = new(() => GameObj<Behavior>.ResolveField(x => x.m_Score));
+
+        // SkillBehavior fields — used for target matching in ForceNextAction
+        internal static readonly Lazy<ObjFieldHandle<Il2CppMenace.Tactical.AI.SkillBehavior, Tile>> SkillBehavior_TargetTile
+            = new(() => GameObj<Il2CppMenace.Tactical.AI.SkillBehavior>.ResolveObjField(x => x.m_TargetTile));
+
+        // TacticalManager fields
+        // m_IsAIPaused confirmed at 0xB9 — SetAIPaused(bool) method exists and is preferred.
+        // This entry exists only for the fallback Marshal.WriteByte paths, which are dead code
+        // now that SetAIPaused is confirmed. Those paths will be removed during migration.
+        internal static readonly Lazy<FieldHandle<TacticalManager, bool>> TacticalManager_IsAIPaused
+            = new(() => GameObj<TacticalManager>.ResolveField(x => x.m_IsAIPaused));
+    }
 
     // Morale thresholds (from game constants)
     public const float MORALE_PANICKED = 0.0f;      // Triggers flee state
@@ -92,9 +105,9 @@ public static class EntityAI
     /// Example:
     ///   EntityAI.ForceNextAction(enemy, "AttackBehavior", playerUnit);
     /// </remarks>
-    public static AIResult ForceNextAction(GameObj actor, string actionType, GameObj target = default, int scoreBoost = 10000)
+    public static AIResult ForceNextAction(GameObj<Actor> actor, string actionType, GameObj<Actor> target = default, int scoreBoost = 10000)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return AIResult.Failed("Invalid actor");
 
         if (AI.IsAnyFactionThinking())
@@ -103,19 +116,15 @@ public static class EntityAI
         try
         {
             var agent = GetAgent(actor);
-            if (agent.IsNull)
+            if (agent.Untyped.IsNull)
                 return AIResult.Failed("Actor has no AI agent");
 
-            // Get behaviors list
-            var behaviorsPtr = agent.ReadPtr(OFFSET_AGENT_BEHAVIORS);
-            if (behaviorsPtr == IntPtr.Zero)
+            if (!Offsets.Agent_Behaviors.Value.TryRead(agent, out var behaviorsPtr) || behaviorsPtr == IntPtr.Zero)
                 return AIResult.Failed("Agent has no behaviors list");
 
-            var behaviors = new GameObj(behaviorsPtr);
-
-            // Iterate behaviors and boost matching ones
-            int count = behaviors.ReadInt("_size");
-            var itemsPtr = behaviors.ReadPtr("_items");
+            var behaviors = GameObj.FromPointer(behaviorsPtr);
+            int count = behaviors.ReadInt(OffsetCache.ListSizeOffset);
+            var itemsPtr = behaviors.ReadPtr(OffsetCache.ListItemsOffset);
             if (itemsPtr == IntPtr.Zero)
                 return AIResult.Failed("Behaviors list is empty");
 
@@ -131,18 +140,22 @@ public static class EntityAI
                 var typeName = behavior.GetTypeName();
                 if (typeName != null && typeName.Contains(actionType))
                 {
-                    // Check if target matches (for targeted behaviors)
-                    if (!target.IsNull)
+                    // Check if target matches via SkillBehavior.GetTargetEntityForTile
+                    if (!target.Untyped.IsNull && typeName.Contains("SkillBehavior"))
                     {
-                        var behaviorTarget = behavior.ReadObj("TargetEntity");
-                        if (!behaviorTarget.IsNull && behaviorTarget.Pointer != target.Pointer)
-                            continue; // Skip if target doesn't match
+                        var skillBehavior = GameObj<Il2CppMenace.Tactical.AI.SkillBehavior>.Wrap(behavior.Pointer);
+                        if (Offsets.SkillBehavior_TargetTile.Value.TryRead(skillBehavior, out var targetTile) && !targetTile.Untyped.IsNull)
+                        {
+                            var entity = targetTile.AsManaged().GetEntity();
+                            if (entity == null || entity.Pointer != target.Untyped.Pointer)
+                                continue;
+                        }
                     }
 
                     // Boost the behavior score
-                    var currentScore = behavior.ReadInt(OFFSET_BEHAVIOR_SCORE);
-                    var newScore = currentScore + scoreBoost;
-                    Marshal.WriteInt32(behavior.Pointer + (int)OFFSET_BEHAVIOR_SCORE, newScore);
+                    var behaviorObj = GameObj<Behavior>.Wrap(behavior.Pointer);
+                    int currentScore = Offsets.Behavior_Score.Value.Read(behaviorObj);
+                    Offsets.Behavior_Score.Value.Write(behaviorObj, currentScore + scoreBoost);
                     boostCount++;
                 }
             }
@@ -150,7 +163,7 @@ public static class EntityAI
             if (boostCount == 0)
                 return AIResult.Failed($"No behaviors found matching '{actionType}'");
 
-            ModError.Info("Menace.SDK", $"Boosted {boostCount} behaviors for {actor.GetName()}");
+            ModError.Info("Menace.SDK", $"Boosted {boostCount} behaviors for {actor.AsManaged().DebugName}");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -166,7 +179,6 @@ public static class EntityAI
     ///
     /// THREAD SAFETY: Safe to call at any time (pauses parallel evaluation).
     /// </summary>
-    /// <param name="actor">Any actor (used to get TacticalManager instance)</param>
     /// <returns>Result indicating success or failure</returns>
     /// <remarks>
     /// When AI is paused:
@@ -181,32 +193,16 @@ public static class EntityAI
     ///   // Manipulate AI state...
     ///   EntityAI.ResumeAI(anyActor);
     /// </remarks>
-    public static AIResult PauseAI(GameObj actor)
+    public static AIResult PauseAI()
     {
         try
         {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null)
-                return AIResult.Failed("TacticalManager type not found");
-
-            var tm = GetTacticalManagerProxy();
+            var tm = TacticalManager.Get();
             if (tm == null)
                 return AIResult.Failed("TacticalManager instance not found");
 
-            // Try calling SetAIPaused(true) method first
-            var setPausedMethod = tmType.GetMethod("SetAIPaused",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (setPausedMethod != null)
-            {
-                setPausedMethod.Invoke(tm, new object[] { true });
-                ModError.Info("Menace.SDK", "AI paused via SetAIPaused()");
-                return AIResult.Ok();
-            }
-
-            // Fallback: write directly to m_IsAIPaused byte field
-            var tmObj = new GameObj(((Il2CppObjectBase)tm).Pointer);
-            Marshal.WriteByte(tmObj.Pointer + (int)OFFSET_TACTICAL_MANAGER_IS_AI_PAUSED, 1);
-            ModError.Info("Menace.SDK", "AI paused via direct memory write");
+            tm.SetAIPaused(true);
+            ModError.Info("Menace.SDK", "AI paused via SetAIPaused()");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -222,34 +218,17 @@ public static class EntityAI
     ///
     /// THREAD SAFETY: Safe to call at any time.
     /// </summary>
-    /// <param name="actor">Any actor (used to get TacticalManager instance)</param>
     /// <returns>Result indicating success or failure</returns>
-    public static AIResult ResumeAI(GameObj actor)
+    public static AIResult ResumeAI()
     {
         try
         {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null)
-                return AIResult.Failed("TacticalManager type not found");
-
-            var tm = GetTacticalManagerProxy();
+            var tm = TacticalManager.Get();
             if (tm == null)
                 return AIResult.Failed("TacticalManager instance not found");
 
-            // Try calling SetAIPaused(false) method first
-            var setPausedMethod = tmType.GetMethod("SetAIPaused",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (setPausedMethod != null)
-            {
-                setPausedMethod.Invoke(tm, new object[] { false });
-                ModError.Info("Menace.SDK", "AI resumed via SetAIPaused()");
-                return AIResult.Ok();
-            }
-
-            // Fallback: write directly to m_IsAIPaused byte field
-            var tmObj = new GameObj(((Il2CppObjectBase)tm).Pointer);
-            Marshal.WriteByte(tmObj.Pointer + (int)OFFSET_TACTICAL_MANAGER_IS_AI_PAUSED, 0);
-            ModError.Info("Menace.SDK", "AI resumed via direct memory write");
+            tm.SetAIPaused(false);
+            ModError.Info("Menace.SDK", "AI resumed via SetAIPaused()");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -265,31 +244,17 @@ public static class EntityAI
     ///
     /// THREAD SAFETY: Safe to call at any time.
     /// </summary>
-    /// <param name="actor">Any actor (used to get TacticalManager instance)</param>
     /// <returns>True if AI is paused, false otherwise</returns>
-    public static bool IsAIPaused(GameObj actor)
+    public static bool IsAIPaused()
     {
         try
         {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null)
-                return false;
-
-            var tm = GetTacticalManagerProxy();
+            var tm = TacticalManager.Get();
             if (tm == null)
                 return false;
 
-            // Try calling IsAIPaused() method first
-            var isPausedMethod = tmType.GetMethod("IsAIPaused",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (isPausedMethod != null)
-            {
-                return (bool)isPausedMethod.Invoke(tm, null);
-            }
-
-            // Fallback: read m_IsAIPaused byte field directly
-            var tmObj = new GameObj(((Il2CppObjectBase)tm).Pointer);
-            return Marshal.ReadByte(tmObj.Pointer + (int)OFFSET_TACTICAL_MANAGER_IS_AI_PAUSED) != 0;
+            var tmObj = GameObj<TacticalManager>.Wrap(tm.Pointer);
+            return Offsets.TacticalManager_IsAIPaused.Value.Read(tmObj);
         }
         catch (Exception ex)
         {
@@ -319,9 +284,9 @@ public static class EntityAI
     /// Example:
     ///   EntityAI.SetThreatValueOverride(enemy, player, 80.0f);  // Enemy becomes defensive
     /// </remarks>
-    public static AIResult SetThreatValueOverride(GameObj actor, GameObj target, float threat)
+    public static AIResult SetThreatValueOverride(GameObj<Actor> actor, GameObj<Actor> target, float threat)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return AIResult.Failed("Invalid actor");
 
         if (AI.IsAnyFactionThinking())
@@ -333,11 +298,9 @@ public static class EntityAI
             // High threat = low morale (defensive), low threat = high morale (aggressive)
             float morale = Math.Clamp(100.0f - threat, 0.0f, 100.0f);
 
-            // Write morale directly to actor
-            var moraleInt = BitConverter.SingleToInt32Bits(morale);
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_MORALE, moraleInt);
+            Offsets.Actor_Morale.Value.Write(actor, morale);
 
-            ModError.Info("Menace.SDK", $"Set threat override for {actor.GetName()}: threat={threat:F1}, morale={morale:F1}");
+            ModError.Info("Menace.SDK", $"Set threat override for {actor.AsManaged().DebugName}: threat={threat:F1}, morale={morale:F1}");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -354,9 +317,9 @@ public static class EntityAI
     /// </summary>
     /// <param name="actor">The actor to clear threat overrides for</param>
     /// <returns>Result indicating success or failure</returns>
-    public static AIResult ClearThreatOverrides(GameObj actor)
+    public static AIResult ClearThreatOverrides(GameObj<Actor> actor)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return AIResult.Failed("Invalid actor");
 
         if (AI.IsAnyFactionThinking())
@@ -364,11 +327,9 @@ public static class EntityAI
 
         try
         {
-            // Reset to steady state morale
-            var moraleInt = BitConverter.SingleToInt32Bits(MORALE_STEADY);
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_MORALE, moraleInt);
+            Offsets.Actor_Morale.Value.Write(actor, MORALE_STEADY);
 
-            ModError.Info("Menace.SDK", $"Cleared threat overrides for {actor.GetName()}");
+            ModError.Info("Menace.SDK", $"Cleared threat overrides for {actor.AsManaged().DebugName}");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -398,9 +359,9 @@ public static class EntityAI
     /// Example:
     ///   EntityAI.ForceFleeDecision(enemy);  // Enemy will flee next turn
     /// </remarks>
-    public static AIResult ForceFleeDecision(GameObj actor)
+    public static AIResult ForceFleeDecision(GameObj<Actor> actor)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return AIResult.Failed("Invalid actor");
 
         if (AI.IsAnyFactionThinking())
@@ -408,11 +369,9 @@ public static class EntityAI
 
         try
         {
-            // Set morale to panicked (0.0f) to trigger flee state
-            var moraleInt = BitConverter.SingleToInt32Bits(MORALE_PANICKED);
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_MORALE, moraleInt);
+            Offsets.Actor_Morale.Value.Write(actor, MORALE_PANICKED);
 
-            ModError.Info("Menace.SDK", $"Forced flee decision for {actor.GetName()} (morale={MORALE_PANICKED})");
+            ModError.Info("Menace.SDK", $"Forced flee decision for {actor.AsManaged().DebugName} (morale={MORALE_PANICKED})");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -439,9 +398,9 @@ public static class EntityAI
     /// Example:
     ///   EntityAI.BlockFleeDecision(boss);  // Boss never flees
     /// </remarks>
-    public static AIResult BlockFleeDecision(GameObj actor)
+    public static AIResult BlockFleeDecision(GameObj<Actor> actor)
     {
-        if (actor.IsNull)
+        if (actor.Untyped.IsNull)
             return AIResult.Failed("Invalid actor");
 
         if (AI.IsAnyFactionThinking())
@@ -449,11 +408,9 @@ public static class EntityAI
 
         try
         {
-            // Set morale to fearless (100.0f) to block flee state
-            var moraleInt = BitConverter.SingleToInt32Bits(MORALE_FEARLESS);
-            Marshal.WriteInt32(actor.Pointer + (int)OFFSET_ACTOR_MORALE, moraleInt);
+            Offsets.Actor_Morale.Value.Write(actor, MORALE_FEARLESS);
 
-            ModError.Info("Menace.SDK", $"Blocked flee decision for {actor.GetName()} (morale={MORALE_FEARLESS})");
+            ModError.Info("Menace.SDK", $"Blocked flee decision for {actor.AsManaged().DebugName} (morale={MORALE_FEARLESS})");
             return AIResult.Ok();
         }
         catch (Exception ex)
@@ -468,55 +425,22 @@ public static class EntityAI
     /// <summary>
     /// Get the AI Agent for an actor using the verified offset from Ghidra.
     /// </summary>
-    private static GameObj GetAgent(GameObj actor)
+    private static GameObj<Agent> GetAgent(GameObj<Actor> actor)
     {
-        if (actor.IsNull)
-            return GameObj.Null;
+        if (actor.Untyped.IsNull)
+            return default;
 
         try
         {
-            // Agent is at Actor+0x18 (m_Agent field)
-            var agentPtr = actor.ReadPtr(OFFSET_ACTOR_AGENT);
-            return new GameObj(agentPtr);
+            if (!Offsets.Actor_Agent.Value.TryRead(actor, out var agent))
+                return default;
+
+            return agent;
         }
         catch (Exception ex)
         {
             ModError.ReportInternal("EntityAI.GetAgent", "Failed", ex);
-            return GameObj.Null;
-        }
-    }
-
-    /// <summary>
-    /// Get the TacticalManager singleton instance.
-    /// </summary>
-    private static object GetTacticalManagerProxy()
-    {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return null;
-
-            // Try s_Singleton static property
-            var singletonProp = tmType.GetProperty("s_Singleton",
-                BindingFlags.Public | BindingFlags.Static);
-            if (singletonProp != null)
-                return singletonProp.GetValue(null);
-
-            // Try Instance static property
-            var instanceProp = tmType.GetProperty("Instance",
-                BindingFlags.Public | BindingFlags.Static);
-            if (instanceProp != null)
-                return instanceProp.GetValue(null);
-
-            // Try Get() static method
-            var getMethod = tmType.GetMethod("Get",
-                BindingFlags.Public | BindingFlags.Static);
-            return getMethod?.Invoke(null, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("EntityAI.GetTacticalManagerProxy", "Failed", ex);
-            return null;
+            return default;
         }
     }
 }

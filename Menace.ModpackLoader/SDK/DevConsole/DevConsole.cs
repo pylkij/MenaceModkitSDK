@@ -1354,7 +1354,7 @@ public static class DevConsole
         y += 20;
 
         GUI.Label(new Rect(area.x, y, area.width, LineHeight),
-            $"Alive: {_inspectedObj.IsAlive}", _labelStyle);
+            $"Alive: {_inspectedObj.CheckAlive()}", _labelStyle);
         y += LineHeight + 4;
 
         // Build property list

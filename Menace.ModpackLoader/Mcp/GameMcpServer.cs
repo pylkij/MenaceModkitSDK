@@ -524,7 +524,7 @@ public static class GameMcpServer
                 name = i.TemplateName,
                 slot = i.SlotTypeName,
                 value = i.TradeValue,
-                rarity = i.Rarity
+                rarity = i.RarityTier   // was: i.Rarity
             }).ToList(),
             equippedWeapons = weapons.Select(w => w.TemplateName).ToList()
         };

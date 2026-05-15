@@ -7,6 +7,8 @@
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <!-- Suppress warnings about 9.0.0 packages not "supporting" net6.0 - netstandard2.0 builds work fine -->
     <SuppressTfmSupportBuildWarnings>true</SuppressTfmSupportBuildWarnings>
+	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	<DisableImplicitNamespaceImports>true</DisableImplicitNamespaceImports>
   </PropertyGroup>
 
   <ItemGroup>
