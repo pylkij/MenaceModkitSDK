@@ -42,7 +42,7 @@ public static class StrategyEventHooks
 
     // Squaddie Events
     public static event Action<int> OnSquaddieKilled;                    // squaddieId
-    public static event Action<int> OnSquaddieAdded;                     // count
+    //public static event Action<int> OnSquaddieAdded;                     // count
 
     // Operation/Mission Events
     public static event Action<IntPtr> OnOperationStarted;               // operation
@@ -99,7 +99,7 @@ public static class StrategyEventHooks
 
             // Squaddie patches
             patchCount += GamePatch.Postfix(harmony, squaddiesType, "Kill", hooks.GetMethod(nameof(SquaddieKill_Postfix), flags)) ? 1 : 0;
-            patchCount += GamePatch.Postfix(harmony, squaddiesType, "AddAlive", hooks.GetMethod(nameof(SquaddieAddAlive_Postfix), flags)) ? 1 : 0;
+            //patchCount += GamePatch.Postfix(harmony, squaddiesType, "AddAlive", hooks.GetMethod(nameof(SquaddieAddAlive_Postfix), flags)) ? 1 : 0;
 
             // Operation patches
             //patchCount += GamePatch.Postfix(harmony, baseGameEffect, "OnOperationStarted", hooks.GetMethod(nameof(OnOperationStarted_Postfix), flags)) ? 1 : 0;
@@ -322,6 +322,7 @@ public static class StrategyEventHooks
         });
     }
 
+    /*
     private static void SquaddieAddAlive_Postfix(object __instance, HomePlanetType _homePlanet, object _gender, object _skinColor, string _name, string _nickname)
     {
         int count = GameMethod.CallInt<Squaddies>(__instance, x => x.GetAliveCount());
@@ -336,6 +337,7 @@ public static class StrategyEventHooks
             ["alive_count"] = count
         });
     }
+    */
 
     // --- Operation/Mission Events ---
 
