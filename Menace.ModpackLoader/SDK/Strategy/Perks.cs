@@ -1,6 +1,7 @@
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppMenace.Strategy;
+using Il2CppMenace.Tools;
 using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
@@ -48,6 +49,18 @@ public static class Perks
         // BaseUnitLeader fields
         internal static readonly Lazy<FieldHandle<BaseUnitLeader, IntPtr>> m_Perks
             = new(() => GameObj<BaseUnitLeader>.FieldAt<IntPtr>(0x48, nameof(m_Perks)));
+
+        internal static readonly Lazy<FieldHandle<UnitLeaderTemplate, IntPtr>> PerkTrees
+            = new(() => GameObj<UnitLeaderTemplate>.FieldAt<IntPtr>(0x170, nameof(PerkTrees)));
+
+        internal static readonly Lazy<FieldHandle<PerkTreeTemplate, IntPtr>> Perks
+            = new(() => GameObj<PerkTreeTemplate>.FieldAt<IntPtr>(0x18, nameof(Perks)));
+
+        internal static readonly Lazy<FieldHandle<Perk, IntPtr>> PerkSkill
+            = new(() => GameObj<Perk>.FieldAt<IntPtr>(0x10, "Skill"));
+
+        internal static readonly Lazy<FieldHandle<Perk, int>> PerkTier
+            = new(() => GameObj<Perk>.FieldAt<int>(0x18, nameof(Perk.Tier)));
     }
 
     /// <summary>
@@ -82,26 +95,23 @@ public static class Perks
     /// <summary>
     /// Get all perks for a unit leader with detailed info.
     /// </summary>
-    public static List<PerkInfo> GetLeaderPerks(GameObj leader)
+    public static List<PerkInfo> GetLeaderPerks(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<PerkInfo>();
-        if (leader.IsNull) return result;
+        if (leader.Untyped.IsNull) return result;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return result;
+            var perksPtr = Offsets.m_Perks.Value.Read(leader);
+            if (perksPtr == IntPtr.Zero) return result;
 
-            var proxy = GetManagedProxy(leader, leaderType);
-            if (proxy == null) return result;
-
-            var perksField = leaderType.GetField("m_Perks", BindingFlags.Public | BindingFlags.Instance);
-            var perks = perksField?.GetValue(proxy);
+            var perks = new Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.PerkTemplate>(perksPtr);
             if (perks == null) return result;
 
             var listType = perks.GetType();
             var countProp = listType.GetProperty("Count");
             var indexer = listType.GetMethod("get_Item");
+            if (countProp == null || indexer == null) return result;
 
             int count = (int)countProp.GetValue(perks);
             for (int i = 0; i < count; i++)
@@ -109,7 +119,7 @@ public static class Perks
                 var perk = indexer.Invoke(perks, new object[] { i });
                 if (perk == null) continue;
 
-                var perkObj = new GameObj(((Il2CppObjectBase)perk).Pointer);
+                var perkObj = GameObj<PerkTemplate>.Wrap(((Il2CppObjectBase)perk).Pointer);
                 var info = GetPerkInfo(perkObj);
                 if (info != null)
                     result.Add(info);
@@ -127,36 +137,28 @@ public static class Perks
     /// <summary>
     /// Get detailed information about a perk template.
     /// </summary>
-    public static PerkInfo GetPerkInfo(GameObj perkTemplate)
+    public static PerkInfo GetPerkInfo(GameObj<PerkTemplate> perkTemplate)
     {
-        if (perkTemplate.IsNull) return null;
+        if (perkTemplate.Untyped.IsNull) return null;
 
         try
         {
-            var klass = IL2CPP.il2cpp_object_get_class(perkTemplate.Pointer);
-            if (klass == IntPtr.Zero) return null;
-
             var info = new PerkInfo
             {
-                Pointer = perkTemplate.Pointer,
-                Name = perkTemplate.GetName()
+                Pointer = perkTemplate.Untyped.Pointer,
+                Name = perkTemplate.Untyped.GetName()
             };
 
-            var titleOffset = OffsetCache.GetOrResolve(klass, "Title");
-            var titlePtr = perkTemplate.ReadPtr(titleOffset);
+            var titlePtr = Offsets.Title.Value.Read(perkTemplate);
             if (titlePtr != IntPtr.Zero)
-                info.Title = ReadLocalizedText(GameObj.FromPointer(titlePtr)) ?? info.Name;
+                info.Title = new BaseLocalizedString(titlePtr).GetRawDefaultTranslation() ?? info.Name;
 
-            var descOffset = OffsetCache.GetOrResolve(klass, "Description");
-            var descPtr = perkTemplate.ReadPtr(descOffset);
+            var descPtr = Offsets.Description.Value.Read(perkTemplate);
             if (descPtr != IntPtr.Zero)
-                info.Description = ReadLocalizedText(GameObj.FromPointer(descPtr));
+                info.Description = new BaseLocalizedString(descPtr).GetRawDefaultTranslation();
 
-            info.ActionPointCost = perkTemplate.ReadInt(
-                OffsetCache.GetOrResolve(klass, "ActionPointCost"));
-
-            info.IsActive = perkTemplate.ReadInt(
-                OffsetCache.GetOrResolve(klass, "IsActive")) != 0;
+            info.ActionPointCost = Offsets.ActionPointCost.Value.Read(perkTemplate);
+            info.IsActive = Offsets.IsActive.Value.Read(perkTemplate);
 
             return info;
         }
@@ -170,49 +172,38 @@ public static class Perks
     /// <summary>
     /// Get perk trees available to a unit leader from their template.
     /// </summary>
-    public static List<PerkTreeInfo> GetPerkTrees(GameObj leader)
+    public static List<PerkTreeInfo> GetPerkTrees(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<PerkTreeInfo>();
-        if (leader.IsNull) return result;
+        if (leader.Untyped.IsNull) return result;
 
         try
         {
-            // Get leader's template using managed reflection (more reliable than IL2CPP field lookup)
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return result;
-
-            var leaderProxy = GetManagedProxy(leader, leaderType);
+            var leaderProxy = leader.AsManaged();
             if (leaderProxy == null) return result;
 
-            // Get LeaderTemplate property
-            var templateProp = leaderType.GetProperty("LeaderTemplate", BindingFlags.Public | BindingFlags.Instance);
-            var templateObj = templateProp?.GetValue(leaderProxy);
-            if (templateObj == null)
+            var templatePtr = leaderProxy.LeaderTemplate?.Pointer ?? IntPtr.Zero;
+            if (templatePtr == IntPtr.Zero) return result;
+
+            var template = GameObj<UnitLeaderTemplate>.Wrap(templatePtr);
+
+            var perkTreesPtr = Offsets.PerkTrees.Value.Read(template);
+            if (perkTreesPtr == IntPtr.Zero) return result;
+
+            // PerkTrees is a PerkTreeTemplate[] — read as Il2CppArrayBase
+            var perkTreesArray = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<PerkTreeTemplate>(perkTreesPtr);
+            for (int i = 0; i < perkTreesArray.Length; i++)
             {
-                SdkLogger.Warning("[Perks.GetPerkTrees] LeaderTemplate property returned null");
-                return result;
+                var treeProxy = perkTreesArray[i];
+                if (treeProxy == null) continue;
+
+                var treeObj = GameObj<PerkTreeTemplate>.Wrap(treeProxy.Pointer);
+                var treeInfo = GetPerkTreeInfo(treeObj);
+                if (treeInfo != null)
+                    result.Add(treeInfo);
             }
 
-            // Get PerkTrees from template using managed reflection
-            var templateType = templateObj.GetType();
-            var perkTreesProp = templateType.GetProperty("PerkTrees", BindingFlags.Public | BindingFlags.Instance);
-            if (perkTreesProp == null)
-            {
-                // Try field instead
-                var perkTreesField = templateType.GetField("PerkTrees", BindingFlags.Public | BindingFlags.Instance) ??
-                                     templateType.GetField("m_PerkTrees", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                if (perkTreesField != null)
-                {
-                    var perkTreesVal = perkTreesField.GetValue(templateObj);
-                    return ExtractPerkTrees(perkTreesVal);
-                }
-
-                SdkLogger.Warning($"[Perks.GetPerkTrees] PerkTrees not found on {templateType.Name}");
-                return result;
-            }
-
-            var perkTrees = perkTreesProp.GetValue(templateObj);
-            return ExtractPerkTrees(perkTrees);
+            return result;
         }
         catch (Exception ex)
         {
@@ -222,146 +213,40 @@ public static class Perks
     }
 
     /// <summary>
-    /// Extract perk tree info from an IL2CPP array/list of perk tree objects.
-    /// Uses Count + get_Item pattern for IL2CPP compatibility.
-    /// </summary>
-    private static List<PerkTreeInfo> ExtractPerkTrees(object perkTreesObj)
-    {
-        var result = new List<PerkTreeInfo>();
-        if (perkTreesObj == null) return result;
-
-        try
-        {
-            var collectionType = perkTreesObj.GetType();
-
-            // Try Count property (for Il2CppArrayBase or List-like types)
-            var countProp = collectionType.GetProperty("Count") ??
-                           collectionType.GetProperty("Length");
-            if (countProp == null) return result;
-
-            var indexer = collectionType.GetMethod("get_Item") ??
-                         collectionType.GetProperty("Item")?.GetGetMethod();
-            if (indexer == null) return result;
-
-            int count = Convert.ToInt32(countProp.GetValue(perkTreesObj));
-            for (int i = 0; i < count; i++)
-            {
-                var item = indexer.Invoke(perkTreesObj, new object[] { i });
-                if (item == null) continue;
-
-                var treeObj = new GameObj(((Il2CppObjectBase)item).Pointer);
-                var treeInfo = GetPerkTreeInfo(treeObj);
-                if (treeInfo != null)
-                    result.Add(treeInfo);
-            }
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Perks.ExtractPerkTrees", "Failed", ex);
-        }
-
-        return result;
-    }
-
-    /// <summary>
     /// Get information about a perk tree.
     /// Uses pure reflection for IL2CPP compatibility.
     /// </summary>
-    public static PerkTreeInfo GetPerkTreeInfo(GameObj perkTree)
+    public static PerkTreeInfo GetPerkTreeInfo(GameObj<PerkTreeTemplate> perkTree)
     {
-        if (perkTree.IsNull) return null;
+        if (perkTree.Untyped.IsNull) return null;
 
         try
         {
             var info = new PerkTreeInfo
             {
-                Pointer = perkTree.Pointer,
-                Name = perkTree.GetName()
+                Pointer = perkTree.Untyped.Pointer,
+                Name = perkTree.Untyped.GetName()
             };
 
-            // Create managed proxy for the perk tree
-            var treeType = _perkTreeTemplateType.ManagedType;
-            if (treeType == null)
-            {
-                ModError.Report("Menace.SDK", "GetPerkTreeInfo: treeType is null", null, ErrorSeverity.Warning);
-                return info;
-            }
+            var perksPtr = Offsets.Perks.Value.Read(perkTree);
+            if (perksPtr == IntPtr.Zero) return info;
 
-            var treeCtor = treeType.GetConstructor(new[] { typeof(IntPtr) });
-            if (treeCtor == null)
-            {
-                ModError.Report("Menace.SDK", "GetPerkTreeInfo: treeCtor is null", null, ErrorSeverity.Warning);
-                return info;
-            }
+            var perksArray = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Perk>(perksPtr);
+            info.PerkCount = perksArray.Length;
 
-            var treeProxy = treeCtor.Invoke(new object[] { perkTree.Pointer });
-            if (treeProxy == null)
+            for (int i = 0; i < perksArray.Length; i++)
             {
-                ModError.Report("Menace.SDK", "GetPerkTreeInfo: treeProxy is null", null, ErrorSeverity.Warning);
-                return info;
-            }
-
-            // Get Perks property
-            var perksProp = treeType.GetProperty("Perks", BindingFlags.Public | BindingFlags.Instance);
-            if (perksProp == null)
-            {
-                ModError.Report("Menace.SDK", "GetPerkTreeInfo: perksProp is null", null, ErrorSeverity.Warning);
-                return info;
-            }
-
-            var perksArray = perksProp.GetValue(treeProxy);
-            if (perksArray == null)
-            {
-                ModError.Report("Menace.SDK", "GetPerkTreeInfo: perksArray is null", null, ErrorSeverity.Warning);
-                return info;
-            }
-
-            // Get array length
-            var lengthProp = perksArray.GetType().GetProperty("Length");
-            if (lengthProp == null)
-            {
-                ModError.Report("Menace.SDK", $"GetPerkTreeInfo: lengthProp is null for {perksArray.GetType().FullName}", null, ErrorSeverity.Warning);
-                return info;
-            }
-
-            int count = Convert.ToInt32(lengthProp.GetValue(perksArray) ?? 0);
-            ModError.Report("Menace.SDK", $"GetPerkTreeInfo: count={count}", null, ErrorSeverity.Info);
-            info.PerkCount = count;
-
-            // Get indexer
-            var indexer = perksArray.GetType().GetMethod("get_Item");
-            if (indexer == null)
-            {
-                ModError.Report("Menace.SDK", "GetPerkTreeInfo: indexer is null", null, ErrorSeverity.Warning);
-                return info;
-            }
-
-            for (int i = 0; i < count; i++)
-            {
-                var perk = indexer.Invoke(perksArray, new object[] { i });
+                var perk = perksArray[i];
                 if (perk == null) continue;
 
-                var perkType = perk.GetType();
+                var skillPtr = Offsets.PerkSkill.Value.Read(GameObj<Perk>.Wrap(perk.Pointer));
+                if (skillPtr == IntPtr.Zero) continue;
 
-                // Get Skill property
-                var skillProp = perkType.GetProperty("Skill", BindingFlags.Public | BindingFlags.Instance);
-                var skill = skillProp?.GetValue(perk);
-                if (skill == null) continue;
+                var perkInfo = GetPerkInfo(GameObj<PerkTemplate>.Wrap(skillPtr));
+                if (perkInfo == null) continue;
 
-                // Get Pointer from skill
-                var pointerProp = skill.GetType().GetProperty("Pointer", BindingFlags.Public | BindingFlags.Instance);
-                var ptr = (IntPtr)(pointerProp?.GetValue(skill) ?? IntPtr.Zero);
-                if (ptr == IntPtr.Zero) continue;
-
-                var skillObj = new GameObj(ptr);
-                var perkInfo = GetPerkInfo(skillObj);
-                if (perkInfo != null)
-                {
-                    // Get Tier property
-                    var tierProp = perkType.GetProperty("Tier", BindingFlags.Public | BindingFlags.Instance);
-                    perkInfo.Tier = Convert.ToInt32(tierProp?.GetValue(perk) ?? 0);
-                    info.Perks.Add(perkInfo);
-                }
+                perkInfo.Tier = Offsets.PerkTier.Value.Read(GameObj<Perk>.Wrap(perk.Pointer));
+                info.Perks.Add(perkInfo);
             }
 
             return info;
@@ -380,22 +265,13 @@ public static class Perks
     /// <summary>
     /// Check if a leader can be promoted (has room for more perks).
     /// </summary>
-    public static bool CanBePromoted(GameObj leader)
+    public static bool CanBePromoted(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.IsNull) return false;
+        if (leader.Untyped.IsNull) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return false;
-
-            var proxy = GetManagedProxy(leader, leaderType);
-            if (proxy == null) return false;
-
-            var method = leaderType.GetMethod("CanBePromoted", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            return (bool)method.Invoke(proxy, null);
+            return leader.AsManaged().CanBePromoted();
         }
         catch (Exception ex)
         {
@@ -407,22 +283,13 @@ public static class Perks
     /// <summary>
     /// Check if a leader can be demoted (has perks to remove).
     /// </summary>
-    public static bool CanBeDemoted(GameObj leader)
+    public static bool CanBeDemoted(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.IsNull) return false;
+        if (leader.Untyped.IsNull) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return false;
-
-            var proxy = GetManagedProxy(leader, leaderType);
-            if (proxy == null) return false;
-
-            var method = leaderType.GetMethod("CanBeDemoted", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            return (bool)method.Invoke(proxy, null);
+            return leader.AsManaged().CanBeDemoted();
         }
         catch (Exception ex)
         {
@@ -437,24 +304,13 @@ public static class Perks
     /// <param name="leader">The leader to add the perk to</param>
     /// <param name="perkTemplate">The perk template to add</param>
     /// <param name="spendPromotionPoints">Whether to spend promotion points (default true)</param>
-    public static bool AddPerk(GameObj leader, GameObj perkTemplate, bool spendPromotionPoints = true)
+    public static bool AddPerk(GameObj<BaseUnitLeader> leader, GameObj<PerkTemplate> perkTemplate, bool spendPromotionPoints = true)
     {
-        if (leader.IsNull || perkTemplate.IsNull) return false;
+        if (leader.Untyped.IsNull || perkTemplate.Untyped.IsNull) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            var perkType = _perkTemplateType?.ManagedType;
-            if (leaderType == null || perkType == null) return false;
-
-            var leaderProxy = GetManagedProxy(leader, leaderType);
-            var perkProxy = GetManagedProxy(perkTemplate, perkType);
-            if (leaderProxy == null || perkProxy == null) return false;
-
-            var method = leaderType.GetMethod("AddPerk", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            method.Invoke(leaderProxy, new object[] { perkProxy, spendPromotionPoints });
+            leader.AsManaged().AddPerk(perkTemplate.AsManaged(), spendPromotionPoints);
             return true;
         }
         catch (Exception ex)
@@ -467,22 +323,13 @@ public static class Perks
     /// <summary>
     /// Remove the last perk from a unit leader.
     /// </summary>
-    public static bool RemoveLastPerk(GameObj leader)
+    public static bool RemoveLastPerk(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.IsNull) return false;
+        if (leader.Untyped.IsNull) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return false;
-
-            var proxy = GetManagedProxy(leader, leaderType);
-            if (proxy == null) return false;
-
-            var method = leaderType.GetMethod("TryRemoveLastPerk", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            return (bool)method.Invoke(proxy, null);
+            return leader.AsManaged().TryRemoveLastPerk();
         }
         catch (Exception ex)
         {
@@ -494,24 +341,13 @@ public static class Perks
     /// <summary>
     /// Check if a leader has a specific perk.
     /// </summary>
-    public static bool HasPerk(GameObj leader, GameObj perkTemplate)
+    public static bool HasPerk(GameObj<BaseUnitLeader> leader, GameObj<PerkTemplate> perkTemplate)
     {
-        if (leader.IsNull || perkTemplate.IsNull) return false;
+        if (leader.Untyped.IsNull || perkTemplate.Untyped.IsNull) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            var perkType = _perkTemplateType?.ManagedType;
-            if (leaderType == null || perkType == null) return false;
-
-            var leaderProxy = GetManagedProxy(leader, leaderType);
-            var perkProxy = GetManagedProxy(perkTemplate, perkType);
-            if (leaderProxy == null || perkProxy == null) return false;
-
-            var method = leaderType.GetMethod("HasPerk", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            return (bool)method.Invoke(leaderProxy, new object[] { perkProxy });
+            return leader.AsManaged().HasPerk(perkTemplate.AsManaged());
         }
         catch (Exception ex)
         {
@@ -523,30 +359,21 @@ public static class Perks
     /// <summary>
     /// Get the last perk added to a leader.
     /// </summary>
-    public static GameObj GetLastPerk(GameObj leader)
+    public static GameObj<PerkTemplate> GetLastPerk(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.IsNull) return GameObj.Null;
+        if (leader.Untyped.IsNull) return default;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return GameObj.Null;
+            var result = leader.AsManaged().GetLastPerk();
+            if (result == null) return default;
 
-            var proxy = GetManagedProxy(leader, leaderType);
-            if (proxy == null) return GameObj.Null;
-
-            var method = leaderType.GetMethod("GetLastPerk", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return GameObj.Null;
-
-            var result = method.Invoke(proxy, null);
-            if (result == null) return GameObj.Null;
-
-            return new GameObj(((Il2CppObjectBase)result).Pointer);
+            return GameObj<PerkTemplate>.Wrap(result.Pointer);
         }
         catch (Exception ex)
         {
             ModError.ReportInternal("Perks.GetLastPerk", "Failed", ex);
-            return GameObj.Null;
+            return default;
         }
     }
 
@@ -557,9 +384,9 @@ public static class Perks
     /// <summary>
     /// Find a perk template by name from all perk trees of a leader.
     /// </summary>
-    public static GameObj FindPerkByName(GameObj leader, string perkName)
+    public static GameObj<PerkTemplate> FindPerkByName(GameObj<BaseUnitLeader> leader, string perkName)
     {
-        if (leader.IsNull || string.IsNullOrEmpty(perkName)) return GameObj.Null;
+        if (leader.Untyped.IsNull || string.IsNullOrEmpty(perkName)) return default;
 
         try
         {
@@ -570,49 +397,45 @@ public static class Perks
             {
                 foreach (var perk in tree.Perks)
                 {
-                    // Collect for diagnostics
                     allPerks.Add($"{perk.Name ?? "?"}/{perk.Title ?? "?"}");
 
                     if (perk.Name?.Contains(perkName, StringComparison.OrdinalIgnoreCase) == true ||
                         perk.Title?.Contains(perkName, StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        return new GameObj(perk.Pointer);
+                        return GameObj<PerkTemplate>.Wrap(perk.Pointer);
                     }
                 }
             }
 
-            // Debug: log available perks when not found
             if (allPerks.Count > 0)
                 SdkLogger.Warning($"[Perks.FindPerkByName] '{perkName}' not found. Available: {string.Join(", ", allPerks.Take(10))}...");
             else
                 SdkLogger.Warning($"[Perks.FindPerkByName] No perks found in leader's trees");
 
-            return GameObj.Null;
+            return default;
         }
         catch (Exception ex)
         {
             SdkLogger.Warning($"[Perks.FindPerkByName] Exception: {ex.Message}");
-            return GameObj.Null;
+            return default;
         }
     }
 
     /// <summary>
     /// Get available perks (not yet learned) for a leader.
     /// </summary>
-    public static List<PerkInfo> GetAvailablePerks(GameObj leader)
+    public static List<PerkInfo> GetAvailablePerks(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<PerkInfo>();
-        if (leader.IsNull) return result;
+        if (leader.Untyped.IsNull) return result;
 
         try
         {
-            // Get all learned perks
             var learnedPerks = new HashSet<IntPtr>();
             var learned = GetLeaderPerks(leader);
             foreach (var p in learned)
                 learnedPerks.Add(p.Pointer);
 
-            // Get all perks from trees
             var trees = GetPerkTrees(leader);
             foreach (var tree in trees)
             {
@@ -648,8 +471,8 @@ public static class Perks
                 return "Usage: perks <nickname>";
 
             var nickname = string.Join(" ", args);
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Leader '{nickname}' not found";
 
             var perks = GetLeaderPerks(leader);
@@ -673,8 +496,8 @@ public static class Perks
                 return "Usage: perktrees <nickname>";
 
             var nickname = string.Join(" ", args);
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Leader '{nickname}' not found";
 
             var trees = GetPerkTrees(leader);
@@ -701,8 +524,8 @@ public static class Perks
                 return "Usage: availableperks <nickname>";
 
             var nickname = string.Join(" ", args);
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Leader '{nickname}' not found";
 
             var available = GetAvailablePerks(leader);
@@ -712,7 +535,6 @@ public static class Perks
             var canPromote = CanBePromoted(leader);
             var lines = new List<string> { $"Available Perks ({available.Count}) - Can Promote: {canPromote}" };
 
-            // Group by tier
             var byTier = new Dictionary<int, List<PerkInfo>>();
             foreach (var p in available)
             {
@@ -742,12 +564,12 @@ public static class Perks
             var nickname = args[0];
             var perkName = string.Join(" ", args, 1, args.Length - 1);
 
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Leader '{nickname}' not found";
 
             var perk = FindPerkByName(leader, perkName);
-            if (perk.IsNull)
+            if (perk.Untyped.IsNull)
                 return $"Perk '{perkName}' not found in {nickname}'s perk trees";
 
             if (AddPerk(leader, perk, false))
@@ -765,48 +587,19 @@ public static class Perks
                 return "Usage: removeperk <nickname>";
 
             var nickname = string.Join(" ", args);
-            var leader = Roster.FindByNickname(nickname);
-            if (leader.IsNull)
+            var leader = Roster.FindByNicknameTyped(nickname);
+            if (leader.Untyped.IsNull)
                 return $"Leader '{nickname}' not found";
 
             if (!CanBeDemoted(leader))
                 return $"{nickname} cannot be demoted (no perks to remove)";
 
             var lastPerk = GetLastPerk(leader);
-            var perkName = lastPerk.IsNull ? "unknown" : (GetPerkInfo(lastPerk)?.Title ?? lastPerk.GetName());
+            var perkName = lastPerk.Untyped.IsNull ? "unknown" : (GetPerkInfo(lastPerk)?.Title ?? lastPerk.Untyped.GetName());
 
             if (RemoveLastPerk(leader))
                 return $"Removed perk '{perkName}' from {nickname}";
             return "Failed to remove perk";
         });
-    }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
-
-    // Offset for m_DefaultTranslation in LocalizedLine/LocalizedMultiLine
-    private const int LOC_DEFAULT_TRANSLATION_OFFSET = 0x38;
-
-    /// <summary>
-    /// Read text from a LocalizedLine/LocalizedMultiLine object directly using memory offsets.
-    /// </summary>
-    private static string ReadLocalizedText(GameObj localizedObj)
-    {
-        if (localizedObj.IsNull) return null;
-
-        try
-        {
-            var ptr = localizedObj.Pointer;
-            var strPtr = System.Runtime.InteropServices.Marshal.ReadIntPtr(ptr + LOC_DEFAULT_TRANSLATION_OFFSET);
-            if (strPtr != IntPtr.Zero)
-                return Il2CppInterop.Runtime.IL2CPP.Il2CppStringToManaged(strPtr);
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }

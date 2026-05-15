@@ -329,7 +329,7 @@ public static class Roster
     public static GameObj FindByNickname(string nickname)
     => FindByNicknameTyped(nickname).Untyped;
 
-    private static GameObj<BaseUnitLeader> FindByNicknameTyped(string nickname)
+    public static GameObj<BaseUnitLeader> FindByNicknameTyped(string nickname)
     {
         try
         {
