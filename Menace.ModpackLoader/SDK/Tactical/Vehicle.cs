@@ -1,9 +1,9 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -146,14 +146,16 @@ public static class Vehicle
 
         try
         {
-            // Get ItemContainer first
-            var container = Inventory.GetContainer(entity);
-            if (container.IsNull) return null;
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(entity, out var typedEntity))
+                return null;
+
+            var container = Inventory.GetContainer(typedEntity);
+            if (container.Untyped.IsNull) return null;
 
             var containerType = _itemContainerType.ManagedType;
             if (containerType == null) return null;
 
-            var containerProxy = GetManagedProxy(container, containerType);
+            var containerProxy = GetManagedProxy(container.Untyped, containerType);
             if (containerProxy == null) return null;
 
             var modVehicleProp = containerType.GetProperty("m_ModularVehicle",
@@ -239,8 +241,10 @@ public static class Vehicle
             {
                 info.HasItem = true;
                 var itemObj = new GameObj(((Il2CppObjectBase)mounted).Pointer);
-                var itemInfo = Inventory.GetItemInfo(itemObj);
-                info.EquippedItem = itemInfo?.TemplateName ?? "Unknown";
+                if (GameObj<Il2CppMenace.Items.Item>.TryWrap(itemObj, out var typedItem))
+                    info.EquippedItem = Inventory.GetItemInfo(typedItem)?.TemplateName ?? "Unknown";
+                else
+                    info.EquippedItem = "Unknown";
             }
 
             return info;
