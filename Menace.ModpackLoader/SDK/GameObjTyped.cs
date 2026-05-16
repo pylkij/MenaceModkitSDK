@@ -86,6 +86,12 @@ public readonly struct GameObj<T> where T : Il2CppObjectBase
     }
 
     // Escape hatch for offsets resolved outside the expression system.
+    // Use ONLY when porting existing code that already has known offsets.
+    // New code must use ResolveField — FieldAt bypasses the startup verification
+    // that ensures the offset is valid for this IL2CPP class. Replace with
+    // ResolveField before considering a port complete. The name parameter is
+    // not optional in spirit: always pass the actual field name so that broken
+    // offsets after a game update produce actionable log output.
     public static FieldHandle<T, TVal> FieldAt<TVal>(uint offset, string name = "unknown")
         where TVal : unmanaged
         => new FieldHandle<T, TVal>(offset, name);

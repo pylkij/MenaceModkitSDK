@@ -41,8 +41,7 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         Pointer = pointer;
     }
 
-    // Used internally by the SDK.
-    internal static GameObj FromPointer(IntPtr pointer) => new GameObj(pointer);
+    public static GameObj FromPointer(IntPtr pointer) => new GameObj(pointer);
 
     public static GameObj Null => default;
 
