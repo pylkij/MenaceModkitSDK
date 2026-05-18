@@ -253,19 +253,48 @@ public partial class ModpackLoaderMod
     }
 
     /// <summary>
-    /// Registers a native asset clone into DataTemplateLoader's internal registry.
-    /// Inserts into m_TemplateMaps[templateType][cloneId] so Get&lt;T&gt;/TryGet&lt;T&gt; resolve it,
-    /// and extends m_TemplateArrays[templateType] so GetAll&lt;T&gt; consumers see it.
+    /// Register a cloned template in DataTemplateLoader's internal registry.
+    /// DataTemplateLoader has two dictionaries:
+    /// - Offset 0x10: Dictionary&lt;Type, DataTemplate[]&gt; - all templates array
+    /// - Offset 0x18: Dictionary&lt;Type, Dictionary&lt;string, DataTemplate&gt;&gt; - name lookup
     /// </summary>
     private bool RegisterInLoader(Assembly gameAssembly, UnityEngine.Object nativeAsset, Type templateType, string cloneId, MelonLogger.Instance log)
     {
+        var loaderType = gameAssembly.GetTypes()
+            .FirstOrDefault(t => t.FullName == "Menace.Tools.DataTemplateLoader"
+                              || t.Name == "DataTemplateLoader");
+        if (loaderType == null)
+            return false;
+
+        var getSingleton = loaderType.GetMethod(
+            "GetSingleton", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+        if (getSingleton == null)
+        {
+            log.Warning("RegisterInLoader: GetSingleton not found.");
+            return false;
+        }
+
+        var singleton = getSingleton.Invoke(null, null);
+        if (singleton == null)
+        {
+            log.Warning("RegisterInLoader: GetSingleton returned null.");
+            return false;
+        }
+
         if (!EnsureSlotMaterialised(gameAssembly, templateType, out var innerMap, log))
             return false;
 
-        if (innerMap.ContainsKey(cloneId))
+        // Check idempotency — if clone ID already exists, registration is complete
+        var innerMapType = innerMap.GetType();
+        var tryGet = innerMapType.GetMethod("TryGetValue");
+        if (tryGet != null)
         {
-            log.Msg($"RegisterInLoader: '{cloneId}' already registered, skipping.");
-            return true;
+            var checkArgs = new object[] { cloneId, null };
+            if ((bool)tryGet.Invoke(innerMap, checkArgs))
+            {
+                log.Msg($"RegisterInLoader: '{cloneId}' already registered, skipping.");
+                return true;
+            }
         }
 
         // Cast clone to the template type
@@ -277,12 +306,25 @@ public partial class ModpackLoaderMod
             return false;
         }
 
-        innerMap[cloneId] = castClone as DataTemplate;
-
-        if (!innerMap.ContainsKey(cloneId))
+        // Insert into inner map
+        var indexer = innerMapType.GetProperty("Item");
+        if (indexer == null)
         {
-            log.Warning($"RegisterInLoader: post-write verification failed for '{cloneId}'.");
+            log.Warning("RegisterInLoader: no Item indexer on inner map.");
             return false;
+        }
+
+        indexer.SetValue(innerMap, castClone, new object[] { cloneId });
+
+        // Verify the write landed
+        if (tryGet != null)
+        {
+            var verifyArgs = new object[] { cloneId, null };
+            if (!(bool)tryGet.Invoke(innerMap, verifyArgs))
+            {
+                log.Warning($"RegisterInLoader: post-write verification failed for '{cloneId}'.");
+                return false;
+            }
         }
 
         log.Msg($"RegisterInLoader: '{cloneId}' registered in m_TemplateMaps.");
@@ -328,6 +370,21 @@ public partial class ModpackLoaderMod
         log.Warning(
             $"EnsureSlotMaterialised: slot for '{templateType.Name}' not present after GetAll<T>() — will retry next scene.");
         return false;
+    }
+
+    /// <summary>
+    /// Find an instance field by trying multiple name variants.
+    /// </summary>
+    private static FieldInfo FindInstanceField(Type type, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            var field = type.GetField(name,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+            if (field != null)
+                return field;
+        }
+        return null;
     }
 
     /// <summary>
@@ -399,7 +456,6 @@ public partial class ModpackLoaderMod
 
                 // Register in DataTemplateLoader
                 RegisterInLoader(gameAssembly, cloneAsset, templateType, entry.Name, LoggerInstance);
-                _appliedCloneKeys.Add(cloneKey);
                 registered++;
 
                 SdkLogger.Msg($"  Registered native clone: {entry.Name} ({entry.TemplateType})");
@@ -455,7 +511,6 @@ public partial class ModpackLoaderMod
                         continue; // Already logged by manifest path or not in resources
 
                     RegisterInLoader(gameAssembly, cloneAsset, templateType, cloneName, LoggerInstance);
-                    _appliedCloneKeys.Add(cloneKey);
                     registered++;
 
                     SdkLogger.Msg($"  Registered native clone (fallback): {cloneName} ({templateTypeName})");
