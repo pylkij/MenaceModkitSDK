@@ -1,4 +1,5 @@
 using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
 using Menace.SDK.Internal;
 using System;
 using System.Runtime.InteropServices;
@@ -181,6 +182,50 @@ public readonly partial struct GameObj : IEquatable<GameObj>
     {
         var gameType = GetGameType();
         return gameType?.FullName ?? "<unknown>";
+    }
+
+    /// <summary>
+    /// Returns true if this object's runtime type is exactly <typeparamref name="T"/>.
+    /// Does not match subclasses; use <see cref="IsAssignableTo{T}"/> for that.
+    /// </summary>
+    public bool IsType<T>() where T : Il2CppObjectBase
+    {
+        if (Pointer == IntPtr.Zero) return false;
+
+        var expected = GameType.Of<T>();
+        if (expected == null)
+            throw new GameObjException($"IsType<{typeof(T).Name}>: type not found in IL2CPP metadata");
+
+        var type = GetGameType();
+        if (type == null)
+            throw new GameObjException($"IsType<{typeof(T).Name}>: could not resolve runtime type of object @ 0x{Pointer:X}");
+
+        return type.ClassPointer == expected.ClassPointer;
+    }
+
+    /// <summary>
+    /// Returns true if this object's runtime type is <typeparamref name="T"/> or any subclass of it.
+    /// </summary>
+    public bool IsAssignableTo<T>() where T : Il2CppObjectBase
+    {
+        if (Pointer == IntPtr.Zero) return false;
+
+        var expected = GameType.Of<T>();
+        if (expected == null)
+            throw new GameObjException($"IsAssignableTo<{typeof(T).Name}>: type not found in IL2CPP metadata");
+
+        var type = GetGameType();
+        if (type == null)
+            throw new GameObjException($"IsAssignableTo<{typeof(T).Name}>: could not resolve runtime type of object @ 0x{Pointer:X}");
+
+        try
+        {
+            return IL2CPP.il2cpp_class_is_assignable_from(expected.ClassPointer, type.ClassPointer);
+        }
+        catch (Exception ex)
+        {
+            throw new GameObjException($"IsAssignableTo<{typeof(T).Name}>: native call faulted @ 0x{Pointer:X}", ex);
+        }
     }
 
     /// <summary>
