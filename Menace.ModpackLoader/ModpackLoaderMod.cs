@@ -94,6 +94,8 @@ public partial class ModpackLoaderMod : MelonMod
 
         //CustomMaps.Initialize(HarmonyInstance); // CRASHES
 
+        TemplateIdLookup.Initialize();
+
         try
         {
             LuaScriptEngine.Instance.Initialize(LoggerInstance);
