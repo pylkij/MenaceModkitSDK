@@ -1,13 +1,11 @@
-using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes;
-using MelonLoader;
-using Menace.SDK;
-using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK;
 using UnityEngine;
 
 namespace Menace.ModpackLoader;
@@ -22,52 +20,11 @@ public partial class ModpackLoaderMod
     // Tracks which modpack+templateType clone sets have been applied
     private readonly HashSet<string> _appliedCloneKeys = new();
 
-    private static uint _templateIdOffset = 0;
-
-    private static uint GetTemplateIdOffset(IntPtr objectPointer)
-    {
-        if (_templateIdOffset != 0)
-            return _templateIdOffset;
-
-        var klass = IL2CPP.il2cpp_object_get_class(objectPointer);
-        if (klass == IntPtr.Zero)
-            return 0;
-
-        _templateIdOffset = OffsetCache.GetOrResolve(klass, "m_ID");
-        return _templateIdOffset;
-    }
-
-    private static bool TryWriteTemplateId(
-    UnityEngine.Object clone,
-    UnityEngine.Object nativeAsset,
-    MelonLogger.Instance log)
-    {
-        if (clone is not Il2CppObjectBase cloneBase || nativeAsset is not Il2CppObjectBase assetBase)
-            return false;
-
-        var offset = GetTemplateIdOffset(assetBase.Pointer);
-        if (offset == 0)
-        {
-            log.Warning("TryWriteTemplateId: could not resolve m_ID offset.");
-            return false;
-        }
-
-        var sourceIdPtr = GameObj.FromPointer(assetBase.Pointer).ReadPtr(offset);
-        if (sourceIdPtr == IntPtr.Zero)
-        {
-            log.Warning("TryWriteTemplateId: native asset m_ID pointer is zero.");
-            return false;
-        }
-
-        GameObj.FromPointer(cloneBase.Pointer).WritePtr(offset, sourceIdPtr);
-        return true;
-    }
-
     /// <summary>
     /// Call DataTemplateLoader.GetAll&lt;T&gt;() to ensure the type's templates are loaded
     /// into the internal registry before we try to register clones.
     /// </summary>
-    private static void EnsureTemplatesLoaded(Assembly gameAssembly, Type templateType)
+    private void EnsureTemplatesLoaded(Assembly gameAssembly, Type templateType)
     {
         try
         {
@@ -104,133 +61,224 @@ public partial class ModpackLoaderMod
     /// - Offset 0x10: Dictionary&lt;Type, DataTemplate[]&gt; - all templates array
     /// - Offset 0x18: Dictionary&lt;Type, Dictionary&lt;string, DataTemplate&gt;&gt; - name lookup
     /// </summary>
-    private bool RegisterInLoader(Assembly gameAssembly, UnityEngine.Object nativeAsset, Type templateType, string cloneId, MelonLogger.Instance log)
+    private void RegisterInLoader(Assembly gameAssembly, UnityEngine.Object clone, Type templateType, string name)
     {
-        var loaderType = gameAssembly.GetTypes()
-            .FirstOrDefault(t => t.FullName == "Menace.Tools.DataTemplateLoader"
-                              || t.Name == "DataTemplateLoader");
-        if (loaderType == null)
-            return false;
-
-        var getSingleton = loaderType.GetMethod(
-            "GetSingleton", BindingFlags.NonPublic | BindingFlags.Static);
-        if (getSingleton == null)
+        try
         {
-            log.Warning("RegisterInLoader: GetSingleton not found.");
-            return false;
-        }
+            var loaderType = gameAssembly.GetTypes()
+                .FirstOrDefault(t => t.FullName == "Menace.Tools.DataTemplateLoader" ||
+                                     t.Name == "DataTemplateLoader");
 
-        var singleton = getSingleton.Invoke(null, null);
-        if (singleton == null)
-        {
-            log.Warning("RegisterInLoader: GetSingleton returned null.");
-            return false;
-        }
-
-        if (!EnsureSlotMaterialised(gameAssembly, singleton, templateType, out var innerMap, log))
-            return false;
-
-        // Check idempotency — if clone ID already exists, registration is complete
-        var innerMapType = innerMap.GetType();
-        var tryGet = innerMapType.GetMethod("TryGetValue");
-        if (tryGet != null)
-        {
-            var checkArgs = new object[] { cloneId, null };
-            if ((bool)tryGet.Invoke(innerMap, checkArgs))
+            if (loaderType == null)
             {
-                log.Msg($"RegisterInLoader: '{cloneId}' already registered, skipping.");
+                // Not a fatal error - clone still exists in Resources
+                return;
+            }
+
+            // Get singleton via GetSingleton() method
+            var getSingleton = loaderType.GetMethod("GetSingleton",
+                BindingFlags.Public | BindingFlags.Static);
+
+            if (getSingleton == null)
+            {
+                SdkLogger.Warning("  RegisterInLoader: GetSingleton method not found");
+                return;
+            }
+
+            var singleton = getSingleton.Invoke(null, null);
+            if (singleton == null)
+            {
+                SdkLogger.Warning("  RegisterInLoader: GetSingleton returned null");
+                return;
+            }
+
+            // Access the name lookup dictionary at offset 0x18
+            // It's Dictionary<Type, Dictionary<string, DataTemplate>>
+            var singletonPtr = ((Il2CppObjectBase)singleton).Pointer;
+            if (singletonPtr == IntPtr.Zero)
+            {
+                SdkLogger.Warning("  RegisterInLoader: singleton pointer is null");
+                return;
+            }
+
+            // Read the dictionary pointer at offset 0x18
+            var nameLookupPtr = Marshal.ReadIntPtr(singletonPtr + 0x18);
+            if (nameLookupPtr == IntPtr.Zero)
+            {
+                SdkLogger.Warning("  RegisterInLoader: name lookup dictionary is null");
+                return;
+            }
+
+            // Cast clone to the template type
+            var genericTryCast = TryCastMethod.MakeGenericMethod(templateType);
+            var castClone = genericTryCast.Invoke(clone, null);
+            if (castClone == null)
+            {
+                SdkLogger.Warning($"  RegisterInLoader: failed to cast clone to {templateType.Name}");
+                return;
+            }
+
+            // Try using reflection on the outer dictionary to get/create inner dictionary
+            // and add the clone
+            var outerDictType = singleton.GetType().GetField("m_NameLookup",
+                BindingFlags.NonPublic | BindingFlags.Instance)?.FieldType;
+
+            // Get inner dictionary for this type via indexer or TryGetValue
+            bool registered = TryRegisterViaReflection(gameAssembly, singleton, templateType, castClone, name);
+
+            if (registered)
+            {
+                SdkLogger.Msg($"    Registered '{name}' in DataTemplateLoader");
+            }
+            else
+            {
+                SdkLogger.Warning($"  RegisterInLoader: could not register '{name}' — " +
+                    "clone exists in memory but may not be findable via DataTemplateLoader.Get()");
+            }
+        }
+        catch (Exception ex)
+        {
+            SdkLogger.Warning($"  RegisterInLoader failed for '{name}': {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Try to register a clone using reflection on the DataTemplateLoader fields.
+    /// The DataTemplateLoader has a field m_TemplateMaps of type
+    /// Dictionary&lt;Type, Dictionary&lt;string, DataTemplate&gt;&gt;
+    /// We need to add our clone to the inner dictionary for the template type.
+    /// </summary>
+    private bool TryRegisterViaReflection(Assembly gameAssembly, object singleton, Type templateType, object castClone, string name)
+    {
+        try
+        {
+            var loaderType = singleton.GetType();
+
+            // First approach: try to find the field by known names
+            var mapField = FindInstanceField(loaderType,
+                "m_TemplateMaps", "m_NameLookup", "_templateMaps", "_nameLookup",
+                "TemplateMaps", "NameLookup", "templateMaps", "nameLookup");
+
+            if (mapField != null)
+            {
+                var outerDict = mapField.GetValue(singleton);
+                if (outerDict != null)
+                {
+                    var il2cppType = Il2CppType.From(templateType);
+                    if (TryAddToOuterDictionary(gameAssembly, templateType, outerDict, il2cppType, castClone, name))
+                        return true;
+                }
+            }
+
+            // Second approach: scan all dictionary fields for compatible types
+            var fields = loaderType.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+
+            foreach (var field in fields)
+            {
+                var fieldType = field.FieldType;
+                if (!fieldType.IsGenericType) continue;
+
+                // Look for Dictionary<Type, Dictionary<string, T>>
+                // In IL2CPP, the type names will be different, so check by structure
+                var genArgs = fieldType.GetGenericArguments();
+                if (genArgs.Length != 2) continue;
+
+                // Check if first arg is Type-like (System.Type or Il2CppSystem.Type)
+                var firstArgName = genArgs[0].Name;
+                if (!firstArgName.Contains("Type")) continue;
+
+                // Check if second arg is also a Dictionary
+                if (!genArgs[1].IsGenericType) continue;
+                var innerGenDef = genArgs[1].GetGenericTypeDefinition();
+                var innerDefName = innerGenDef.Name;
+                if (!innerDefName.StartsWith("Dictionary")) continue;
+
+                var outerDict = field.GetValue(singleton);
+                if (outerDict == null) continue;
+
+                var il2cppType = Il2CppType.From(templateType);
+                if (TryAddToOuterDictionary(gameAssembly, templateType, outerDict, il2cppType, castClone, name))
+                    return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            SdkLogger.Warning($"    TryRegisterViaReflection: {ex.Message}");
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Try to add a clone to an outer dictionary (Type -> inner dict) and then
+    /// to the inner dictionary (string -> DataTemplate).
+    /// If the inner dictionary doesn't exist, calls GetAll&lt;T&gt;() to force load
+    /// templates and retries once.
+    /// </summary>
+    private bool TryAddToOuterDictionary(Assembly gameAssembly, Type templateType, object outerDict, object il2cppType, object castClone, string name)
+    {
+        try
+        {
+            var outerDictType = outerDict.GetType();
+            var tryGetMethod = outerDictType.GetMethod("TryGetValue");
+
+            if (tryGetMethod == null)
+                return false;
+
+            // Check if inner dict exists for this template type
+            var parameters = new object[] { il2cppType, null };
+            var exists = (bool)tryGetMethod.Invoke(outerDict, parameters);
+
+            object innerDict;
+            if (exists)
+            {
+                innerDict = parameters[1];
+            }
+            else
+            {
+                // Inner dictionary doesn't exist for this type
+                // Force load templates via GetAll<T>() and retry
+                SdkLogger.Msg($"    No inner dictionary for {templateType.Name}, forcing GetAll<T>()...");
+                EnsureTemplatesLoaded(gameAssembly, templateType);
+
+                // Retry the lookup
+                parameters = new object[] { il2cppType, null };
+                exists = (bool)tryGetMethod.Invoke(outerDict, parameters);
+
+                if (!exists)
+                {
+                    SdkLogger.Warning($"    Still no inner dictionary after GetAll<T>() - template type may not be registered");
+                    return false;
+                }
+
+                innerDict = parameters[1];
+            }
+
+            if (innerDict == null)
+                return false;
+
+            // Add to inner dictionary using indexer: innerDict[name] = castClone
+            var innerDictType = innerDict.GetType();
+            var innerIndexer = innerDictType.GetProperty("Item");
+            if (innerIndexer != null)
+            {
+                innerIndexer.SetValue(innerDict, castClone, new object[] { name });
+                return true;
+            }
+
+            // Try Add method as fallback
+            var addMethod = innerDictType.GetMethod("Add");
+            if (addMethod != null)
+            {
+                addMethod.Invoke(innerDict, new object[] { name, castClone });
                 return true;
             }
         }
-
-        // Cast clone to the template type
-        var genericTryCast = TryCastMethod.MakeGenericMethod(templateType);
-        var castClone = genericTryCast.Invoke(nativeAsset, null);
-        if (castClone == null)
+        catch (Exception ex)
         {
-            log.Warning($"RegisterInLoader: failed to cast clone to {templateType.Name}.");
-            return false;
+            SdkLogger.Warning($"    TryAddToOuterDictionary: {ex.Message}");
         }
 
-        // Insert into inner map
-        var indexer = innerMapType.GetProperty("Item");
-        if (indexer == null)
-        {
-            log.Warning("RegisterInLoader: no Item indexer on inner map.");
-            return false;
-        }
-
-        indexer.SetValue(innerMap, castClone, new object[] { cloneId });
-
-        // Verify the write landed
-        if (tryGet != null)
-        {
-            var verifyArgs = new object[] { cloneId, null };
-            if (!(bool)tryGet.Invoke(innerMap, verifyArgs))
-            {
-                log.Warning($"RegisterInLoader: post-write verification failed for '{cloneId}'.");
-                return false;
-            }
-        }
-
-        log.Msg($"RegisterInLoader: '{cloneId}' registered in m_TemplateMaps.");
-        return true;
-    }
-
-    private static object GetTemplateMaps(object singleton)
-    {
-        var field = singleton.GetType().GetField(
-            "m_TemplateMaps",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        return field?.GetValue(singleton);
-    }
-
-    private static object GetTemplateArrays(object singleton)
-    {
-        var field = singleton.GetType().GetField(
-            "m_TemplateArrays",
-            BindingFlags.NonPublic | BindingFlags.Instance);
-        return field?.GetValue(singleton);
-    }
-
-    private static bool TryGetInnerMap(
-    object singleton,
-    Type templateType,
-    out object innerMap)
-    {
-        innerMap = null;
-
-        var outerDict = GetTemplateMaps(singleton);
-        if (outerDict == null)
-            return false;
-
-        var il2cppType = Il2CppType.From(templateType);
-        if (il2cppType == null)
-            return false;
-
-        var tryGet = outerDict.GetType().GetMethod("TryGetValue");
-        if (tryGet == null)
-            return false;
-
-        var args = new object[] { il2cppType, null };
-        var found = (bool)tryGet.Invoke(outerDict, args);
-        innerMap = args[1];
-        return found && innerMap != null;
-    }
-
-    private static bool EnsureSlotMaterialised(Assembly gameAssembly, object singleton, Type templateType, out object innerMap, MelonLogger.Instance log)
-    {
-        if (TryGetInnerMap(singleton, templateType, out innerMap))
-            return true;
-
-        // Slot doesn't exist yet — force DataTemplateLoader.GetAll<T>() to create it
-        EnsureTemplatesLoaded(gameAssembly, templateType);
-
-        if (TryGetInnerMap(singleton, templateType, out innerMap))
-            return true;
-
-        log.Warning(
-            $"EnsureSlotMaterialised: slot for '{templateType.Name}' not present after GetAll<T>() — will retry next scene.");
         return false;
     }
 
@@ -317,7 +365,8 @@ public partial class ModpackLoaderMod
                 }
 
                 // Register in DataTemplateLoader
-                RegisterInLoader(gameAssembly, cloneAsset, templateType, entry.Name, LoggerInstance);
+                RegisterInLoader(gameAssembly, cloneAsset, templateType, entry.Name);
+                _appliedCloneKeys.Add(cloneKey);
                 registered++;
 
                 SdkLogger.Msg($"  Registered native clone: {entry.Name} ({entry.TemplateType})");
@@ -372,7 +421,8 @@ public partial class ModpackLoaderMod
                     if (cloneAsset == null)
                         continue; // Already logged by manifest path or not in resources
 
-                    RegisterInLoader(gameAssembly, cloneAsset, templateType, cloneName, LoggerInstance);
+                    RegisterInLoader(gameAssembly, cloneAsset, templateType, cloneName);
+                    _appliedCloneKeys.Add(cloneKey);
                     registered++;
 
                     SdkLogger.Msg($"  Registered native clone (fallback): {cloneName} ({templateTypeName})");
