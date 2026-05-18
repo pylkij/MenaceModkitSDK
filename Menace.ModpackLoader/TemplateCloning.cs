@@ -1,6 +1,5 @@
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
-using Il2CppMenace.Tools;
 using MelonLoader;
 using Menace.SDK;
 using Menace.SDK.Internal;
@@ -10,10 +9,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using UnityEngine;
-
-using DataTemplateLoader = Il2CppMenace.Tools.DataTemplateLoader;
-using DataTemplate = Il2CppMenace.Tools.DataTemplate;
-using Il2CppDictionary = Il2CppSystem.Collections.Generic.Dictionary<string, Il2CppMenace.Tools.DataTemplate>;
 
 namespace Menace.ModpackLoader;
 
@@ -68,155 +63,6 @@ public partial class ModpackLoaderMod
         return true;
     }
 
-    private static bool TryExtendTemplateArray(Type templateType, DataTemplate clone, MelonLogger.Instance log)
-    {
-        var singleton = DataTemplateLoader.GetSingleton();
-        if (singleton == null)
-            return false;
-
-        var arrays = singleton.m_TemplateArrays;
-        if (arrays == null)
-        {
-            log.Warning("TryExtendTemplateArray: m_TemplateArrays is null.");
-            return false;
-        }
-
-        var il2cppType = Il2CppType.From(templateType);
-        if (il2cppType == null)
-            return false;
-
-        var arraysType = arrays.GetType();
-        var tryGet = arraysType.GetMethods(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(m =>
-            {
-                if (m.Name != "TryGetValue") return false;
-                var p = m.GetParameters();
-                return p.Length == 2 && p[1].ParameterType.IsByRef;
-            });
-
-        if (tryGet == null)
-        {
-            log.Warning($"TryExtendTemplateArray: TryGetValue not found on {arraysType.FullName}.");
-            return false;
-        }
-
-        var lookup = new object[] { il2cppType, null };
-        if (!(bool)tryGet.Invoke(arrays, lookup) || lookup[1] is not Il2CppObjectBase oldArray)
-        {
-            log.Warning($"TryExtendTemplateArray: no existing array for '{templateType.Name}'.");
-            return false;
-        }
-
-        var oldArrayType = oldArray.GetType();
-        var lengthProp = oldArrayType.GetProperty("Length")
-            ?? oldArrayType.GetProperty("Count");
-        if (lengthProp == null)
-        {
-            log.Warning($"TryExtendTemplateArray: no Length/Count on {oldArrayType.FullName}.");
-            return false;
-        }
-
-        int oldLength;
-        try { oldLength = (int)lengthProp.GetValue(oldArray); }
-        catch (Exception ex)
-        {
-            log.Warning($"TryExtendTemplateArray: reading Length threw: {ex.Message}");
-            return false;
-        }
-
-        // Read element class from the existing native array — do NOT derive it from
-        // templateType. The game stores arrays whose IL2CPP element class is the
-        // concrete subtype. Using the wrong element class here causes GetAll<T> to
-        // hang on new-game start.
-        var oldArrayPointer = oldArray.Pointer;
-        if (oldArrayPointer == IntPtr.Zero)
-            return false;
-
-        var arrayClass = IL2CPP.il2cpp_object_get_class(oldArrayPointer);
-        var elementClass = IL2CPP.il2cpp_class_get_element_class(arrayClass);
-        if (elementClass == IntPtr.Zero)
-        {
-            log.Warning($"TryExtendTemplateArray: element class is null for '{templateType.Name}'.");
-            return false;
-        }
-
-        var newNativeArray = IL2CPP.il2cpp_array_new(elementClass, (ulong)(oldLength + 1));
-        if (newNativeArray == IntPtr.Zero)
-        {
-            log.Warning($"TryExtendTemplateArray: il2cpp_array_new returned null.");
-            return false;
-        }
-
-        var wrapperCtor = oldArrayType.GetConstructor(new[] { typeof(IntPtr) });
-        if (wrapperCtor == null)
-        {
-            log.Warning($"TryExtendTemplateArray: no IntPtr ctor on {oldArrayType.FullName}.");
-            return false;
-        }
-
-        object newArray;
-        try { newArray = wrapperCtor.Invoke(new object[] { newNativeArray }); }
-        catch (Exception ex)
-        {
-            log.Warning($"TryExtendTemplateArray: ctor threw: {ex.InnerException?.Message ?? ex.Message}");
-            return false;
-        }
-
-        // Find the int-indexed property on the array wrapper
-        var indexer = oldArrayType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(p =>
-            {
-                var idx = p.GetIndexParameters();
-                return idx.Length == 1 && idx[0].ParameterType == typeof(int);
-            });
-
-        if (indexer == null)
-        {
-            log.Warning($"TryExtendTemplateArray: no int indexer on {oldArrayType.FullName}.");
-            return false;
-        }
-
-        try
-        {
-            var slot = new object[1];
-            for (var i = 0; i < oldLength; i++)
-            {
-                slot[0] = i;
-                indexer.SetValue(newArray, indexer.GetValue(oldArray, slot), slot);
-            }
-            slot[0] = oldLength;
-            indexer.SetValue(newArray, clone, slot);
-        }
-        catch (Exception ex)
-        {
-            log.Warning($"TryExtendTemplateArray: copy threw: {ex.InnerException?.Message ?? ex.Message}");
-            return false;
-        }
-
-        // Replace the slot in m_TemplateArrays in place
-        var dictIndexer = arraysType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .FirstOrDefault(p =>
-            {
-                var idx = p.GetIndexParameters();
-                return idx.Length == 1 && idx[0].ParameterType == il2cppType.GetType();
-            });
-
-        if (dictIndexer == null)
-        {
-            log.Warning($"TryExtendTemplateArray: no Il2CppType-keyed indexer on {arraysType.FullName}.");
-            return false;
-        }
-
-        try { dictIndexer.SetValue(arrays, newArray, new object[] { il2cppType }); }
-        catch (Exception ex)
-        {
-            log.Warning($"TryExtendTemplateArray: dict write threw: {ex.InnerException?.Message ?? ex.Message}");
-            return false;
-        }
-
-        return true;
-    }
-
     /// <summary>
     /// Call DataTemplateLoader.GetAll&lt;T&gt;() to ensure the type's templates are loaded
     /// into the internal registry before we try to register clones.
@@ -267,7 +113,7 @@ public partial class ModpackLoaderMod
             return false;
 
         var getSingleton = loaderType.GetMethod(
-            "GetSingleton", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static);
+            "GetSingleton", BindingFlags.NonPublic | BindingFlags.Static);
         if (getSingleton == null)
         {
             log.Warning("RegisterInLoader: GetSingleton not found.");
@@ -281,7 +127,7 @@ public partial class ModpackLoaderMod
             return false;
         }
 
-        if (!EnsureSlotMaterialised(gameAssembly, templateType, out var innerMap, log))
+        if (!EnsureSlotMaterialised(gameAssembly, singleton, templateType, out var innerMap, log))
             return false;
 
         // Check idempotency — if clone ID already exists, registration is complete
@@ -328,43 +174,59 @@ public partial class ModpackLoaderMod
         }
 
         log.Msg($"RegisterInLoader: '{cloneId}' registered in m_TemplateMaps.");
-        if (!TryExtendTemplateArray(templateType, castClone as DataTemplate, log))
-        {
-            log.Warning(
-                $"RegisterInLoader: m_TemplateArrays extend failed for '{cloneId}' — "
-                + $"GetAll<{templateType.Name}> consumers will not see this clone.");
-            // Non-fatal: m_TemplateMaps insertion succeeded, Get<T>/TryGet<T> will still resolve
-        }
         return true;
     }
 
-    private static bool TryGetInnerMap(Type templateType, out Il2CppDictionary innerMap)
+    private static object GetTemplateMaps(object singleton)
+    {
+        var field = singleton.GetType().GetField(
+            "m_TemplateMaps",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        return field?.GetValue(singleton);
+    }
+
+    private static object GetTemplateArrays(object singleton)
+    {
+        var field = singleton.GetType().GetField(
+            "m_TemplateArrays",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+        return field?.GetValue(singleton);
+    }
+
+    private static bool TryGetInnerMap(
+    object singleton,
+    Type templateType,
+    out object innerMap)
     {
         innerMap = null;
 
-        var singleton = DataTemplateLoader.GetSingleton();
-        if (singleton == null)
-            return false;
-
-        var templateMaps = singleton.m_TemplateMaps;
-        if (templateMaps == null)
+        var outerDict = GetTemplateMaps(singleton);
+        if (outerDict == null)
             return false;
 
         var il2cppType = Il2CppType.From(templateType);
         if (il2cppType == null)
             return false;
 
-        return templateMaps.TryGetValue(il2cppType, out innerMap) && innerMap != null;
+        var tryGet = outerDict.GetType().GetMethod("TryGetValue");
+        if (tryGet == null)
+            return false;
+
+        var args = new object[] { il2cppType, null };
+        var found = (bool)tryGet.Invoke(outerDict, args);
+        innerMap = args[1];
+        return found && innerMap != null;
     }
 
-    private static bool EnsureSlotMaterialised(Assembly gameAssembly, Type templateType, out Il2CppDictionary innerMap, MelonLogger.Instance log)
+    private static bool EnsureSlotMaterialised(Assembly gameAssembly, object singleton, Type templateType, out object innerMap, MelonLogger.Instance log)
     {
-        if (TryGetInnerMap(templateType, out innerMap))
+        if (TryGetInnerMap(singleton, templateType, out innerMap))
             return true;
 
+        // Slot doesn't exist yet — force DataTemplateLoader.GetAll<T>() to create it
         EnsureTemplatesLoaded(gameAssembly, templateType);
 
-        if (TryGetInnerMap(templateType, out innerMap))
+        if (TryGetInnerMap(singleton, templateType, out innerMap))
             return true;
 
         log.Warning(
