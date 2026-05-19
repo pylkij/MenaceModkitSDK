@@ -153,6 +153,13 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         Marshal.WriteInt32(Pointer + (int)offset, intVal);
     }
 
+    public void WriteBool(uint offset, bool value)
+    {
+        if (Pointer == IntPtr.Zero) throw new GameObjException("WriteBool: pointer is null");
+        if (offset == 0) throw new GameObjException("WriteBool: offset is zero");
+        Marshal.WriteByte(Pointer + (int)offset, value ? (byte)1 : (byte)0);
+    }
+
     public void WritePtr(uint offset, IntPtr value)
     {
         if (Pointer == IntPtr.Zero) throw new GameObjException("WritePtr: pointer is null");
