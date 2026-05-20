@@ -1,3 +1,5 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
 using System;
 using System.Runtime.InteropServices;
 
@@ -164,8 +166,16 @@ public class Skill
         if (!HasTemplate) return null;
         try
         {
-            var templateObj = new GameObj(_templatePtr);
-            return Templates.ReadField(templateObj, propertyName);
+            var klass = IL2CPP.il2cpp_object_get_class(_templatePtr);
+            var gameType = GameType.FromPointer(klass);
+            var managedType = gameType?.ManagedType;
+            if (managedType == null) return null;
+
+            var ptrCtor = managedType.GetConstructor(new[] { typeof(IntPtr) });
+            if (ptrCtor == null) return null;
+
+            var proxy = (Il2CppObjectBase)ptrCtor.Invoke(new object[] { _templatePtr });
+            return GameObj.ReadField(proxy, propertyName);
         }
         catch
         {

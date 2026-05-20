@@ -1,8 +1,9 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Menace.SDK.Internal;
 using System;
 using System.Reflection;
-using Il2CppInterop.Runtime.InteropTypes;
 
-using Menace.SDK.Internal;
+using Il2CppMenace.Tactical;
 
 namespace Menace.SDK.CustomMaps;
 
@@ -63,18 +64,15 @@ public static class StructureSpawner
         try
         {
             // Find the template
-            var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
-            if (template.IsNull)
-            {
+            if (!Templates.TryGet<EntityTemplate>(templateName, out var template))
                 return SpawnResult.Failed($"Template '{templateName}' not found");
-            }
 
             // Verify it's a structure type
-            int entityType = template.ReadInt((uint)OFFSET_ENTITY_TYPE);
-            if (entityType != ENTITY_TYPE_STRUCTURE)
+            int entityType = GameObj.FromPointer(template.Pointer).ReadInt((uint)OFFSET_ENTITY_TYPE);
+            if (entityType != (int)EntityType.Structure)
             {
                 // If it's an actor, delegate to EntitySpawner
-                if (entityType == ENTITY_TYPE_TRANSIENT_ACTOR)
+                if (entityType == (int)EntityType.Actor)
                 {
                     SdkLogger.Msg($"[StructureSpawner] Template '{templateName}' is an actor, delegating to EntitySpawner");
                     var actorResult = EntitySpawner.SpawnUnit(templateName, tileX, tileY, faction);
@@ -90,54 +88,42 @@ public static class StructureSpawner
 
             // Get the tile
             var tile = GetTileAt(tileX, tileY);
-            if (tile.IsNull)
-            {
+            if (tile == GameObj.Null)
                 return SpawnResult.Failed($"Tile at ({tileX}, {tileY}) not found");
-            }
 
             // Get managed proxies
-            var templateProxy = GetManagedProxy(template, _entityTemplateType);
+            var templateProxy = GetManagedProxy(GameObj.FromPointer(template.Pointer), _entityTemplateType);
             var tileProxy = GetManagedProxy(tile, _tileType);
 
             if (templateProxy == null || tileProxy == null)
-            {
                 return SpawnResult.Failed("Failed to create managed proxies");
-            }
 
             // Create Structure instance
             var structureCtor = _structureType.GetConstructor(Type.EmptyTypes);
             if (structureCtor == null)
-            {
                 return SpawnResult.Failed("Structure constructor not found");
-            }
 
             var structure = structureCtor.Invoke(null);
             if (structure == null)
-            {
                 return SpawnResult.Failed("Failed to create Structure instance");
-            }
 
             // Set rotation if supported
             if (rotation != 0)
-            {
                 SetRotation(structure, rotation);
-            }
 
             // Call Structure.Create(EntityTemplate, Tile, int faction, int hitpoints)
             var createMethod = _structureType.GetMethod("Create", BindingFlags.Public | BindingFlags.Instance,
                 null, new[] { _entityTemplateType, _tileType, typeof(int), typeof(int) }, null);
 
             if (createMethod == null)
-            {
                 return SpawnResult.Failed("Structure.Create method not found");
-            }
 
             createMethod.Invoke(structure, new object[] { templateProxy, tileProxy, faction, 0 });
 
             // Notify TacticalManager
             NotifyEntitySpawned(structure);
 
-            var structureObj = new GameObj(((Il2CppObjectBase)structure).Pointer);
+            var structureObj = GameObj.FromPointer(((Il2CppObjectBase)structure).Pointer);
 
             SdkLogger.Msg($"[StructureSpawner] Spawned structure '{templateName}' at ({tileX}, {tileY})");
             return SpawnResult.Ok(structureObj);
@@ -157,20 +143,16 @@ public static class StructureSpawner
     {
         try
         {
-            // Find the template and check its type
-            var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
-            if (template.IsNull)
-            {
+            if (!Templates.TryGet<EntityTemplate>(templateName, out var template))
                 return SpawnResult.Failed($"Template '{templateName}' not found");
-            }
 
-            int entityType = template.ReadInt((uint)OFFSET_ENTITY_TYPE);
+            int entityType = GameObj.FromPointer(template.Pointer).ReadInt((uint)OFFSET_ENTITY_TYPE);
 
-            if (entityType == ENTITY_TYPE_STRUCTURE)
+            if (entityType == (int)EntityType.Structure)
             {
                 return SpawnStructure(templateName, tileX, tileY, faction, rotation);
             }
-            else if (entityType == ENTITY_TYPE_TRANSIENT_ACTOR)
+            else if (entityType == (int)EntityType.Actor)
             {
                 var result = EntitySpawner.SpawnUnit(templateName, tileX, tileY, faction);
                 return new SpawnResult
@@ -196,9 +178,8 @@ public static class StructureSpawner
     /// </summary>
     public static bool IsStructure(string templateName)
     {
-        var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
-        if (template.IsNull) return false;
-        return template.ReadInt((uint)OFFSET_ENTITY_TYPE) == ENTITY_TYPE_STRUCTURE;
+        if (!Templates.TryGet<EntityTemplate>(templateName, out var template)) return false;
+        return GameObj.FromPointer(template.Pointer).ReadInt((uint)OFFSET_ENTITY_TYPE) == (int)EntityType.Structure;
     }
 
     /// <summary>
@@ -206,9 +187,8 @@ public static class StructureSpawner
     /// </summary>
     public static bool IsActor(string templateName)
     {
-        var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
-        if (template.IsNull) return false;
-        return template.ReadInt((uint)OFFSET_ENTITY_TYPE) == ENTITY_TYPE_TRANSIENT_ACTOR;
+        if (!Templates.TryGet<EntityTemplate>(templateName, out var template)) return false;
+        return GameObj.FromPointer(template.Pointer).ReadInt((uint)OFFSET_ENTITY_TYPE) == (int)EntityType.Actor;
     }
 
     // --- Internal helpers ---
@@ -241,7 +221,7 @@ public static class StructureSpawner
             var tile = getTileMethod.Invoke(map, new object[] { x, y });
             if (tile == null) return GameObj.Null;
 
-            return new GameObj(((Il2CppObjectBase)tile).Pointer);
+            return GameObj.FromPointer(((Il2CppObjectBase)tile).Pointer);
         }
         catch (Exception ex)
         {

@@ -13,8 +13,6 @@ namespace Menace.SDK.CustomMaps;
 /// </summary>
 public static class ChunkBrowser
 {
-    private const string CHUNK_TEMPLATE_TYPE = "Menace.Tactical.Mapgen.ChunkTemplate";
-
     // Cached chunks - cleared on reload
     private static List<ChunkInfo> _cachedChunks;
     private static bool _cacheValid;
@@ -189,39 +187,33 @@ public static class ChunkBrowser
 
         try
         {
-            var templates = Templates.FindAll(CHUNK_TEMPLATE_TYPE);
+            var templates = GameQuery.FindAll<Il2CppMenace.Tactical.Mapgen.ChunkTemplate>();
             SdkLogger.Msg($"[ChunkBrowser] Found {templates.Length} ChunkTemplate assets");
 
             foreach (var template in templates)
             {
-                if (template.IsNull) continue;
+                if (template == null) continue;
+
+                var obj = GameObj.FromPointer(template.Pointer);
+                if (obj.IsNull) continue;
 
                 try
                 {
                     var info = new ChunkInfo
                     {
-                        Name = template.GetName() ?? "Unknown",
-                        Pointer = template
+                        Name = obj.GetName() ?? "Unknown",
+                        Pointer = obj
                     };
 
-                    // Read ChunkTemplate fields based on RE offsets
-                    // Width at 0x58, Height at 0x5C
-                    info.Width = template.ReadInt(0x58);
-                    info.Height = template.ReadInt(0x5C);
+                    info.Width = obj.ReadInt(0x58);
+                    info.Height = obj.ReadInt(0x5C);
+                    info.Type = obj.ReadInt(0x68);
+                    info.SpawnMode = obj.ReadInt(0x88);
+                    info.MaxSpawns = obj.ReadInt(0x8C);
 
-                    // Type at 0x68 (enum ChunkType)
-                    info.Type = template.ReadInt(0x68);
-
-                    // SpawnMode at 0x88
-                    info.SpawnMode = template.ReadInt(0x88);
-
-                    // MaxSpawns at 0x8C
-                    info.MaxSpawns = template.ReadInt(0x8C);
-
-                    // Count arrays - FixedChildren at 0x70, RandomChildren at 0x78, FixedPrefabs at 0x80
-                    info.FixedChildCount = GetArrayLength(template, 0x70);
-                    info.RandomChildCount = GetArrayLength(template, 0x78);
-                    info.FixedPrefabCount = GetArrayLength(template, 0x80);
+                    info.FixedChildCount = GetArrayLength(obj, 0x70);
+                    info.RandomChildCount = GetArrayLength(obj, 0x78);
+                    info.FixedPrefabCount = GetArrayLength(obj, 0x80);
 
                     _cachedChunks.Add(info);
                 }

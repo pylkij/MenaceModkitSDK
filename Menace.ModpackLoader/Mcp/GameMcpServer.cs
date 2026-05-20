@@ -1,4 +1,11 @@
 #nullable disable
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Tactical;
+using Il2CppMenace.Tools;
+using MelonLoader;
+using Menace.SDK;
+using Menace.SDK.Repl;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,10 +13,6 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
-using Il2CppInterop.Runtime;
-using MelonLoader;
-using Menace.SDK;
-using Menace.SDK.Repl;
 using UnityEngine;
 
 namespace Menace.ModpackLoader.Mcp;
@@ -419,17 +422,20 @@ public static class GameMcpServer
 
     private static object HandleTemplates(HttpListenerRequest request)
     {
-        var typeName = request.QueryString["type"] ?? "EntityTemplate";
-        var templates = Templates.FindAll(typeName);
+        var templates = GameQuery.FindAll<Il2CppMenace.Tactical.EntityTemplate>();
 
         return new
         {
-            type = typeName,
+            type = nameof(Il2CppMenace.Tactical.EntityTemplate),
             count = templates.Length,
-            templates = templates.Select(t => new
+            templates = templates.Select(t =>
             {
-                name = t.GetName(),
-                pointer = t.Pointer.ToString("X")
+                var obj = GameObj.FromPointer(t.Pointer);
+                return new
+                {
+                    name = obj.GetName(),
+                    pointer = t.Pointer.ToString("X")
+                };
             }).ToList()
         };
     }
@@ -442,24 +448,24 @@ public static class GameMcpServer
         if (string.IsNullOrEmpty(name))
             return new { error = "Missing 'name' parameter" };
 
-        var template = Templates.Find(typeName, name);
-        if (template.IsNull)
+        var template = GameQuery.FindByName<EntityTemplate>(name);
+        if (template == null)
             return new { error = $"Template '{typeName}/{name}' not found" };
 
-        // Read common fields
+        var obj = new GameObj(template.Pointer);
+
         var fields = new Dictionary<string, object>();
         var fieldName = request.QueryString["field"];
         if (!string.IsNullOrEmpty(fieldName))
         {
-            var value = Templates.ReadField(template, fieldName);
-            fields[fieldName] = value?.ToString() ?? "null";
+            fields[fieldName] = GameObj.ReadField(template, fieldName)?.ToString() ?? "null";
         }
 
         return new
         {
             type = typeName,
-            name = template.GetName(),
-            pointer = template.Pointer.ToString("X"),
+            name = obj.GetName(),
+            pointer = obj.Pointer.ToString("X"),
             fields
         };
     }
@@ -1376,7 +1382,7 @@ public static class GameMcpServer
                         var names = new List<string>();
                         if (objects != null)
                         {
-                            for (int i = 0; i < Math.Min(objects.Length, 10); i++)
+                            for (int i = 0; i < System.Math.Min(objects.Length, 10); i++)
                             {
                                 var obj = objects[i];
                                 if (obj != null)
@@ -1812,22 +1818,27 @@ public static class GameMcpServer
             var field = request.QueryString["field"];
 
             if (string.IsNullOrEmpty(type) || string.IsNullOrEmpty(name) || string.IsNullOrEmpty(field))
-            {
                 return new { success = false, error = "Missing required parameters: type, name, field" };
-            }
 
-            // Get full localization info for the field
-            var info = Templates.GetLocalizationInfo(type, name, field);
+            var template = GameQuery.FindByName<DataTemplate>(name);
+            if (template == null)
+                return new { success = false, error = $"Template '{name}' not found", isLocalizationField = false };
 
-            if (info == null)
-            {
-                return new
-                {
-                    success = false,
-                    error = "Field not found or not a localization field",
-                    isLocalizationField = false
-                };
-            }
+            var klass = IL2CPP.il2cpp_object_get_class(template.Pointer);
+            var gameType = GameType.FromPointer(klass);
+            var managedType = gameType?.ManagedType;
+            if (managedType == null)
+                return new { success = false, error = "Could not resolve managed type", isLocalizationField = false };
+
+            var ptrCtor = managedType.GetConstructor(new[] { typeof(IntPtr) });
+            if (ptrCtor == null)
+                return new { success = false, error = "No IntPtr constructor on managed type", isLocalizationField = false };
+
+            var proxy = (Il2CppObjectBase)ptrCtor.Invoke(new object[] { template.Pointer });
+            var fieldValue = GameObj.ReadField(proxy, field) as BaseLocalizedString;
+
+            if (fieldValue == null)
+                return new { success = false, error = "Field not found or not a localization field", isLocalizationField = false };
 
             return new
             {
@@ -1835,7 +1846,15 @@ public static class GameMcpServer
                 type,
                 name,
                 field,
-                localization = info
+                localization = new
+                {
+                    key = fieldValue.GetKey(),
+                    defaultTranslation = fieldValue.GetRawDefaultTranslation(),
+                    translated = (string)fieldValue,
+                    placeholders = fieldValue.GetPlaceholders(),
+                    hasPlaceholders = fieldValue.HasPlaceholders(),
+                    category = fieldValue.GetCategory().ToString()
+                }
             };
         }
         catch (Exception ex)

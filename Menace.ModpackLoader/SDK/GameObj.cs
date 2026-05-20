@@ -3,6 +3,7 @@ using Il2CppInterop.Runtime.InteropTypes;
 using Menace.SDK.Internal;
 using System;
 using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace Menace.SDK;
 
@@ -133,6 +134,42 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         {
             ModError.ReportInternal("GameObj.ReadPtr", $"Failed at offset {offset}", ex);
             return IntPtr.Zero;
+        }
+    }
+
+    public static object ReadField(Il2CppObjectBase obj, string fieldName)
+    {
+        if (obj == null || string.IsNullOrEmpty(fieldName))
+            return null;
+
+        try
+        {
+            var parts = fieldName.Split('.');
+            object current = obj;
+
+            foreach (var part in parts)
+            {
+                if (current == null) return null;
+
+                var prop = current.GetType().GetProperty(part,
+                    BindingFlags.Public | BindingFlags.Instance);
+
+                if (prop == null || !prop.CanRead)
+                {
+                    ModError.WarnInternal("Templates.ReadField",
+                        $"Property '{part}' not found on {current.GetType().Name}");
+                    return null;
+                }
+
+                current = prop.GetValue(current);
+            }
+
+            return current;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Templates.ReadField", $"Failed '{fieldName}'", ex);
+            return null;
         }
     }
 

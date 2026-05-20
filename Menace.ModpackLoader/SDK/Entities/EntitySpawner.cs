@@ -1,10 +1,10 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Tactical;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Il2CppInterop.Runtime.InteropTypes;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -62,57 +62,41 @@ public static class EntitySpawner
     {
         try
         {
-            // Find the template
-            var template = Templates.Find("Menace.Tactical.EntityTemplate", templateName);
-            if (template.IsNull)
+            var template = GameQuery.FindByName<EntityTemplate>(templateName);
+            if (template == null)
             {
                 return SpawnResult.Failed($"Template '{templateName}' not found");
             }
 
-            // Get the tile
             var tile = GetTileAt(tileX, tileY);
             if (tile.IsNull)
             {
                 return SpawnResult.Failed($"Tile at ({tileX}, {tileY}) not found");
             }
 
-            // Check tile is valid for spawning
             if (IsTileOccupied(tile))
             {
                 return SpawnResult.Failed($"Tile at ({tileX}, {tileY}) is occupied");
             }
 
-            // Get managed proxies for template and tile
-            var templateProxy = GetManagedProxy(template, _entityTemplateType.ManagedType);
-            var tileProxy = GetManagedProxy(tile, _tileType.ManagedType);
-
-            if (templateProxy == null || tileProxy == null)
-            {
-                return SpawnResult.Failed("Failed to create managed proxies");
-            }
-
-            // Use DevMode's approach: create TransientActor directly, initialize it, then finalize
-            // This matches how SpawnEntityAction.HandleLeftClickOnTile works
             var transientActorType = _transientActorType.ManagedType;
             if (transientActorType == null)
             {
                 return SpawnResult.Failed("TransientActor type not found");
             }
 
-            // Create new TransientActor instance
             var ctor = transientActorType.GetConstructor(Type.EmptyTypes);
             if (ctor == null)
             {
                 return SpawnResult.Failed("TransientActor constructor not found");
             }
+
             var actor = ctor.Invoke(null);
             if (actor == null)
             {
                 return SpawnResult.Failed("Failed to create TransientActor instance");
             }
 
-            // Call Create(EntityTemplate, Tile, int faction, int totalHitpoints)
-            // DevMode uses the int version with faction=1 (enemy) and totalHitpoints=0
             var createMethod = transientActorType.GetMethod("Create", BindingFlags.Public | BindingFlags.Instance,
                 null, new[] { _entityTemplateType.ManagedType, _tileType.ManagedType, typeof(int), typeof(int) }, null);
             if (createMethod == null)
@@ -120,35 +104,30 @@ public static class EntitySpawner
                 return SpawnResult.Failed("TransientActor.Create method not found");
             }
 
-            // Create expects (EntityTemplate, Tile, int faction, int totalHitpoints=0)
-            createMethod.Invoke(actor, new object[] { templateProxy, tileProxy, factionIndex, 0 });
+            createMethod.Invoke(actor, new object[] { template, tile, factionIndex, 0 });
 
-            // Call FinishCreate() - virtual method that completes setup
             var finishCreateMethod = transientActorType.GetMethod("FinishCreate", BindingFlags.Public | BindingFlags.Instance);
             finishCreateMethod?.Invoke(actor, null);
 
-            // Get TacticalManager for remaining calls
             var tmType = _tacticalManagerType?.ManagedType;
             var getMethod = tmType?.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
             var tm = getMethod?.Invoke(null, null);
 
             if (tm != null)
             {
-                // Call OnRoundStart and OnTurnStart like DevMode does
                 var onRoundStart = transientActorType.GetMethod("OnRoundStart", BindingFlags.Public | BindingFlags.Instance);
                 onRoundStart?.Invoke(actor, null);
 
                 var onTurnStart = transientActorType.GetMethod("OnTurnStart", BindingFlags.Public | BindingFlags.Instance);
                 onTurnStart?.Invoke(actor, null);
 
-                // Notify TacticalManager of new entity
                 var invokeSpawnedMethod = tmType.GetMethod("InvokeOnEntitySpawned", BindingFlags.Public | BindingFlags.Instance);
                 invokeSpawnedMethod?.Invoke(tm, new object[] { actor });
             }
 
             var actorObj = new GameObj(((Il2CppObjectBase)actor).Pointer);
 
-            ModError.Info("Menace.SDK", $"Spawned {templateName} at ({tileX}, {tileY}) faction {factionIndex}");
+            ModError.Info("Il2Cpp.SDK", $"Spawned {templateName} at ({tileX}, {tileY}) faction {factionIndex}");
             return SpawnResult.Ok(actorObj);
         }
         catch (Exception ex)
