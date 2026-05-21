@@ -1,3 +1,4 @@
+using Il2CppMenace.Strategy;
 using Il2CppMenace.Tactical;
 using Il2CppMenace.Tactical.Objectives;
 using Menace.SDK.Internal;
@@ -18,10 +19,10 @@ namespace Menace.SDK;
 /// </summary>
 public static class Mission
 {
-    // Mission status constants
+    // Mission status enums
     public enum MissionStatus { Pending = 0, Active = 1, Complete = 2, Failed = 3 }
 
-    // Mission layer constants
+    // Mission layer enums
     public enum MissionLayer { Surface = 0, Underground = 1, Interior = 2, Space = 3, Random = 4 }
 
     /// <summary>
@@ -35,9 +36,9 @@ public static class Mission
         public int Seed { get; set; }
         public string BiomeName { get; set; }
         public string WeatherName { get; set; }
-        public string LightCondition { get; set; }
+        public LightConditionType LightCondition { get; set; }
         public string DifficultyName { get; set; }
-        public int EnemyArmyPoints { get; set; }
+        public float EnemyArmyPoints { get; set; }
         public IntPtr Pointer { get; set; }
     }
 
@@ -56,8 +57,8 @@ public static class Mission
     }
 
     /// <summary>
-    /// Get the current active mission.
-    /// Mission is accessed via StrategyState -> Operation chain, not TacticalManager.
+    /// Retrieves the currently active mission via the TacticalManager.
+    /// Returns <c>null</c> if no mission is active or the manager is unavailable.
     /// </summary>
     public static Il2CppMenace.Strategy.Mission GetMission()
     {
@@ -78,6 +79,13 @@ public static class Mission
         }
     }
 
+    /// <summary>
+    /// Reads and returns a <see cref="MissionInfo"/> snapshot for the given mission,
+    /// including its template name, status, layer, seed, biome, weather, light condition,
+    /// difficulty, and enemy army points. Fields that fail to read are left at their
+    /// default values; a warning or error is logged for each failure.
+    /// Returns <c>null</c> if <paramref name="mission"/> is <c>null</c>.
+    /// </summary>
     public static MissionInfo GetMissionInfo(Il2CppMenace.Strategy.Mission mission)
     {
         if (mission == null)
@@ -106,18 +114,25 @@ public static class Mission
         try { info.WeatherName = mission.GetWeatherTemplate()?.name; }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading WeatherName", ex); }
 
-        try { info.LightCondition = mission.GetLightConditionTemplate()?.name; }
+        try { info.LightCondition = (LightConditionType)(int)mission.GetLightCondition(); }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading LightCondition", ex); }
 
         try { info.DifficultyName = mission.GetDifficulty()?.name; }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading DifficultyName", ex); }
 
-        try { info.EnemyArmyPoints = (int)mission.GetEnemyArmyPoints(); }
+        try { info.EnemyArmyPoints = mission.GetEnemyArmyPoints(); }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading EnemyArmyPoints", ex); }
 
         return info;
     }
 
+    /// <summary>
+    /// Returns a list of <see cref="ObjectiveInfo"/> snapshots for all objectives
+    /// on the given mission. Each entry captures the objective's title, description,
+    /// completion/failure state, and current and required progress values.
+    /// Null or unreadable objectives are skipped with a warning logged.
+    /// Returns an empty list if <paramref name="mission"/> is <c>null</c> or has no objective manager.
+    /// </summary>
     public static List<ObjectiveInfo> GetObjectives(Il2CppMenace.Strategy.Mission mission)
     {
         var result = new List<ObjectiveInfo>();
@@ -195,7 +210,8 @@ public static class Mission
     }
 
     /// <summary>
-    /// Get current mission status.
+    /// Returns the <see cref="MissionStatus"/> of the current active mission.
+    /// Returns <c>null</c> if no mission is active or the TacticalManager is unavailable.
     /// </summary>
     public static MissionStatus? GetStatus()
     {
@@ -247,7 +263,10 @@ public static class Mission
     }
 
     /// <summary>
-    /// Complete an objective by index.
+    /// Force-completes all objectives on the current mission that are not already
+    /// completed or failed. Silently skips objectives that are in a terminal state.
+    /// Logs a warning or error if the TacticalManager, mission, or objective manager
+    /// is unavailable, or if <c>ForceComplete</c> throws on any individual objective.
     /// </summary>
     public static void CompletePendingObjectives()
     {
@@ -311,6 +330,12 @@ public static class Mission
         }
     }
 
+    /// <summary>
+    /// Force-completes the objective at the specified <paramref name="index"/> in the
+    /// current mission's objective list. Does nothing and returns <c>false</c> if the
+    /// index is out of range, the objective is already completed or failed, or any
+    /// required manager is unavailable. Returns <c>true</c> on success.
+    /// </summary>
     public static bool CompleteObjective(int index)
     {
         var tm = TacticalManager.Get();
@@ -372,7 +397,13 @@ public static class Mission
     }
 
     /// <summary>
-    /// Register console commands for Mission SDK.
+    /// Registers the following dev-console commands for in-game use:
+    /// <list type="bullet">
+    /// <item><c>mission</c> — Prints template name, status, layer, seed, biome, weather, light condition, difficulty, and enemy army points for the active mission.</item>
+    /// <item><c>objectives</c> — Lists all objectives with their index, completion state, and progress counters.</item>
+    /// <item><c>completeobjective &lt;index&gt;</c> — Force-completes the objective at the given index.</item>
+    /// <item><c>missionstatus</c> — Prints the current mission status and a summary count of completed, failed, and remaining objectives.</item>
+    /// </list>
     /// </summary>
     public static void RegisterConsoleCommands()
     {
@@ -395,7 +426,7 @@ public static class Mission
                    $"Status: {info.Status}, Layer: {info.Layer}\n" +
                    $"Seed: {info.Seed}\n" +
                    $"Biome: {info.BiomeName ?? "N/A"}, Weather: {info.WeatherName ?? "N/A"}\n" +
-                   $"Light: {info.LightCondition ?? "N/A"}, Difficulty: {info.DifficultyName ?? "N/A"}\n" +
+                   $"Light: {info.LightCondition}, Difficulty: {info.DifficultyName ?? "N/A"}\n" +
                    $"Enemy Army Points: {info.EnemyArmyPoints}";
         });
 
