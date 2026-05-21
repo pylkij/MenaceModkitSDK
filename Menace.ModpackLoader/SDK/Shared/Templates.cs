@@ -22,7 +22,6 @@ namespace Menace.SDK;
 public static class Templates
 {
     private static readonly HashSet<Type> _loadedTypes = new();
-    private static MissionTemplate _cachedMissionTemplate;
 
     private static void EnsureLoaded<T>() where T : DataTemplate
     {
