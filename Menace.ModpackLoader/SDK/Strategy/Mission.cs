@@ -19,17 +19,10 @@ namespace Menace.SDK;
 public static class Mission
 {
     // Mission status constants
-    public const int STATUS_PENDING = 0;
-    public const int STATUS_ACTIVE = 1;
-    public const int STATUS_COMPLETE = 2;
-    public const int STATUS_FAILED = 3;
+    public enum MissionStatus { Pending = 0, Active = 1, Complete = 2, Failed = 3 }
 
     // Mission layer constants
-    public const int LAYER_SURFACE = 0;
-    public const int LAYER_UNDERGROUND = 1;
-    public const int LAYER_INTERIOR = 2;
-    public const int LAYER_SPACE = 3;
-    public const int LAYER_RANDOM = 4;
+    public enum MissionLayer { Surface = 0, Underground = 1, Interior = 2, Space = 3, Random = 4 }
 
     /// <summary>
     /// Mission information structure.
@@ -37,11 +30,8 @@ public static class Mission
     public class MissionInfo
     {
         public string TemplateName { get; set; }
-        public int Status { get; set; }
-        public string StatusName { get; set; }
-        public int Layer { get; set; }
-        public string LayerName { get; set; }
-        public int MapWidth { get; set; }
+        public MissionStatus Status { get; set; }
+        public MissionLayer Layer { get; set; }
         public int Seed { get; set; }
         public string BiomeName { get; set; }
         public string WeatherName { get; set; }
@@ -60,7 +50,6 @@ public static class Mission
         public string Description { get; set; }
         public bool IsComplete { get; set; }
         public bool IsFailed { get; set; }
-        public bool IsOptional { get; set; }
         public int Progress { get; set; }
         public int TargetProgress { get; set; }
         public IntPtr Pointer { get; set; }
@@ -102,18 +91,10 @@ public static class Mission
         try { info.TemplateName = mission.GetTemplate()?.name; }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading TemplateName", ex); }
 
-        try
-        {
-            info.Status = (int)mission.GetStatus();
-            info.StatusName = GetStatusName(info.Status);
-        }
+        try { info.Status = (MissionStatus)(int)mission.GetStatus(); }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading Status", ex); }
 
-        try
-        {
-            info.Layer = (int)mission.GetLayer();
-            info.LayerName = GetLayerName(info.Layer);
-        }
+        try { info.Layer = (MissionLayer)(int)mission.GetLayer(); }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading Layer", ex); }
 
         try { info.Seed = mission.GetSeed(); }
@@ -155,8 +136,15 @@ public static class Mission
         }
 
         IReadOnlyList<Objective> objectives = null;
-        try { objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed calling GetObjectives", ex); return result; }
+        try 
+        { 
+            objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); 
+        }
+        catch (Exception ex) 
+        { 
+            ModError.ReportInternal("Mission.GetObjectives", "Failed calling GetObjectives", ex); 
+            return result; 
+        }
 
         if (objectives == null)
         {
@@ -191,8 +179,14 @@ public static class Mission
             try { info.Progress = obj.GetProgress(); }
             catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Progress", ex); }
 
-            try { info.TargetProgress = obj.GetRequiredProgress(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading TargetProgress", ex); }
+            try 
+            { 
+                info.TargetProgress = obj.GetRequiredProgress(); 
+            }
+            catch (Exception ex) 
+            { 
+                ModError.ReportInternal("Mission.GetObjectives", "Failed reading TargetProgress", ex); 
+            }
 
             result.Add(info);
         }
@@ -203,7 +197,7 @@ public static class Mission
     /// <summary>
     /// Get current mission status.
     /// </summary>
-    public static int? GetStatus()
+    public static MissionStatus? GetStatus()
     {
         try
         {
@@ -213,7 +207,7 @@ public static class Mission
                 ModError.WarnInternal("Mission.GetStatus", "No active mission");
                 return null;
             }
-            return (int)mission.GetStatus();
+            return (MissionStatus)(int)mission.GetStatus();
         }
         catch (Exception ex)
         {
@@ -229,7 +223,7 @@ public static class Mission
     {
         var status = GetStatus();
         if (status == null) return false;
-        return status == STATUS_ACTIVE;
+        return status == MissionStatus.Active;
     }
 
     /// <summary>
@@ -239,7 +233,7 @@ public static class Mission
     {
         var status = GetStatus();
         if (status == null) return false;
-        return status == STATUS_COMPLETE;
+        return status == MissionStatus.Complete;
     }
 
     /// <summary>
@@ -249,7 +243,7 @@ public static class Mission
     {
         var status = GetStatus();
         if (status == null) return false;
-        return status == STATUS_FAILED;
+        return status == MissionStatus.Failed;
     }
 
     /// <summary>
@@ -279,8 +273,14 @@ public static class Mission
         }
 
         IReadOnlyList<Objective> objectives = null;
-        try { objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling GetObjectives", ex); return; }
+        try 
+        { 
+            objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); 
+        }
+        catch (Exception ex) 
+        { 
+            ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling GetObjectives", ex); return; 
+        }
 
         if (objectives == null)
         {
@@ -300,8 +300,14 @@ public static class Mission
 
             if (obj.IsCompleted() || obj.IsFailed()) continue;
 
-            try { obj.ForceComplete(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling ForceComplete", ex); }
+            try 
+            { 
+                obj.ForceComplete(); 
+            }
+            catch (Exception ex) 
+            { 
+                ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling ForceComplete", ex); 
+            }
         }
     }
 
@@ -321,17 +327,6 @@ public static class Mission
             return false;
         }
 
-        var objectives = GetObjectives(mission);
-        if (index < 0 || index >= objectives.Count)
-        {
-            ModError.WarnInternal("Mission.CompleteObjective", $"Index {index} out of range (count: {objectives.Count})");
-            return false;
-        }
-
-        var obj = objectives[index];
-        if (obj.IsComplete || obj.IsFailed)
-            return false;
-
         var objectiveManager = mission.Objectives;
         if (objectiveManager == null)
         {
@@ -339,46 +334,41 @@ public static class Mission
             return false;
         }
 
-        IReadOnlyList<Objective> rawObjectives = null;
-        try { rawObjectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); }
+        IReadOnlyList<Objective> objectives = null;
+        try { objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); }
         catch (Exception ex) { ModError.ReportInternal("Mission.CompleteObjective", "Failed calling GetObjectives", ex); return false; }
 
-        if (rawObjectives == null || index >= rawObjectives.Count)
+        if (objectives == null)
+        {
+            ModError.WarnInternal("Mission.CompleteObjective", "GetObjectives returned null");
             return false;
+        }
 
-        try { rawObjectives[index].ForceComplete(); return true; }
-        catch (Exception ex) { ModError.ReportInternal("Mission.CompleteObjective", "Failed calling ForceComplete", ex); return false; }
-    }
-
-    /// <summary>
-    /// Get status name from status code.
-    /// </summary>
-    public static string GetStatusName(int status)
-    {
-        return status switch
+        if (index < 0 || index >= objectives.Count)
         {
-            0 => "Pending",
-            1 => "Active",
-            2 => "Complete",
-            3 => "Failed",
-            _ => $"Status {status}"
-        };
-    }
+            ModError.WarnInternal("Mission.CompleteObjective", $"Index {index} out of range (count: {objectives.Count})");
+            return false;
+        }
 
-    /// <summary>
-    /// Get layer name from layer code.
-    /// </summary>
-    public static string GetLayerName(int layer)
-    {
-        return layer switch
+        var obj = objectives[index];
+        if (obj == null)
         {
-            0 => "Surface",
-            1 => "Underground",
-            2 => "Interior",
-            3 => "Space",
-            4 => "Random",
-            _ => $"Layer {layer}"
-        };
+            ModError.WarnInternal("Mission.CompleteObjective", $"Objective at index {index} is null");
+            return false;
+        }
+
+        if (obj.IsCompleted() || obj.IsFailed()) return false;
+
+        try 
+        { 
+            obj.ForceComplete(); 
+            return true; 
+        }
+        catch (Exception ex) 
+        { 
+            ModError.ReportInternal("Mission.CompleteObjective", $"Failed calling ForceComplete on objective {index}", ex); 
+            return false; 
+        }
     }
 
     /// <summary>
@@ -402,7 +392,7 @@ public static class Mission
                 return "No active mission";
 
             return $"Mission: {info.TemplateName}\n" +
-                   $"Status: {info.StatusName}, Layer: {info.LayerName}\n" +
+                   $"Status: {info.Status}, Layer: {info.Layer}\n" +
                    $"Seed: {info.Seed}\n" +
                    $"Biome: {info.BiomeName ?? "N/A"}, Weather: {info.WeatherName ?? "N/A"}\n" +
                    $"Light: {info.LightCondition ?? "N/A"}, Difficulty: {info.DifficultyName ?? "N/A"}\n" +
@@ -443,6 +433,18 @@ public static class Mission
             if (!int.TryParse(args[0], out int index))
                 return "Invalid index";
 
+            var mission = TacticalManager.Get()?.GetMission();
+            if (mission == null)
+                return "No active mission";
+
+            var objectives = GetObjectives(mission);
+            if (index < 0 || index >= objectives.Count)
+                return $"Objective {index} is out of range";
+
+            var obj = objectives[index];
+            if (obj.IsComplete || obj.IsFailed)
+                return $"Objective {index} is already complete or failed";
+
             return CompleteObjective(index)
                 ? $"Completed objective {index}"
                 : "Failed to complete objective";
@@ -459,12 +461,14 @@ public static class Mission
             if (mission == null)
                 return "No active mission";
 
-            var status = GetStatus() ?? 0;
+            var status = GetStatus();
+            if (status == null)
+                return "Error: could not read mission status";
             var objectives = GetObjectives(mission);
             int complete = objectives.FindAll(o => o.IsComplete).Count;
             int failed = objectives.FindAll(o => o.IsFailed).Count;
 
-            return $"Mission Status: {GetStatusName(status)}\n" +
+            return $"Mission Status: {status}\n" +
                    $"Objectives: {complete} complete, {failed} failed, {objectives.Count - complete - failed} remaining";
         });
     }

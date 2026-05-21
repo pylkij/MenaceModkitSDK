@@ -545,7 +545,7 @@ public static class Operation
                 var mission = typed.AsManaged();
                 var missionInfo = mission != null ? Mission.GetMissionInfo(mission) : null;
                 var current = i == currentIdx ? " <-- CURRENT" : "";
-                var status = missionInfo?.StatusName ?? "Unknown";
+                var status = missionInfo?.Status.ToString() ?? "Unknown";
                 lines.Add($"  {i}. {missionInfo?.TemplateName ?? "Unknown"} [{status}]{current}");
             }
             return string.Join("\n", lines);
