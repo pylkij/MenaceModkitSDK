@@ -541,7 +541,9 @@ public static class Operation
             var lines = new List<string> { $"Operation Missions ({missions.Count}):" };
             for (int i = 0; i < missions.Count; i++)
             {
-                var missionInfo = Mission.GetMissionInfo(missions[i]);
+                var typed = GameObj<Il2CppMenace.Strategy.Mission>.Wrap(missions[i]);
+                var mission = typed.AsManaged();
+                var missionInfo = mission != null ? Mission.GetMissionInfo(mission) : null;
                 var current = i == currentIdx ? " <-- CURRENT" : "";
                 var status = missionInfo?.StatusName ?? "Unknown";
                 lines.Add($"  {i}. {missionInfo?.TemplateName ?? "Unknown"} [{status}]{current}");
