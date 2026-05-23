@@ -22,67 +22,6 @@ namespace Menace.SDK;
 /// </summary>
 public static class Roster
 {
-    // Declaration — no initializer
-    private static GameType _perkTemplateType;
-    private static GameType _unitLeaderTemplateType;
-    private static GameType _rosterType;
-    private static GameType _unitLeaderType;
-    private static GameType _squaddieType;
-    private static GameType _strategyStateType;
-
-    // Leader status constants
-    public const int STATUS_HIRED = 0;
-    public const int STATUS_AVAILABLE = 1;
-    public const int STATUS_DEAD = 2;
-    public const int STATUS_DISMISSED = 3;
-    public const int STATUS_AWAITING_BURIAL = 4;
-
-    /// <summary>
-    /// Unit leader information structure.
-    /// </summary>
-    public class UnitLeaderInfo
-    {
-        public string TemplateId { get; set; }
-        public string Nickname { get; set; }
-        public int Status { get; set; }
-        public string StatusName { get; set; }
-        public int Rank { get; set; }
-        public string RankName { get; set; }
-        public int PerkCount { get; set; }
-        public float HealthPercent { get; set; }
-        public bool IsDeployable { get; set; }
-        public bool IsUnavailable { get; set; }
-        public int SquaddieCount { get; set; }
-        public int DeployCost { get; set; }
-        public IntPtr Pointer { get; set; }
-    }
-
-    /// <summary>
-    /// Squaddie information structure.
-    /// </summary>
-    public class SquaddieInfo
-    {
-        public string FirstName { get; set; }
-        public string LastName { get; set; }
-        public string FullName { get; set; }
-        public string Gender { get; set; }
-        public string HomePlanet { get; set; }
-        public IntPtr Pointer { get; set; }
-    }
-
-    /// <summary>
-    /// Unit leader template information structure.
-    /// </summary>
-    public class UnitLeaderTemplateInfo
-    {
-        public string TemplateId { get; set; }
-        public string DisplayName { get; set; }
-        public int HiringCost { get; set; }
-        public int Rarity { get; set; }
-        public int MinCampaignProgress { get; set; }
-        public IntPtr Pointer { get; set; }
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     //  Field Handles — resolved once in ResolveHandles, never at call site
     // ═══════════════════════════════════════════════════════════════════
@@ -176,6 +115,67 @@ public static class Roster
         {
             ModError.ReportInternal("Roster.ResolveHandles", "Field handle resolution failed", ex);
         }
+    }
+
+    // Declaration — no initializer
+    private static GameType _perkTemplateType;
+    private static GameType _unitLeaderTemplateType;
+    private static GameType _rosterType;
+    private static GameType _unitLeaderType;
+    private static GameType _squaddieType;
+    private static GameType _strategyStateType;
+
+    // Leader status constants
+    public const int STATUS_HIRED = 0;
+    public const int STATUS_AVAILABLE = 1;
+    public const int STATUS_DEAD = 2;
+    public const int STATUS_DISMISSED = 3;
+    public const int STATUS_AWAITING_BURIAL = 4;
+
+    /// <summary>
+    /// Unit leader information structure.
+    /// </summary>
+    public class UnitLeaderInfo
+    {
+        public string TemplateId { get; set; }
+        public string Nickname { get; set; }
+        public int Status { get; set; }
+        public string StatusName { get; set; }
+        public int Rank { get; set; }
+        public string RankName { get; set; }
+        public int PerkCount { get; set; }
+        public float HealthPercent { get; set; }
+        public bool IsDeployable { get; set; }
+        public bool IsUnavailable { get; set; }
+        public int SquaddieCount { get; set; }
+        public int DeployCost { get; set; }
+        public IntPtr Pointer { get; set; }
+    }
+
+    /// <summary>
+    /// Squaddie information structure.
+    /// </summary>
+    public class SquaddieInfo
+    {
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string FullName { get; set; }
+        public string Gender { get; set; }
+        public string HomePlanet { get; set; }
+        public IntPtr Pointer { get; set; }
+    }
+
+    /// <summary>
+    /// Unit leader template information structure.
+    /// </summary>
+    public class UnitLeaderTemplateInfo
+    {
+        public string TemplateId { get; set; }
+        public string DisplayName { get; set; }
+        public int HiringCost { get; set; }
+        public int Rarity { get; set; }
+        public int MinCampaignProgress { get; set; }
+        public IntPtr Pointer { get; set; }
     }
 
     /// <summary>

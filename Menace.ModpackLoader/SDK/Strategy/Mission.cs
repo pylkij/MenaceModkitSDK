@@ -19,42 +19,6 @@ namespace Menace.SDK;
 /// </summary>
 public static class Mission
 {
-    // Mission class enums
-    public enum MissionStatus { Playable = 0, Locked = 1, Played = 2, Unplayable = 3 }
-    public enum MissionLayer { Invalid = 0, First = 1, Middle = 2, Final = 3 }
-    public enum LightConditionType { Dawn = 0, Day = 1, Dusk = 2, Night = 3, Random = 4 }
-
-    /// <summary>
-    /// Mission information structure.
-    /// </summary>
-    public class MissionInfo
-    {
-        public string TemplateId { get; set; }
-        public MissionStatus Status { get; set; }
-        public MissionLayer Layer { get; set; }
-        public int Seed { get; set; }
-        public string BiomeId { get; set; }
-        public string WeatherId { get; set; }
-        public LightConditionType LightCondition { get; set; }
-        public string DifficultyId { get; set; }
-        public float EnemyArmyPoints { get; set; }
-        public IntPtr Pointer { get; set; }
-    }
-
-    /// <summary>
-    /// Objective information structure.
-    /// </summary>
-    public class ObjectiveInfo
-    {
-        public string Name { get; set; }
-        public string Description { get; set; }
-        public bool IsComplete { get; set; }
-        public bool IsFailed { get; set; }
-        public int Progress { get; set; }
-        public int TargetProgress { get; set; }
-        public IntPtr Pointer { get; set; }
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     //  Field Handles — resolved once in OnSceneLoaded, never at call site
     // ═══════════════════════════════════════════════════════════════════
@@ -114,6 +78,42 @@ public static class Mission
         {
             ModError.ReportInternal("Mission.ResolveHandles", "Field handle resolution failed", ex);
         }
+    }
+
+    // Mission class enums
+    public enum MissionStatus { Playable = 0, Locked = 1, Played = 2, Unplayable = 3 }
+    public enum MissionLayer { Invalid = 0, First = 1, Middle = 2, Final = 3 }
+    public enum LightConditionType { Dawn = 0, Day = 1, Dusk = 2, Night = 3, Random = 4 }
+
+    /// <summary>
+    /// Mission information structure.
+    /// </summary>
+    public class MissionInfo
+    {
+        public string TemplateId { get; set; }
+        public MissionStatus Status { get; set; }
+        public MissionLayer Layer { get; set; }
+        public int Seed { get; set; }
+        public string BiomeId { get; set; }
+        public string WeatherId { get; set; }
+        public LightConditionType LightCondition { get; set; }
+        public string DifficultyId { get; set; }
+        public float EnemyArmyPoints { get; set; }
+        public IntPtr Pointer { get; set; }
+    }
+
+    /// <summary>
+    /// Objective information structure.
+    /// </summary>
+    public class ObjectiveInfo
+    {
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public bool IsComplete { get; set; }
+        public bool IsFailed { get; set; }
+        public int Progress { get; set; }
+        public int TargetProgress { get; set; }
+        public IntPtr Pointer { get; set; }
     }
 
     /// <summary>
