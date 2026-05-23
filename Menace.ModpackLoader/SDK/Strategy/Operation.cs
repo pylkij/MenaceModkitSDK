@@ -128,22 +128,12 @@ public static class Operation
     {
         try
         {
-            var strategyState = GameQuery.FindAllCached<Il2CppMenace.States.StrategyState>().FirstOrDefault();
-            if (strategyState == null) return GameObj.Null;
+            var om = GetOperationsManager();
+            if (!GameObj<Il2CppMenace.Strategy.OperationsManager>.TryWrap(om, out var typedOm)) return GameObj.Null;
+            if (typedOm.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
 
-            var strategyStateObj = GameObj<Il2CppMenace.States.StrategyState>.Wrap(
-                new GameObj(strategyState.Pointer));
-            if (strategyStateObj.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
-
-            // StrategyState.Operations is public readonly at 0x58
-            var omPtr = strategyStateObj.Untyped.ReadPtr(0x58);
-            if (omPtr == IntPtr.Zero) return GameObj.Null;
-
-            if (!GameObj<Il2CppMenace.Strategy.OperationsManager>.TryWrap(new GameObj(omPtr), out var om)) return GameObj.Null;
-            if (om.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
-
-            if (!_hCurrentOperationIdx.TryRead(om, out var idx)) return GameObj.Null;
-            if (!_hAvailableOperations.TryRead(om, out var opsObj)) return GameObj.Null;
+            if (!_hCurrentOperationIdx.TryRead(typedOm, out var idx)) return GameObj.Null;
+            if (!_hAvailableOperations.TryRead(typedOm, out var opsObj)) return GameObj.Null;
 
             var opsList = new GameList(opsObj.Untyped.Pointer);
             if (idx < 0 || idx >= opsList.Count) return GameObj.Null;
@@ -255,11 +245,12 @@ public static class Operation
             var op = GetCurrentOperation();
             if (op.IsNull) return result;
 
-            // Get missions via direct field access at offset +0x50
-            var missionsPtr = op.ReadPtr(0x50);
-            if (missionsPtr == IntPtr.Zero) return result;
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) return result;
+            if (typed.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var missionsList = new GameList(missionsPtr);
+            if (!_hMissions.TryRead(typed, out var missionsObj)) return result;
+
+            var missionsList = new GameList(missionsObj.Untyped.Pointer);
             for (int i = 0; i < missionsList.Count; i++)
             {
                 var mission = missionsList[i];
@@ -320,8 +311,7 @@ public static class Operation
             var strategyState = GameQuery.FindAllCached<Il2CppMenace.States.StrategyState>().FirstOrDefault();
             if (strategyState == null) return GameObj.Null;
 
-            var strategyStateObj = GameObj<Il2CppMenace.States.StrategyState>.Wrap(
-                new GameObj(strategyState.Pointer));
+            var strategyStateObj = GameObj<Il2CppMenace.States.StrategyState>.Wrap(strategyState.Pointer);
             if (strategyStateObj.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
 
             var omPtr = strategyStateObj.Untyped.ReadPtr(0x58);
@@ -351,7 +341,7 @@ public static class Operation
 
             if (!_hAvailableOperations.TryRead(typedOm, out var opsObj)) return result;
 
-            var opsList = new GameList(opsObj.Untyped.Pointer);
+            var opsList = new GameList(opsObj.Untyped);
             for (int i = 0; i < opsList.Count; i++)
             {
                 var op = opsList[i];
