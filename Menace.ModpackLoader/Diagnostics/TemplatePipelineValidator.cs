@@ -133,15 +133,6 @@ public static class TemplatePipelineValidator
         {
             return ValidateFullPipeline();
         });
-
-        DevConsole.RegisterCommand("debug.test_template_fields", "<templateType>",
-            "Test field reading/writing for a specific template type", args =>
-        {
-            if (args.Length < 2)
-                return "Usage: debug.test_template_fields <templateType>";
-
-            return TestTemplateTypeFields(args[1]);
-        });
     }
 
     private static string ValidateFullPipeline()
@@ -154,11 +145,6 @@ public static class TemplatePipelineValidator
         report.AppendLine();
 
         var results = new Dictionary<string, PipelineTestResult>();
-
-        foreach (var typeName in AllTemplateTypes)
-        {
-            results[typeName] = TestTemplatePipeline(typeName);
-        }
 
         // Summary
         var succeeded = results.Values.Count(r => r.OverallSuccess);
@@ -227,171 +213,6 @@ public static class TemplatePipelineValidator
         catch (Exception ex)
         {
             report.AppendLine($"Warning: Could not save log file: {ex.Message}");
-        }
-
-        return report.ToString();
-    }
-
-    private static PipelineTestResult TestTemplatePipeline(string typeName)
-    {
-        var result = new PipelineTestResult { TypeName = typeName };
-
-        try
-        {
-            // Step 1: Try to load templates
-            var instances = Templates.FindAll(typeName);
-            result.InstanceCount = instances?.Length ?? 0;
-
-            if (instances == null || instances.Length == 0)
-            {
-                result.LoadSuccess = false;
-                result.LoadError = "No instances found";
-                return result;
-            }
-
-            result.LoadSuccess = true;
-
-            // Use first instance for testing
-            var testInstance = instances[0];
-            var instanceName = testInstance.As<UnityEngine.Object>()?.name ?? "unknown";
-            result.TestInstanceName = instanceName;
-
-            // Step 2: Try to read fields directly (via ReadString, ReadInt, etc.)
-            try
-            {
-                // Try reading common field "name"
-                var nameValue = testInstance.ReadString("m_Name");
-                result.ReadSuccess = true;
-                result.FieldsTestedCount++;
-            }
-            catch (Exception ex)
-            {
-                result.ReadSuccess = false;
-                result.ReadError = $"Failed to read m_Name: {ex.Message}";
-            }
-
-            // Step 3: Try GetProperty API
-            try
-            {
-                var propValue = Templates.GetProperty(typeName, instanceName, "name");
-                result.GetPropertySuccess = true;
-            }
-            catch (Exception ex)
-            {
-                result.GetPropertySuccess = false;
-                result.GetPropertyError = ex.Message;
-            }
-
-            // Step 4: Try WriteField API (write then read back to verify)
-            try
-            {
-                // Try to write to a test field (we'll use a safe field like hideFlags)
-                var originalFlags = testInstance.As<UnityEngine.Object>()?.hideFlags ?? HideFlags.None;
-
-                bool writeResult = Templates.WriteField(testInstance, "hideFlags", HideFlags.DontSave);
-
-                if (writeResult)
-                {
-                    var readBack = testInstance.As<UnityEngine.Object>()?.hideFlags;
-
-                    // Restore original
-                    Templates.WriteField(testInstance, "hideFlags", originalFlags);
-
-                    result.WriteSuccess = readBack == HideFlags.DontSave;
-                }
-                else
-                {
-                    result.WriteSuccess = false;
-                    result.WriteError = "WriteField returned false";
-                }
-            }
-            catch (Exception ex)
-            {
-                result.WriteSuccess = false;
-                result.WriteError = ex.Message;
-            }
-
-            result.OverallSuccess = result.LoadSuccess && result.ReadSuccess &&
-                                   result.GetPropertySuccess && result.WriteSuccess;
-        }
-        catch (Exception ex)
-        {
-            result.LoadSuccess = false;
-            result.LoadError = $"{ex.GetType().Name}: {ex.Message}";
-        }
-
-        return result;
-    }
-
-    private static string TestTemplateTypeFields(string typeName)
-    {
-        var report = new StringBuilder();
-        report.AppendLine($"=== TESTING FIELDS FOR {typeName} ===");
-        report.AppendLine();
-
-        try
-        {
-            var instances = Templates.FindAll(typeName);
-            if (instances == null || instances.Length == 0)
-            {
-                return $"No instances of {typeName} found";
-            }
-
-            report.AppendLine($"Found {instances.Length} instances");
-            report.AppendLine($"Testing first instance: {instances[0].As<UnityEngine.Object>()?.name ?? "unknown"}");
-            report.AppendLine();
-
-            var testInstance = instances[0];
-            var managed = GameObj<Il2CppObjectBase>.Wrap(testInstance).AsManaged();
-
-            if (managed == null)
-            {
-                return "Failed to get managed proxy object";
-            }
-
-            // Get all public properties
-            var type = managed.GetType();
-            var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            report.AppendLine($"Found {properties.Length} public properties:");
-            report.AppendLine();
-
-            int successCount = 0;
-            int failCount = 0;
-
-            foreach (var prop in properties.OrderBy(p => p.Name))
-            {
-                try
-                {
-                    if (!prop.CanRead)
-                    {
-                        report.AppendLine($"⊘ {prop.Name} ({prop.PropertyType.Name}) - not readable");
-                        continue;
-                    }
-
-                    var value = prop.GetValue(managed);
-                    var valueStr = value?.ToString() ?? "null";
-
-                    // Truncate long values
-                    if (valueStr.Length > 50)
-                        valueStr = valueStr.Substring(0, 47) + "...";
-
-                    report.AppendLine($"✓ {prop.Name} ({prop.PropertyType.Name}) = {valueStr}");
-                    successCount++;
-                }
-                catch (Exception ex)
-                {
-                    report.AppendLine($"✗ {prop.Name} ({prop.PropertyType.Name}) - {ex.GetType().Name}: {ex.Message}");
-                    failCount++;
-                }
-            }
-
-            report.AppendLine();
-            report.AppendLine($"SUMMARY: {successCount} readable, {failCount} failed, {properties.Length - successCount - failCount} not readable");
-        }
-        catch (Exception ex)
-        {
-            report.AppendLine($"ERROR: {ex.GetType().Name}: {ex.Message}");
         }
 
         return report.ToString();

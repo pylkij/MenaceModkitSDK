@@ -489,7 +489,7 @@ public static class AICoordination
         state.Reset();
 
         // Collect ally positions
-        var allies = EntitySpawner.ListEntities(factionIndex);
+        var allies = EntitySpawner.ListEntities((Il2CppMenace.Tactical.FactionType)factionIndex);
         foreach (var ally in allies)
         {
             var info = EntitySpawner.GetEntityInfo(ally);
@@ -504,7 +504,7 @@ public static class AICoordination
         // Collect enemy positions (faction 0 = player, others are enemies relative to each other)
         // This is simplified - a full implementation would use AIFaction.m_Opponents
         int enemyFaction = factionIndex == 0 ? 1 : 0;
-        var enemies = EntitySpawner.ListEntities(enemyFaction);
+        var enemies = EntitySpawner.ListEntities((Il2CppMenace.Tactical.FactionType)enemyFaction);
         foreach (var enemy in enemies)
         {
             var info = EntitySpawner.GetEntityInfo(enemy);

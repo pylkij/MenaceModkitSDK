@@ -22,66 +22,108 @@ namespace Menace.SDK;
 /// </summary>
 public static class Roster
 {
-    // Cached types
-    private static readonly GameType _perkTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTemplate>();
-    private static readonly GameType _unitLeaderTemplateType = GameType.Of<Il2CppMenace.Strategy.UnitLeaderTemplate>();
-    private static readonly GameType _rosterType = GameType.Of<Il2CppMenace.Strategy.Roster>();
-    private static readonly GameType _unitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
-    private static readonly GameType _squaddieType = GameType.Of<Il2CppMenace.Strategy.Squaddie>();
-    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in ResolveHandles, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    private static class Offsets
+    // StrategyState
+    private static ObjFieldHandle<Il2CppMenace.States.StrategyState, Il2CppMenace.Strategy.Roster> _hRoster;
+    private static ObjFieldHandle<Il2CppMenace.States.StrategyState, Il2CppMenace.Strategy.Squaddies> _hSquaddies;
+
+    // Roster
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.BaseUnitLeader>> _hHiredLeaders;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.UnitLeaderTemplate>> _hHirableLeaders;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.BaseUnitLeader>> _hDismissedLeaders;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.BaseUnitLeader>> _hUnburiedLeaders;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.BaseUnitLeader>> _hBuriedLeaders;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppSystem.Collections.Generic.Dictionary<Il2CppMenace.Strategy.UnitLeaderTemplate, Il2CppMenace.Strategy.BaseUnitLeader>> _hTempLeaders;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppMenace.Strategy.UnitLeaderTemplate> _hDummySquadLeaderTemplate;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Roster, Il2CppMenace.Strategy.UnitLeaderTemplate> _hDummyPilotTemplate;
+
+    // BaseUnitLeader
+    private static ObjFieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, Il2CppMenace.Strategy.UnitLeaderTemplate> _hLeaderTemplate;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.PerkTemplate>> _hPerks;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, Il2CppSystem.Collections.Generic.List<int>> _hSquaddieIds;
+    private static FieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, int> _hUnavailableOperations;
+    private static FieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, int> _hUnavailableMissions;
+
+    // UnitLeaderTemplate
+    private static ObjFieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, Il2CppMenace.Tools.LocalizedLine> _hUnitTitle;
+    private static FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, int> _hHiringCosts;
+    private static FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, int> _hRarity;
+    private static FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, int> _hMinCampaignProgress;
+
+    // Squaddie
+    private static StringFieldHandle<Il2CppMenace.Strategy.Squaddie> _hSquaddieName;
+    private static StringFieldHandle<Il2CppMenace.Strategy.Squaddie> _hSquaddieNickname;
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
     {
-        // StrategyState
-        internal static readonly Lazy<ObjFieldHandle<Il2CppMenace.States.StrategyState, Il2CppMenace.Strategy.Roster>> Roster
-            = new(() => GameObj<Il2CppMenace.States.StrategyState>.ResolveObjField(x => x.Roster));
-
-        internal static readonly Lazy<ObjFieldHandle<Il2CppMenace.States.StrategyState, Il2CppMenace.Strategy.Squaddies>> Squaddies
-            = new(() => GameObj<Il2CppMenace.States.StrategyState>.ResolveObjField(x => x.Squaddies));
-
-        // Roster
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.Roster, IntPtr>> HiredLeaders
-            = new(() => GameObj<Il2CppMenace.Strategy.Roster>.FieldAt<IntPtr>(0x10, "m_HiredLeaders"));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.Roster, IntPtr>> HirableLeaders
-            = new(() => GameObj<Il2CppMenace.Strategy.Roster>.FieldAt<IntPtr>(0x18, "m_HirableLeaders"));
-
-        // BaseUnitLeader
-        internal static readonly Lazy<ObjFieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, Il2CppMenace.Strategy.UnitLeaderTemplate>> LeaderTemplate
-            = new(() => GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.ResolveObjField(x => x.LeaderTemplate));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, IntPtr>> Perks
-            = new(() => GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.FieldAt<IntPtr>(0x48, "m_Perks"));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, IntPtr>> SquaddieIds
-            = new(() => GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.FieldAt<IntPtr>(0x60, "m_SquaddieIds"));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, int>> UnavailableOperations
-            = new(() => GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.FieldAt<int>(0x68, "m_UnavailableDuration.Operations"));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, int>> UnavailableMissions
-            = new(() => GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.FieldAt<int>(0x6C, "m_UnavailableDuration.Missions"));
-
-        // UnitLeaderTemplate
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, IntPtr>> UnitTitle
-            = new(() => GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.FieldAt<IntPtr>(0x88, "UnitTitle"));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, int>> HiringCosts
-            = new(() => GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveField(x => x.HiringCosts));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, int>> Rarity
-            = new(() => GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveField(x => x.Rarity));
-
-        internal static readonly Lazy<FieldHandle<Il2CppMenace.Strategy.UnitLeaderTemplate, int>> MinCampaignProgress
-            = new(() => GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveField(x => x.MinCampaignProgress));
-
-        // Squaddie
-        internal static readonly Lazy<StringFieldHandle<Il2CppMenace.Strategy.Squaddie>> Name
-            = new(() => GameObj<Il2CppMenace.Strategy.Squaddie>.ResolveStringField(x => x.Name));
-
-        internal static readonly Lazy<StringFieldHandle<Il2CppMenace.Strategy.Squaddie>> Nickname
-            = new(() => GameObj<Il2CppMenace.Strategy.Squaddie>.ResolveStringField(x => x.Nickname));
+        GameState.SceneLoaded += _ => ResolveHandles();
     }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            // StrategyState
+            _hRoster = GameObj<Il2CppMenace.States.StrategyState>.ResolveObjField(x => x.Roster);
+            _hSquaddies = GameObj<Il2CppMenace.States.StrategyState>.ResolveObjField(x => x.Squaddies);
+
+            // Roster
+            _hHiredLeaders = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_HiredLeaders);
+            _hHirableLeaders = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_HirableLeaders);
+            _hDismissedLeaders = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_DismissedLeaders);
+            _hUnburiedLeaders = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_UnburiedLeaders);
+            _hBuriedLeaders = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_BuriedLeaders);
+            _hTempLeaders = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_TempLeaders);
+            _hDummySquadLeaderTemplate = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_DummySquadLeaderTemplate);
+            _hDummyPilotTemplate = GameObj<Il2CppMenace.Strategy.Roster>.ResolveObjField(x => x.m_DummyPilotTemplate);
+
+            // BaseUnitLeader
+            _hLeaderTemplate = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.ResolveObjField(x => x.LeaderTemplate);
+            _hPerks = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.ResolveObjField(x => x.m_Perks);
+            _hSquaddieIds = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.ResolveObjField(x => x.m_SquaddieIds);
+            _hUnavailableOperations = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.FieldAt<int>(0x68, "m_UnavailableDuration.Operations");
+            _hUnavailableMissions = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.FieldAt<int>(0x6C, "m_UnavailableDuration.Missions");
+
+            // UnitLeaderTemplate
+            _hUnitTitle = GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveObjField(x => x.UnitTitle);
+            _hHiringCosts = GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveField(x => x.HiringCosts);
+            _hRarity = GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveField(x => x.Rarity);
+            _hMinCampaignProgress = GameObj<Il2CppMenace.Strategy.UnitLeaderTemplate>.ResolveField(x => x.MinCampaignProgress);
+
+            // Squaddie
+            _hSquaddieName = GameObj<Il2CppMenace.Strategy.Squaddie>.ResolveStringField(x => x.Name);
+            _hSquaddieNickname = GameObj<Il2CppMenace.Strategy.Squaddie>.ResolveStringField(x => x.Nickname);
+
+            // GameTypes
+            _perkTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTemplate>();
+            _unitLeaderTemplateType = GameType.Of<Il2CppMenace.Strategy.UnitLeaderTemplate>();
+            _rosterType = GameType.Of<Il2CppMenace.Strategy.Roster>();
+            _unitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
+            _squaddieType = GameType.Of<Il2CppMenace.Strategy.Squaddie>();
+            _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Roster.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
+
+    // Declaration — no initializer
+    private static GameType _perkTemplateType;
+    private static GameType _unitLeaderTemplateType;
+    private static GameType _rosterType;
+    private static GameType _unitLeaderType;
+    private static GameType _squaddieType;
+    private static GameType _strategyStateType;
 
     // Leader status constants
     public const int STATUS_HIRED = 0;
@@ -95,7 +137,7 @@ public static class Roster
     /// </summary>
     public class UnitLeaderInfo
     {
-        public string TemplateName { get; set; }
+        public string TemplateId { get; set; }
         public string Nickname { get; set; }
         public int Status { get; set; }
         public string StatusName { get; set; }
@@ -128,7 +170,7 @@ public static class Roster
     /// </summary>
     public class UnitLeaderTemplateInfo
     {
-        public string TemplateName { get; set; }
+        public string TemplateId { get; set; }
         public string DisplayName { get; set; }
         public int HiringCost { get; set; }
         public int Rarity { get; set; }
@@ -143,15 +185,11 @@ public static class Roster
     {
         try
         {
-            var ssType = _strategyStateType?.ManagedType;
-            if (ssType == null) return default;
-
-            var getMethod = ssType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var ss = getMethod?.Invoke(null, null);
+            var ss = StrategyState.Get();
             if (ss == null) return default;
 
-            var ssObj = GameObj<StrategyState>.Wrap(((Il2CppObjectBase)ss).Pointer);
-            return Offsets.Roster.Value.Read(ssObj);
+            var ssObj = GameObj<StrategyState>.Wrap(ss.Pointer);
+            return _hRoster.Read(ssObj);
         }
         catch (Exception ex)
         {
@@ -170,32 +208,18 @@ public static class Roster
         try
         {
             var roster = GetRoster();
-            if (roster.Untyped.IsNull) return result;
+            if (roster.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var hiredListPtr = Offsets.HiredLeaders.Value.Read(roster);
-            if (hiredListPtr == IntPtr.Zero) return result;
+            if (!_hHiredLeaders.TryRead(roster, out var hiredListObj)) return result;
 
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return result;
-
-            var listGenericType = typeof(Il2CppSystem.Collections.Generic.List<>);
-            var listTyped = listGenericType.MakeGenericType(leaderType);
-            var ptrCtor = listTyped.GetConstructor(new[] { typeof(IntPtr) });
-            if (ptrCtor == null) return result;
-
-            var hiredList = ptrCtor.Invoke(new object[] { hiredListPtr });
+            var hiredList = hiredListObj.AsManaged();
             if (hiredList == null) return result;
 
-            var countProp = listTyped.GetProperty("Count");
-            var indexer = listTyped.GetMethod("get_Item");
-
-            int count = (int)countProp.GetValue(hiredList);
-            for (int i = 0; i < count; i++)
+            foreach (var leader in hiredList)
             {
-                var leader = indexer.Invoke(hiredList, new object[] { i });
                 if (leader == null) continue;
 
-                var info = GetLeaderInfo(GameObj<BaseUnitLeader>.Wrap(((Il2CppObjectBase)leader).Pointer));
+                var info = GetLeaderInfo(GameObj<BaseUnitLeader>.Wrap(leader.Pointer));
                 if (info != null)
                 {
                     info.Status = STATUS_HIRED;
@@ -218,76 +242,38 @@ public static class Roster
     /// </summary>
     public static UnitLeaderInfo GetLeaderInfo(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return null;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return null;
-
-            var proxy = Il2CppUtils.GetManagedProxy(leader.Untyped.Pointer, leaderType);
+            var proxy = leader.AsManaged();
             if (proxy == null) return null;
 
             var info = new UnitLeaderInfo { Pointer = leader.Untyped.Pointer };
 
-            // Get template name using LeaderTemplate field at offset +0x10
-            if (Offsets.LeaderTemplate.Value.TryRead(leader, out var templateObj))
-                info.TemplateName = templateObj.Untyped.GetName();
+            // Template name
+            if (_hLeaderTemplate.TryRead(leader, out var templateObj))
+            {
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.TemplateId = id;
+            }
 
-            // Get nickname - use ToManagedString to properly handle IL2CPP strings
-            var getNicknameMethod = leaderType.GetMethod("GetNickname", BindingFlags.Public | BindingFlags.Instance);
-            if (getNicknameMethod != null)
-                info.Nickname = Il2CppUtils.ToManagedString(getNicknameMethod.Invoke(proxy, null));
+            // Nickname, rank, perk count, health, status flags
+            info.Nickname = Il2CppUtils.ToManagedString(proxy.GetNickname());
+            info.Rank = (int)proxy.GetRank();
+            info.PerkCount = proxy.GetPerkCount();
+            info.HealthPercent = proxy.GetHitpointsPct();
+            info.IsDeployable = proxy.IsDeployable();
+            info.IsUnavailable = proxy.IsUnavailable();
 
-            // Get rank
-            var getRankMethod = leaderType.GetMethod("GetRank", BindingFlags.Public | BindingFlags.Instance);
-            if (getRankMethod != null)
-                info.Rank = (int)getRankMethod.Invoke(proxy, null);
-
-            var getRankTemplateMethod = leaderType.GetMethod("GetRankTemplate", BindingFlags.Public | BindingFlags.Instance);
-            var rankTemplate = getRankTemplateMethod?.Invoke(proxy, null);
+            var rankTemplate = proxy.GetRankTemplate();
             if (rankTemplate != null)
-            {
-                info.RankName = GameObj<UnitRankTemplate>.Wrap(((Il2CppObjectBase)rankTemplate).Pointer).Untyped.GetName();
-            }
+                info.RankName = GameObj<UnitRankTemplate>.Wrap(rankTemplate.Pointer).Untyped.GetName();
 
-            // Get perk count
-            var getPerkCountMethod = leaderType.GetMethod("GetPerkCount", BindingFlags.Public | BindingFlags.Instance);
-            if (getPerkCountMethod != null)
-                info.PerkCount = (int)getPerkCountMethod.Invoke(proxy, null);
-
-            // Get health
-            var getHealthMethod = leaderType.GetMethod("GetHitpointsPct", BindingFlags.Public | BindingFlags.Instance);
-            if (getHealthMethod != null)
-                info.HealthPercent = (float)getHealthMethod.Invoke(proxy, null);
-
-            // Get status flags
-            var isDeployableMethod = leaderType.GetMethod("IsDeployable", BindingFlags.Public | BindingFlags.Instance);
-            if (isDeployableMethod != null)
-                info.IsDeployable = (bool)isDeployableMethod.Invoke(proxy, null);
-
-            var isUnavailableMethod = leaderType.GetMethod("IsUnavailable", BindingFlags.Public | BindingFlags.Instance);
-            if (isUnavailableMethod != null)
-                info.IsUnavailable = (bool)isUnavailableMethod.Invoke(proxy, null);
-
-            // Get deploy cost - GetDeployCosts returns OperationResources, not int
-            // For now, skip this as it requires parsing the OperationResources struct
-            // TODO: Parse OperationResources to get total deploy cost
-
-            // Get squaddie count (if SquadLeader) using m_Squaddies field
+            // Squaddie count
             // Note: m_Squaddies does not exist on BaseUnitLeader — actual field is m_SquaddieIds (List<int>)
-            // This reflection call silently returns null; SquaddieCount remains 0. Pre-existing bug, preserved.
-            try
-            {
-                var squaddiesField = proxy.GetType().GetField("m_Squaddies", BindingFlags.NonPublic | BindingFlags.Instance);
-                var squaddies = squaddiesField?.GetValue(proxy);
-                if (squaddies != null)
-                {
-                    var countProp = squaddies.GetType().GetProperty("Count");
-                    info.SquaddieCount = (int)(countProp?.GetValue(squaddies) ?? 0);
-                }
-            }
-            catch { }
+            // SquaddieCount is populated separately via GetSquaddieCount; left as 0 here.
 
             return info;
         }
@@ -370,36 +356,28 @@ public static class Roster
     public static List<string> GetPerks(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<string>();
-        if (leader.Untyped.IsNull) return result;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
         try
         {
-            var perksPtr = Offsets.Perks.Value.Read(leader);
-            if (perksPtr == IntPtr.Zero) return result;
+            if (!_hPerks.TryRead(leader, out var perkListObj)) return result;
 
-            var perkTemplateType = _perkTemplateType.ManagedType;
-            if (perkTemplateType == null) return result;
-
-            var (perks, listType) = GetTypedList(perksPtr, perkTemplateType);
+            var perks = perkListObj.AsManaged();
             if (perks == null) return result;
 
-            var countProp = listType.GetProperty("Count");
-            var indexer = listType.GetMethod("get_Item");
-
-            int count = (int)countProp.GetValue(perks);
-            for (int i = 0; i < count; i++)
+            int i = 0;
+            foreach (var perk in perks)
             {
-                var perk = indexer.Invoke(perks, new object[] { i });
-                if (perk == null) continue;
-
-                var perkObj = GameObj<PerkTemplate>.Wrap(((Il2CppObjectBase)perk).Pointer);
-                result.Add(perkObj.Untyped.GetName() ?? $"Perk {i}");
+                if (perk == null) { i++; continue; }
+                result.Add(GameObj<PerkTemplate>.Wrap(perk.Pointer).Untyped.GetName() ?? $"Perk {i}");
+                i++;
             }
 
             return result;
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Roster.GetPerks", "Failed", ex);
             return result;
         }
     }
@@ -434,28 +412,18 @@ public static class Roster
         try
         {
             var roster = GetRoster();
-            if (roster.Untyped.IsNull) return result;
+            if (roster.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var hirableListPtr = Offsets.HirableLeaders.Value.Read(roster);
-            if (hirableListPtr == IntPtr.Zero) return result;
+            if (!_hHirableLeaders.TryRead(roster, out var hirableListObj)) return result;
 
-            var templateType = _unitLeaderTemplateType.ManagedType;
-            if (templateType == null) return result;
-
-            var (hirableList, listType) = GetTypedList(hirableListPtr, templateType);
+            var hirableList = hirableListObj.AsManaged();
             if (hirableList == null) return result;
 
-            var countProp = listType.GetProperty("Count");
-            var indexer = listType.GetMethod("get_Item");
-
-            int count = (int)countProp.GetValue(hirableList);
-            for (int i = 0; i < count; i++)
+            foreach (var template in hirableList)
             {
-                var template = indexer.Invoke(hirableList, new object[] { i });
                 if (template == null) continue;
 
-                var templateObj = GameObj<UnitLeaderTemplate>.Wrap(((Il2CppObjectBase)template).Pointer);
-                var info = GetTemplateInfo(templateObj);
+                var info = GetTemplateInfo(GameObj<UnitLeaderTemplate>.Wrap(template.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -474,40 +442,27 @@ public static class Roster
     /// </summary>
     public static UnitLeaderTemplateInfo GetTemplateInfo(GameObj<UnitLeaderTemplate> template)
     {
-        if (template.Untyped.IsNull) return null;
+        if (template.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var info = new UnitLeaderTemplateInfo
-            {
-                Pointer = template.Untyped.Pointer,
-                TemplateName = template.Untyped.GetName()
-            };
+            var info = new UnitLeaderTemplateInfo { Pointer = template.Untyped.Pointer };
+
+            var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(template.Untyped.Pointer);
+            if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                info.TemplateId = id;
 
             // Get title (localized)
-            var titlePtr = Offsets.UnitTitle.Value.Read(template);
-            if (titlePtr != IntPtr.Zero)
+            if (_hUnitTitle.TryRead(template, out var titleObj))
             {
-                var title = GameObj.FromPointer(titlePtr);
-                var titleType = title.GetGameType()?.ManagedType;
-                var getText = titleType?.GetMethod("ToString",
-                                    BindingFlags.Public | BindingFlags.Instance);
-                if (getText != null)
-                {
-                    var proxy = GetManagedProxy(title.Pointer, titleType);
-                    info.DisplayName = Il2CppUtils.ToManagedString(getText.Invoke(proxy, null))
-                                       ?? info.TemplateName;
-                }
+                var titleProxy = titleObj.AsManaged();
+                if (titleProxy != null)
+                    info.DisplayName = Il2CppUtils.ToManagedString(titleProxy.ToString()) ?? info.TemplateId;
             }
 
-            // Get hiring costs
-            info.HiringCost = Offsets.HiringCosts.Value.Read(template);
-
-            // Get rarity
-            info.Rarity = Offsets.Rarity.Value.Read(template);
-
-            // Get min campaign progress
-            info.MinCampaignProgress = Offsets.MinCampaignProgress.Value.Read(template);
+            info.HiringCost = _hHiringCosts.Read(template);
+            info.Rarity = _hRarity.Read(template);
+            info.MinCampaignProgress = _hMinCampaignProgress.Read(template);
 
             return info;
         }
@@ -523,7 +478,7 @@ public static class Roster
     /// </summary>
     public static bool AddHirableLeader(GameObj<UnitLeaderTemplate> template)
     {
-        if (template.Untyped.IsNull) return false;
+        if (template.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
@@ -533,7 +488,7 @@ public static class Roster
             var rosterType = _rosterType?.ManagedType;
             if (rosterType == null) return false;
 
-            var proxy = GetManagedProxy(roster.Untyped.Pointer, rosterType);
+            var proxy = roster.AsManaged();
             if (proxy == null) return false;
 
             var templateType = _unitLeaderTemplateType.ManagedType;
@@ -542,7 +497,7 @@ public static class Roster
             var method = rosterType.GetMethod("AddHirableLeader", BindingFlags.Public | BindingFlags.Instance);
             if (method == null) return false;
 
-            var templateProxy = GetManagedProxy(template.Untyped.Pointer, templateType);
+            var templateProxy = template.AsManaged();
             if (templateProxy == null) return false;
 
             method.Invoke(proxy, new[] { templateProxy });
@@ -560,7 +515,7 @@ public static class Roster
     /// </summary>
     public static GameObj<BaseUnitLeader> HireLeader(GameObj<UnitLeaderTemplate> template)
     {
-        if (template.Untyped.IsNull) return default;
+        if (template.Untyped.CheckAlive() != AliveStatus.Alive) return default;
 
         try
         {
@@ -570,7 +525,7 @@ public static class Roster
             var rosterType = _rosterType?.ManagedType;
             if (rosterType == null) return default;
 
-            var proxy = GetManagedProxy(roster.Untyped.Pointer, rosterType);
+            var proxy = roster.AsManaged();
             if (proxy == null) return default;
 
             var templateType = _unitLeaderTemplateType.ManagedType;
@@ -579,7 +534,7 @@ public static class Roster
             var method = rosterType.GetMethod("HireLeader", BindingFlags.Public | BindingFlags.Instance);
             if (method == null) return default;
 
-            var templateProxy = GetManagedProxy(template.Untyped.Pointer, templateType);
+            var templateProxy = template.AsManaged();
             if (templateProxy == null) return default;
 
             var result = method.Invoke(proxy, new[] { templateProxy });
@@ -599,7 +554,7 @@ public static class Roster
     /// </summary>
     public static bool DismissLeader(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return default;
 
         try
         {
@@ -610,8 +565,8 @@ public static class Roster
             var leaderType = _unitLeaderType?.ManagedType;
             if (rosterType == null || leaderType == null) return false;
 
-            var rosterProxy = GetManagedProxy(roster.Untyped.Pointer, rosterType);
-            var leaderProxy = GetManagedProxy(leader.Untyped.Pointer, leaderType);
+            var rosterProxy = roster.AsManaged();
+            var leaderProxy = leader.AsManaged();
             if (rosterProxy == null || leaderProxy == null) return false;
 
             var method = rosterType.GetMethod("TryDismissLeader", BindingFlags.Public | BindingFlags.Instance);
@@ -629,20 +584,21 @@ public static class Roster
     /// <summary>
     /// Find a hirable leader template by name.
     /// </summary>
-    public static GameObj<UnitLeaderTemplate> FindHirableByName(string templateName)
+    public static GameObj<UnitLeaderTemplate> FindHirableByTemplateId(string templateId)
     {
         try
         {
             var hirables = GetHirableLeaders();
             foreach (var h in hirables)
             {
-                if (h.TemplateName?.Contains(templateName, StringComparison.OrdinalIgnoreCase) == true)
+                if (h.TemplateId == templateId)
                     return GameObj<UnitLeaderTemplate>.Wrap(h.Pointer);
             }
             return default;
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Roster.FindHirableByTemplateId", "Failed", ex);
             return default;
         }
     }
@@ -650,20 +606,25 @@ public static class Roster
     /// <summary>
     /// Find a hired leader by template name.
     /// </summary>
-    public static GameObj<BaseUnitLeader> FindByTemplateName(string templateName)
+    public static GameObj<BaseUnitLeader> FindByTemplateId(string templateId)
     {
         try
         {
             var leaders = GetHiredLeaders();
             foreach (var l in leaders)
             {
-                if (l.TemplateName?.Contains(templateName, StringComparison.OrdinalIgnoreCase) == true)
-                    return GameObj<BaseUnitLeader>.Wrap(l.Pointer);
+                var leaderObj = GameObj<BaseUnitLeader>.Wrap(l.Pointer);
+                if (!_hLeaderTemplate.TryRead(leaderObj, out var templateObj)) continue;
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
+                if (!Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id)) continue;
+                if (id == templateId)
+                    return leaderObj;
             }
             return default;
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Roster.FindByTemplateId", "Failed", ex);
             return default;
         }
     }
@@ -673,16 +634,17 @@ public static class Roster
     /// </summary>
     public static GameObj<UnitLeaderTemplate> GetLeaderTemplate(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return default;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return default;
 
         try
         {
-            if (Offsets.LeaderTemplate.Value.TryRead(leader, out var template))
+            if (_hLeaderTemplate.TryRead(leader, out var template))
                 return template;
             return default;
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Roster.GetLeaderTemplate", "Failed", ex);
             return default;
         }
     }
@@ -694,56 +656,31 @@ public static class Roster
     public static List<SquaddieInfo> GetSquaddies(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<SquaddieInfo>();
-        if (leader.Untyped.IsNull) return result;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var ssType = _strategyStateType?.ManagedType;
-            if (ssType == null) return result;
-
-            var getMethod = ssType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var ss = getMethod?.Invoke(null, null);
+            var ss = StrategyState.Get();
             if (ss == null) return result;
 
-            var ssObj = GameObj<StrategyState>.Wrap(((Il2CppObjectBase)ss).Pointer);
-            var squaddiesManager = Offsets.Squaddies.Value.Read(ssObj);
+            var ssObj = GameObj<StrategyState>.Wrap(ss.Pointer);
+            if (!_hSquaddies.TryRead(ssObj, out var squaddiesManager)) return result;
             if (squaddiesManager.Untyped.IsNull) return result;
 
-            var squaddiesType = _squaddieType?.ManagedType;
-            if (squaddiesType == null) return result;
+            if (!_hSquaddieIds.TryRead(leader, out var squaddieIdsObj)) return result;
 
-            var squaddieIdsPtr = Offsets.SquaddieIds.Value.Read(leader);
-            if (squaddieIdsPtr == IntPtr.Zero) return result;
-
-            var listGenericType = typeof(Il2CppSystem.Collections.Generic.List<>)
-                .MakeGenericType(typeof(int));
-            var ptrCtor = listGenericType.GetConstructor(new[] { typeof(IntPtr) });
-            if (ptrCtor == null) return result;
-
-            var idList = ptrCtor.Invoke(new object[] { squaddieIdsPtr });
+            var idList = squaddieIdsObj.AsManaged();
             if (idList == null) return result;
 
-            var countProp = listGenericType.GetProperty("Count");
-            var indexer = listGenericType.GetMethod("get_Item");
-            int count = (int)countProp.GetValue(idList);
-
-            var squaddiesManagerType = squaddiesManager.Untyped.GetGameType()?.ManagedType;
-            if (squaddiesManagerType == null) return result;
-
-            var getById = squaddiesManagerType.GetMethod("GetById", BindingFlags.Public | BindingFlags.Instance);
-            if (getById == null) return result;
-
-            var managerProxy = Il2CppUtils.GetManagedProxy(squaddiesManager.Untyped.Pointer, squaddiesManagerType);
+            var managerProxy = squaddiesManager.AsManaged();
             if (managerProxy == null) return result;
 
-            for (int i = 0; i < count; i++)
+            foreach (var id in idList)
             {
-                var id = (int)indexer.Invoke(idList, new object[] { i });
-                var squaddie = getById.Invoke(managerProxy, new object[] { id });
+                var squaddie = managerProxy.GetById(id);
                 if (squaddie == null) continue;
 
-                var squaddieObj = GameObj<Squaddie>.Wrap(((Il2CppObjectBase)squaddie).Pointer);
-                var info = GetSquaddieInfo(squaddieObj);
+                var info = GetSquaddieInfo(GameObj<Squaddie>.Wrap(squaddie.Pointer));
                 if (info != null)
                     result.Add(info);
             }
@@ -762,32 +699,23 @@ public static class Roster
     /// </summary>
     public static SquaddieInfo GetSquaddieInfo(GameObj<Squaddie> squaddie)
     {
-        if (squaddie.Untyped.IsNull) return null;
+        if (squaddie.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
             var info = new SquaddieInfo { Pointer = squaddie.Untyped.Pointer };
 
-            if (Offsets.Name.Value.TryRead(squaddie, out var name))
+            if (_hSquaddieName.TryRead(squaddie, out var name))
                 info.FirstName = name;
 
-            if (Offsets.Nickname.Value.TryRead(squaddie, out var nickname))
+            if (_hSquaddieNickname.TryRead(squaddie, out var nickname))
                 info.LastName = nickname;
 
             info.FullName = $"{info.FirstName} {info.LastName}".Trim();
 
-            var squaddieType = _squaddieType?.ManagedType;
-            if (squaddieType != null)
-            {
-                var proxy = Il2CppUtils.GetManagedProxy(squaddie.Untyped.Pointer, squaddieType);
-                if (proxy != null)
-                {
-                    var getHomePlanetName = squaddieType.GetMethod("GetHomePlanetName",
-                        BindingFlags.Public | BindingFlags.Instance);
-                    if (getHomePlanetName != null)
-                        info.HomePlanet = getHomePlanetName.Invoke(proxy, null) as string;
-                }
-            }
+            var proxy = squaddie.AsManaged();
+            if (proxy != null)
+                info.HomePlanet = proxy.GetHomePlanetName();
 
             return info;
         }
@@ -803,29 +731,18 @@ public static class Roster
     /// </summary>
     public static bool AddSquaddie(GameObj<BaseUnitLeader> leader, GameObj<Squaddie> squaddie)
     {
-        if (leader.Untyped.IsNull || squaddie.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (squaddie.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            var squaddieType = _squaddieType?.ManagedType;
-            if (leaderType == null || squaddieType == null) return false;
-
-            var leaderProxy = Il2CppUtils.GetManagedProxy(leader.Untyped.Pointer, leaderType);
+            var leaderProxy = leader.AsManaged();
             if (leaderProxy == null) return false;
 
-            var squaddieProxy = Il2CppUtils.GetManagedProxy(squaddie.Untyped.Pointer, squaddieType);
+            var squaddieProxy = squaddie.AsManaged();
             if (squaddieProxy == null) return false;
 
-            var getId = squaddieType.GetMethod("GetId", BindingFlags.Public | BindingFlags.Instance);
-            if (getId == null) return false;
-
-            var squaddieId = (int)getId.Invoke(squaddieProxy, null);
-
-            var method = leaderType.GetMethod("TryAddSquaddie", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            return (bool)method.Invoke(leaderProxy, new object[] { squaddieId });
+            return leaderProxy.TryAddSquaddie(squaddieProxy.GetId());
         }
         catch (Exception ex)
         {
@@ -839,29 +756,18 @@ public static class Roster
     /// </summary>
     public static bool RemoveSquaddie(GameObj<BaseUnitLeader> leader, GameObj<Squaddie> squaddie)
     {
-        if (leader.Untyped.IsNull || squaddie.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (squaddie.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            var squaddieType = _squaddieType?.ManagedType;
-            if (leaderType == null || squaddieType == null) return false;
-
-            var leaderProxy = Il2CppUtils.GetManagedProxy(leader.Untyped.Pointer, leaderType);
+            var leaderProxy = leader.AsManaged();
             if (leaderProxy == null) return false;
 
-            var squaddieProxy = Il2CppUtils.GetManagedProxy(squaddie.Untyped.Pointer, squaddieType);
+            var squaddieProxy = squaddie.AsManaged();
             if (squaddieProxy == null) return false;
 
-            var getId = squaddieType.GetMethod("GetId", BindingFlags.Public | BindingFlags.Instance);
-            if (getId == null) return false;
-
-            var squaddieId = (int)getId.Invoke(squaddieProxy, null);
-
-            var method = leaderType.GetMethod("TryRemoveSquaddie", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            return (bool)method.Invoke(leaderProxy, new object[] { squaddieId });
+            return leaderProxy.TryRemoveSquaddie(squaddieProxy.GetId());
         }
         catch (Exception ex)
         {
@@ -875,15 +781,15 @@ public static class Roster
     /// </summary>
     public static int GetSquaddieCount(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return 0;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return 0;
 
         try
         {
-            var squaddies = GetSquaddies(leader);
-            return squaddies.Count;
+            return GetSquaddies(leader).Count;
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Roster.GetSquaddieCount", "Failed", ex);
             return 0;
         }
     }
@@ -893,26 +799,18 @@ public static class Roster
     /// </summary>
     public static bool AddPerk(GameObj<BaseUnitLeader> leader, GameObj<PerkTemplate> perk)
     {
-        if (leader.Untyped.IsNull || perk.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (perk.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return false;
-
-            var leaderProxy = Il2CppUtils.GetManagedProxy(leader.Untyped.Pointer, leaderType);
+            var leaderProxy = leader.AsManaged();
             if (leaderProxy == null) return false;
 
-            var perkTemplateType = _perkTemplateType.ManagedType;
-            if (perkTemplateType == null) return false;
-
-            var perkProxy = Il2CppUtils.GetManagedProxy(perk.Untyped.Pointer, perkTemplateType);
+            var perkProxy = perk.AsManaged();
             if (perkProxy == null) return false;
 
-            var method = leaderType.GetMethod("AddPerk", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            method.Invoke(leaderProxy, new object[] { perkProxy, true });
+            leaderProxy.AddPerk(perkProxy, true);
             return true;
         }
         catch (Exception ex)
@@ -927,34 +825,25 @@ public static class Roster
     /// </summary>
     public static bool RemovePerk(GameObj<BaseUnitLeader> leader, string perkName)
     {
-        if (leader.Untyped.IsNull || string.IsNullOrEmpty(perkName)) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (string.IsNullOrEmpty(perkName)) return false;
 
         try
         {
-            var perksPtr = Offsets.Perks.Value.Read(leader);
-            if (perksPtr == IntPtr.Zero) return false;
+            if (!_hPerks.TryRead(leader, out var perkListObj)) return false;
 
-            var perkTemplateType = _perkTemplateType.ManagedType;
-            if (perkTemplateType == null) return false;
-
-            var (perks, listType) = GetTypedList(perksPtr, perkTemplateType);
+            var perks = perkListObj.AsManaged();
             if (perks == null) return false;
 
-            var countProp = listType.GetProperty("Count");
-            var indexer = listType.GetMethod("get_Item");
-            var removeAtMethod = listType.GetMethod("RemoveAt");
-
-            int count = (int)countProp.GetValue(perks);
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < perks.Count; i++)
             {
-                var perk = indexer.Invoke(perks, new object[] { i });
+                var perk = perks[i];
                 if (perk == null) continue;
 
-                var perkObj = GameObj<PerkTemplate>.Wrap(((Il2CppObjectBase)perk).Pointer);
-                var name = perkObj.Untyped.GetName();
+                var name = GameObj<PerkTemplate>.Wrap(perk.Pointer).Untyped.GetName();
                 if (name?.Contains(perkName, StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    removeAtMethod?.Invoke(perks, new object[] { i });
+                    perks.RemoveAt(i);
                     return true;
                 }
             }
@@ -982,20 +871,14 @@ public static class Roster
     /// </summary>
     public static bool HealLeader(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            var leaderType = _unitLeaderType?.ManagedType;
-            if (leaderType == null) return false;
-
-            var proxy = Il2CppUtils.GetManagedProxy(leader.Untyped.Pointer, leaderType);
+            var proxy = leader.AsManaged();
             if (proxy == null) return false;
 
-            var method = leaderType.GetMethod("SetHealthStatus", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            method.Invoke(proxy, new object[] { (byte)0 });
+            proxy.SetHealthStatus((byte)0);
             return true;
         }
         catch (Exception ex)
@@ -1010,15 +893,14 @@ public static class Roster
     /// </summary>
     public static bool SetLeaderAvailable(GameObj<BaseUnitLeader> leader, bool available)
     {
-        if (leader.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
             // Clear or set unavailability by writing directly to m_UnavailableDuration fields.
             // IsUnavailable() checks this struct; zero duration = available.
-            var ops = available ? 0 : 1;
-            Offsets.UnavailableOperations.Value.Write(leader, ops);
-            Offsets.UnavailableMissions.Value.Write(leader, 0);
+            _hUnavailableOperations.Write(leader, available ? 0 : 1);
+            _hUnavailableMissions.Write(leader, 0);
             return true;
         }
         catch (Exception ex)
@@ -1068,7 +950,7 @@ public static class Roster
             var perks = GetPerks(leader);
 
             return $"Unit: {info.Nickname}\n" +
-                   $"Template: {info.TemplateName}\n" +
+                   $"Template: {info.TemplateId}\n" +
                    $"Rank: {info.RankName} (Rank {info.Rank})\n" +
                    $"Health: {info.HealthPercent:P0}\n" +
                    $"Deploy Cost: {info.DeployCost}\n" +
@@ -1095,7 +977,7 @@ public static class Roster
             var lines = new List<string> { $"Available for Hire ({hirables.Count}):" };
             foreach (var h in hirables)
             {
-                var name = !string.IsNullOrEmpty(h.DisplayName) ? h.DisplayName : h.TemplateName;
+                var name = !string.IsNullOrEmpty(h.DisplayName) ? h.DisplayName : h.TemplateId;
                 var rarity = h.Rarity > 0 ? $" (Rarity: {h.Rarity}%)" : "";
                 lines.Add($"  {name}{rarity}");
             }
@@ -1103,18 +985,18 @@ public static class Roster
         });
 
         // hire <template> - Hire a leader
-        DevConsole.RegisterCommand("hire", "<template>", "Hire a leader by template name", args =>
+        DevConsole.RegisterCommand("hire", "<template>", "Hire a leader by template ID", args =>
         {
             if (args.Length == 0)
                 return "Usage: hire <template>";
 
-            var templateName = string.Join(" ", args);
-            var template = FindHirableByName(templateName);
-            if (template.Untyped.IsNull)
-                return $"Template '{templateName}' not found in hire pool";
+            var templateId = string.Join(" ", args);
+            var template = FindHirableByTemplateId(templateId);
+            if (template.Untyped.CheckAlive() != AliveStatus.Alive)
+                return $"Template '{templateId}' not found in hire pool";
 
             var hired = HireLeader(template);
-            if (hired.Untyped.IsNull)
+            if (hired.Untyped.CheckAlive() != AliveStatus.Alive)
                 return "Failed to hire leader";
 
             var info = GetLeaderInfo(hired);
@@ -1241,33 +1123,5 @@ public static class Roster
                 return $"Set {nickname} availability to {available}";
             return "Failed to set availability";
         });
-    }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(IntPtr pointer, Type managedType)
-        => Il2CppUtils.GetManagedProxy(pointer, managedType);
-
-    /// <summary>
-    /// Get a typed IL2CPP list from a pointer. Works around GameObj.ToManaged() failing for generic types.
-    /// </summary>
-    private static (object list, Type listType) GetTypedList(IntPtr listPtr, Type elementType)
-    {
-        if (listPtr == IntPtr.Zero || elementType == null) return (null, null);
-
-        try
-        {
-            var listGenericType = typeof(Il2CppSystem.Collections.Generic.List<>);
-            var listTyped = listGenericType.MakeGenericType(elementType);
-            var ptrCtor = listTyped.GetConstructor(new[] { typeof(IntPtr) });
-            if (ptrCtor == null) return (null, null);
-
-            var list = ptrCtor.Invoke(new object[] { listPtr });
-            return (list, listTyped);
-        }
-        catch
-        {
-            return (null, null);
-        }
     }
 }

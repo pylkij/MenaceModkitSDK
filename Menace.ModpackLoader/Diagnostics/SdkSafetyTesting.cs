@@ -27,12 +27,6 @@ public static class SdkSafetyTesting
         {
             return TestAllSdkMethods();
         });
-
-        DevConsole.RegisterCommand("debug.test_templates", "",
-            "Test Templates SDK methods", _ =>
-        {
-            return TestTemplatesMethods();
-        });
     }
 
     private static string TestTileMapMethods()
@@ -121,82 +115,6 @@ public static class SdkSafetyTesting
         return sb.ToString();
     }
 
-    private static string TestTemplatesMethods()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== TEMPLATES SDK SAFETY TEST ===");
-        sb.AppendLine($"Current Scene: {GameState.CurrentScene}");
-        sb.AppendLine();
-
-        // Test FindAll with a known template type
-        sb.AppendLine("Testing Templates.FindAll('WeaponTemplate')...");
-        try
-        {
-            var weapons = Templates.FindAll("WeaponTemplate");
-            sb.AppendLine($"  ✓ SUCCESS - Found {weapons.Length} weapons");
-
-            if (weapons.Length > 0)
-            {
-                var sample = weapons[0];
-                var sampleKlass = IL2CPP.il2cpp_object_get_class(sample.Pointer);
-                var sampleName = sample.ReadString(OffsetCache.GetOrResolve(sampleKlass, "m_Name")) ?? "unknown";
-                sb.AppendLine($"  Sample: {sampleName}");
-
-                // Test ReadField
-                sb.AppendLine("  Testing Templates.ReadField(weapon, 'DisplayName')...");
-                try
-                {
-                    var displayName = Templates.ReadField(sample, "DisplayName");
-                    sb.AppendLine($"    ✓ SUCCESS - DisplayName: {displayName}");
-                }
-                catch (Exception ex)
-                {
-                    sb.AppendLine($"    ✗ FAILED - {ex.GetType().Name}: {ex.Message}");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"  ✗ CRASHED - {ex.GetType().Name}: {ex.Message}");
-        }
-
-        // Test Find
-        sb.AppendLine();
-        sb.AppendLine("Testing Templates.Find('ArmorTemplate', 'known_item')...");
-        try
-        {
-            var equipment = Templates.FindAll("ArmorTemplate");
-            if (equipment.Length > 0)
-            {
-                var firstItem = equipment[0];
-                var firstItemKlass = IL2CPP.il2cpp_object_get_class(firstItem.Pointer);
-                var mNameOffset = OffsetCache.GetOrResolve(firstItemKlass, "m_Name");
-                var firstItemName = firstItem.ReadString(mNameOffset);
-                var found = Templates.Find("ArmorTemplate", firstItemName);
-                if (!found.IsNull)
-                {
-                    var foundKlass = IL2CPP.il2cpp_object_get_class(found.Pointer);
-                    var foundName = found.ReadString(OffsetCache.GetOrResolve(foundKlass, "m_Name"));
-                    sb.AppendLine($"  ✓ SUCCESS - Found: {foundName}");
-                }
-                else
-                {
-                    sb.AppendLine("  ✗ FAILED - Could not find item by name");
-                }
-            }
-            else
-            {
-                sb.AppendLine("  ○ SKIPPED - No equipment templates loaded");
-            }
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"  ✗ CRASHED - {ex.GetType().Name}: {ex.Message}");
-        }
-
-        return sb.ToString();
-    }
-
     private static string TestAllSdkMethods()
     {
         var sb = new StringBuilder();
@@ -208,11 +126,6 @@ public static class SdkSafetyTesting
         // TileMap tests
         sb.AppendLine("[TileMap SDK]");
         sb.AppendLine(TestTileMapMethods());
-        sb.AppendLine();
-
-        // Templates tests
-        sb.AppendLine("[Templates SDK]");
-        sb.AppendLine(TestTemplatesMethods());
         sb.AppendLine();
 
         // GameState tests

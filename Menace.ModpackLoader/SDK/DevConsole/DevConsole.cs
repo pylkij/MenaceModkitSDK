@@ -533,17 +533,19 @@ public static class DevConsole
         // === Entity Spawner Commands ===
 
         // spawn <template> <x> <y> [faction] - Spawn a unit
-        RegisterCommand("spawn", "<template> <x> <y> [faction]", "Spawn a unit at tile", args =>
+        RegisterCommand("spawn", "<template> <x> <z> [faction]", "Spawn a unit at tile", args =>
         {
             if (args.Length < 3)
-                return "Usage: spawn <template> <x> <y> [faction]";
+                return "Usage: spawn <template> <x> <z> [faction]";
             var template = args[0];
-            if (!int.TryParse(args[1], out int x) || !int.TryParse(args[2], out int y))
+            if (!int.TryParse(args[1], out int x) || !int.TryParse(args[2], out int z))
                 return "Invalid coordinates";
-            int faction = args.Length > 3 && int.TryParse(args[3], out int f) ? f : 1;
-            var result = EntitySpawner.SpawnUnit(template, x, y, faction);
+            var faction = args.Length > 3 && int.TryParse(args[3], out int f)
+                ? (Il2CppMenace.Tactical.FactionType)f
+                : Il2CppMenace.Tactical.FactionType.EnemyLocalForces;
+            var result = EntitySpawner.SpawnUnit(template, x, z, faction);
             return result.Success
-                ? $"Spawned {template} at ({x}, {y}) faction {faction}"
+                ? $"Spawned {template} at ({x}, {z}) faction {faction}"
                 : $"Failed: {result.Error}";
         });
 
@@ -560,7 +562,7 @@ public static class DevConsole
         // enemies - List all enemies
         RegisterCommand("enemies", "", "List all enemy actors", args =>
         {
-            var enemies = EntitySpawner.ListEntities(factionFilter: 1);
+            var enemies = EntitySpawner.ListEntities(Il2CppMenace.Tactical.FactionType.EnemyLocalForces);
             if (enemies.Length == 0) return "No enemies on map";
             var lines = new List<string> { $"Enemies ({enemies.Length}):" };
             foreach (var e in enemies.Take(20))
@@ -574,16 +576,18 @@ public static class DevConsole
         });
 
         // actors [faction] - List all actors
-        RegisterCommand("actors", "[faction]", "List actors (0=player, 1=enemy)", args =>
+        RegisterCommand("actors", "[faction]", "List actors by faction", args =>
         {
-            int filter = args.Length > 0 && int.TryParse(args[0], out int f) ? f : -1;
-            var actors = EntitySpawner.ListEntities(factionFilter: filter);
+            var faction = args.Length > 0 && int.TryParse(args[0], out int f)
+                ? (Il2CppMenace.Tactical.FactionType?)((Il2CppMenace.Tactical.FactionType)f)
+                : null;
+            var actors = EntitySpawner.ListEntities(faction);
             if (actors.Length == 0) return "No actors found";
             var lines = new List<string> { $"Actors ({actors.Length}):" };
             foreach (var a in actors.Take(30))
             {
                 var info = EntitySpawner.GetEntityInfo(a);
-                lines.Add($"  [{info?.FactionIndex}] {info?.Name ?? "?"} (ID: {info?.EntityId})");
+                lines.Add($"  [{info?.FactionId}] {info?.Name ?? "?"} (ID: {info?.EntityId})");
             }
             if (actors.Length > 30)
                 lines.Add($"  ... and {actors.Length - 30} more");

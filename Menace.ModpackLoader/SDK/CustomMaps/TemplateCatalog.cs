@@ -1,9 +1,10 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Il2CppInterop.Runtime;
-using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
 
 namespace Menace.SDK.CustomMaps;
@@ -231,19 +232,29 @@ public static class TemplateCatalog
     {
         try
         {
-            // Try to read DisplayName property
-            var displayName = Templates.ReadField(template, "DisplayName");
-            if (displayName != null)
+            var klass = IL2CPP.il2cpp_object_get_class(template.Pointer);
+            var gameType = GameType.FromPointer(klass);
+            var managedType = gameType?.ManagedType;
+            if (managedType != null)
             {
-                var str = displayName.ToString();
-                if (!string.IsNullOrEmpty(str) && str != fallback)
-                    return str;
-            }
+                var ptrCtor = managedType.GetConstructor(new[] { typeof(IntPtr) });
+                if (ptrCtor != null)
+                {
+                    var proxy = (Il2CppObjectBase)ptrCtor.Invoke(new object[] { template.Pointer });
 
-            // Try localized name
-            var localized = Templates.GetLocalizedText("Menace.Tactical.EntityTemplate", fallback, "DisplayName");
-            if (!string.IsNullOrEmpty(localized))
-                return localized;
+                    var displayName = GameObj.ReadField(proxy, "DisplayName");
+                    if (displayName != null)
+                    {
+                        var str = displayName.ToString();
+                        if (!string.IsNullOrEmpty(str) && str != fallback)
+                            return str;
+                    }
+
+                    var title = GameObj.ReadField(proxy, "Title") as BaseLocalizedString;
+                    if (!string.IsNullOrEmpty(title))
+                        return title;
+                }
+            }
         }
         catch { }
 
@@ -259,11 +270,19 @@ public static class TemplateCatalog
 
         try
         {
-            // Read Prefabs property
-            var prefabs = Templates.ReadField(template, "Prefabs");
+            var klass = IL2CPP.il2cpp_object_get_class(template.Pointer);
+            var gameType = GameType.FromPointer(klass);
+            var managedType = gameType?.ManagedType;
+            if (managedType == null) return names;
+
+            var ptrCtor = managedType.GetConstructor(new[] { typeof(IntPtr) });
+            if (ptrCtor == null) return names;
+
+            var proxy = (Il2CppObjectBase)ptrCtor.Invoke(new object[] { template.Pointer });
+
+            var prefabs = GameObj.ReadField(proxy, "Prefabs");
             if (prefabs == null) return names;
 
-            // Try to iterate the list
             var prefabsType = prefabs.GetType();
             var countProp = prefabsType.GetProperty("Count");
             var itemProp = prefabsType.GetProperty("Item");
@@ -271,7 +290,7 @@ public static class TemplateCatalog
             if (countProp == null || itemProp == null) return names;
 
             var count = (int)countProp.GetValue(prefabs);
-            for (int i = 0; i < count && i < 10; i++) // Limit to 10 prefabs
+            for (int i = 0; i < count && i < 10; i++)
             {
                 var prefab = itemProp.GetValue(prefabs, new object[] { i });
                 if (prefab is UnityEngine.Object unityObj && unityObj != null)

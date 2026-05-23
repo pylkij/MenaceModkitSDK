@@ -1,10 +1,10 @@
-using System;
-using System.Linq;
-using System.Collections.Generic;
-using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
-
+using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 namespace Menace.SDK;
 
@@ -23,49 +23,93 @@ namespace Menace.SDK;
 /// </summary>
 public static class Faction
 {
-    // Cached types
-    private static readonly GameType _storyFactionType = GameType.Of<Il2CppMenace.Strategy.StoryFaction>();
-    private static readonly GameType _storyFactionTemplateType = GameType.Of<Il2CppMenace.Strategy.StoryFactionTemplate>();
-    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
-    private static readonly GameType _strategyConfigType = GameType.Of<Il2CppMenace.Strategy.StrategyConfig>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Faction status enum values
-    public const int STATUS_UNKNOWN = 0;
-    public const int STATUS_KNOWN = 1;
+    // StrategyState fields
+    private static ObjFieldHandle<Il2CppMenace.States.StrategyState, Il2CppMenace.Strategy.StoryFactions> _hStoryFactions;
 
-    // Faction type enum values (from schema)
-    public const int TYPE_JINGWEI = 0;
-    public const int TYPE_UNBENT = 1;
-    public const int TYPE_DICE = 2;
-    public const int TYPE_TOLIMEN = 3;
-    public const int TYPE_LURCHEN = 4;
-    public const int TYPE_FIRAN = 5;
-    public const int TYPE_CMC = 6;
-    public const int TYPE_ZBC = 7;
+    // StoryFactions fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.StoryFactions, Il2CppSystem.Collections.Generic.Dictionary<Il2CppMenace.Strategy.StoryFactionType, Il2CppMenace.Strategy.StoryFaction>> _hFactions;
 
-    /// <summary>
-    /// Faction information structure.
-    /// </summary>
+    // StoryFaction fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.StoryFaction, Il2CppMenace.Strategy.StoryFactionTemplate> _hTemplate;
+    private static FieldHandle<Il2CppMenace.Strategy.StoryFaction, int> _hTotalTrust;
+    private static FieldHandle<Il2CppMenace.Strategy.StoryFaction, Il2CppMenace.Strategy.StoryFactionStatus> _hStatus;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.StoryFaction, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.ShipUpgradeTemplate>> _hUnlockedUpgrades;
+
+    // StoryFactionTemplate fields
+    private static FieldHandle<Il2CppMenace.Strategy.StoryFactionTemplate, Il2CppMenace.Strategy.StoryFactionType> _hFactionType;
+    private static FieldHandle<Il2CppMenace.Strategy.StoryFactionTemplate, int> _hInitialTotalTrust;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.StoryFactionTemplate, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int>> _hRequiredTotalTrustForLevel;
+
+    // FactionTemplate fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.FactionTemplate, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppMenace.Strategy.OperationTemplate>> _hOperations;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.FactionTemplate, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppMenace.Strategy.EnemyAssetTemplate>> _hEnemyAssets;
+
+    // ShipUpgradeTemplate fields
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeTemplate, Il2CppMenace.Strategy.ShipUpgradeUnlockType> _hUnlockType;
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeTemplate, Il2CppMenace.Strategy.StoryFactionType> _hUnlockedByFaction;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hStoryFactions = GameObj<Il2CppMenace.States.StrategyState>.ResolveObjField(x => x.StoryFactions);
+
+            _hFactions = GameObj<Il2CppMenace.Strategy.StoryFactions>.ResolveObjField(x => x.m_Factions);
+
+            _hTemplate = GameObj<Il2CppMenace.Strategy.StoryFaction>.ResolveObjField(x => x.m_Template);
+            _hTotalTrust = GameObj<Il2CppMenace.Strategy.StoryFaction>.ResolveField(x => x.m_TotalTrust);
+            _hStatus = GameObj<Il2CppMenace.Strategy.StoryFaction>.ResolveField(x => x.m_Status);
+            _hUnlockedUpgrades = GameObj<Il2CppMenace.Strategy.StoryFaction>.ResolveObjField(x => x.m_UnlockedUpgrades);
+
+            _hFactionType = GameObj<Il2CppMenace.Strategy.StoryFactionTemplate>.ResolveField(x => x.FactionType);
+            _hInitialTotalTrust = GameObj<Il2CppMenace.Strategy.StoryFactionTemplate>.ResolveField(x => x.InitialTotalTrust);
+            _hRequiredTotalTrustForLevel = GameObj<Il2CppMenace.Strategy.StoryFactionTemplate>.ResolveObjField(x => x.RequiredTotalTrustForLevel);
+
+            _hOperations = GameObj<Il2CppMenace.Strategy.FactionTemplate>.ResolveObjField(x => x.Operations);
+            _hEnemyAssets = GameObj<Il2CppMenace.Strategy.FactionTemplate>.ResolveObjField(x => x.EnemyAssets);
+
+            _hUnlockType = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.ResolveField(x => x.UnlockType);
+            _hUnlockedByFaction = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.ResolveField(x => x.UnlockedByFaction);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Faction.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
+
     public class FactionInfo
     {
-        /// <summary>Template name identifier.</summary>
-        public string TemplateName { get; set; }
-        /// <summary>Localized display name.</summary>
-        public string DisplayName { get; set; }
-        /// <summary>Faction type enum value.</summary>
-        public int FactionType { get; set; }
-        /// <summary>Human-readable faction type name.</summary>
-        public string FactionTypeName { get; set; }
-        /// <summary>Current trust level with player (-100 to 100).</summary>
-        public int Trust { get; set; }
-        /// <summary>Faction status (Unknown=0, Known=1).</summary>
-        public int Status { get; set; }
-        /// <summary>Human-readable status name.</summary>
-        public string StatusName { get; set; }
+        /// <summary>Stable template ID (m_ID from DataTemplate).</summary>
+        public string TemplateId { get; set; }
+        /// <summary>Faction type enum.</summary>
+        public StoryFactionType FactionType { get; set; }
+        /// <summary>Current total trust.</summary>
+        public int TotalTrust { get; set; }
+        /// <summary>Current trust level (derived from RequiredTotalTrustForLevel).</summary>
+        public int TrustLevel { get; set; }
+        /// <summary>Faction status.</summary>
+        public StoryFactionStatus Status { get; set; }
         /// <summary>Number of unlocked upgrades.</summary>
         public int UnlockedUpgradeCount { get; set; }
-        /// <summary>Total available upgrades.</summary>
-        public int TotalUpgradeCount { get; set; }
         /// <summary>Number of operations this faction can offer.</summary>
         public int OperationCount { get; set; }
         /// <summary>Whether this faction currently has an active operation.</summary>
@@ -76,112 +120,36 @@ public static class Faction
         public IntPtr TemplatePointer { get; set; }
     }
 
-    /// <summary>
-    /// Faction upgrade information.
-    /// </summary>
     public class UpgradeInfo
     {
-        /// <summary>Upgrade template name.</summary>
-        public string TemplateName { get; set; }
-        /// <summary>Localized display name.</summary>
-        public string DisplayName { get; set; }
-        /// <summary>Trust level required to unlock.</summary>
-        public int TrustRequired { get; set; }
-        /// <summary>Whether this upgrade is unlocked.</summary>
+        /// <summary>Stable template ID (m_ID from DataTemplate).</summary>
+        public string TemplateId { get; set; }
+        /// <summary>Unlock type (Faction, EventOnly, etc).</summary>
+        public ShipUpgradeUnlockType UnlockType { get; set; }
+        /// <summary>Faction required to unlock (relevant when UnlockType is Faction).</summary>
+        public StoryFactionType UnlockedByFaction { get; set; }
+        /// <summary>Whether this upgrade is unlocked for this faction.</summary>
         public bool IsUnlocked { get; set; }
-        /// <summary>Pointer to upgrade template.</summary>
+        /// <summary>Pointer to ShipUpgradeTemplate instance.</summary>
         public IntPtr Pointer { get; set; }
     }
 
-    // ═══════════════════════════════════════════════════════════════════
-    //  Core Accessors
-    // ═══════════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// Get StrategyState instance.
-    /// </summary>
-    public static GameObj GetStrategyState()
+    public static List<GameObj<Il2CppMenace.Strategy.StoryFaction>> GetAllFactions()
     {
-        try
-        {
-            var ssType = _strategyStateType?.ManagedType;
-            if (ssType == null) return GameObj.Null;
-
-            var getMethod = ssType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var ss = getMethod?.Invoke(null, null);
-            if (ss == null) return GameObj.Null;
-
-            return new GameObj(((Il2CppObjectBase)ss).Pointer);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Faction.GetStrategyState", "Failed", ex);
-            return GameObj.Null;
-        }
-    }
-
-    /// <summary>
-    /// Get all story factions in the game.
-    /// </summary>
-    public static List<GameObj> GetAllFactions()
-    {
-        var result = new List<GameObj>();
+        var result = new List<GameObj<Il2CppMenace.Strategy.StoryFaction>>();
 
         try
         {
-            var ss = GetStrategyState();
-            if (ss.IsNull) return result;
+            var ss = Il2CppMenace.States.StrategyState.Get();
+            if (ss == null) return result;
 
-            var ssType = _strategyStateType?.ManagedType;
-            if (ssType == null) return result;
-
-            var ssProxy = GetManagedProxy(ss, ssType);
-            if (ssProxy == null) return result;
-
-            // Try GetStoryFactions method first
-            var getFactionsMethod = ssType.GetMethod("GetStoryFactions",
-                BindingFlags.Public | BindingFlags.Instance);
-
-            if (getFactionsMethod != null)
+            for (int i = 0; i <= (int)StoryFactionType.Last; i++)
             {
-                var factions = getFactionsMethod.Invoke(ssProxy, null);
-                if (factions != null)
-                {
-                    var listType = factions.GetType();
-                    var countProp = listType.GetProperty("Count");
-                    var indexer = listType.GetMethod("get_Item");
+                var faction = GameMethod.Call<Il2CppMenace.States.StrategyState>(ss, x => x.StoryFactions.GetFaction((StoryFactionType)i));
+                if (faction == null) continue;
 
-                    int count = (int)(countProp?.GetValue(factions) ?? 0);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var faction = indexer?.Invoke(factions, new object[] { i });
-                        if (faction != null)
-                            result.Add(new GameObj(((Il2CppObjectBase)faction).Pointer));
-                    }
-                    return result;
-                }
-            }
-
-            // Fallback: Try StoryFactions property
-            var factionsProp = ssType.GetProperty("StoryFactions",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (factionsProp != null)
-            {
-                var factions = factionsProp.GetValue(ssProxy);
-                if (factions != null)
-                {
-                    var listType = factions.GetType();
-                    var countProp = listType.GetProperty("Count");
-                    var indexer = listType.GetMethod("get_Item");
-
-                    int count = (int)(countProp?.GetValue(factions) ?? 0);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var faction = indexer?.Invoke(factions, new object[] { i });
-                        if (faction != null)
-                            result.Add(new GameObj(((Il2CppObjectBase)faction).Pointer));
-                    }
-                }
+                if (GameObj<Il2CppMenace.Strategy.StoryFaction>.TryWrap(new GameObj(((Il2CppObjectBase)faction).Pointer), out var typed))
+                    result.Add(typed);
             }
 
             return result;
@@ -193,109 +161,61 @@ public static class Faction
         }
     }
 
-    /// <summary>
-    /// Get information about a faction.
-    /// </summary>
-    public static FactionInfo GetFactionInfo(GameObj faction)
+    public static FactionInfo GetFactionInfo(GameObj<Il2CppMenace.Strategy.StoryFaction> faction)
     {
-        if (faction.IsNull) return null;
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var factionType = _storyFactionType?.ManagedType;
-            if (factionType == null) return null;
-
-            var proxy = GetManagedProxy(faction, factionType);
-            if (proxy == null) return null;
-
-            var info = new FactionInfo { Pointer = faction.Pointer };
+            var info = new FactionInfo { Pointer = faction.Untyped.Pointer };
 
             // Get template
-            var templateProp = factionType.GetProperty("Template",
-                BindingFlags.Public | BindingFlags.Instance);
-            var template = templateProp?.GetValue(proxy);
-            if (template != null)
-            {
-                var templateObj = new GameObj(((Il2CppObjectBase)template).Pointer);
-                info.TemplatePointer = templateObj.Pointer;
-                info.TemplateName = templateObj.GetName();
+            if (!_hTemplate.TryRead(faction, out var templateObj)) return null;
+            info.TemplatePointer = templateObj.Untyped.Pointer;
 
-                // Get display name from template
-                var templateType = _storyFactionTemplateType?.ManagedType;
-                if (templateType != null)
+            var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
+            if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                info.TemplateId = id;
+
+            if (_hFactionType.TryRead(templateObj, out var factionType))
+                info.FactionType = factionType;
+
+            if (_hTotalTrust.TryRead(faction, out var totalTrust))
+                info.TotalTrust = totalTrust;
+
+            if (_hRequiredTotalTrustForLevel.TryRead(templateObj, out var trustLevels))
+            {
+                var levels = trustLevels.AsManaged();
+                if (levels != null)
                 {
-                    var templateProxy = GetManagedProxy(templateObj, templateType);
-                    if (templateProxy != null)
+                    int level = 0;
+                    for (int i = 0; i < levels.Length; i++)
                     {
-                        var getNameMethod = templateType.GetMethod("GetName",
-                            BindingFlags.Public | BindingFlags.Instance);
-                        if (getNameMethod != null)
-                            info.DisplayName = Il2CppUtils.ToManagedString(getNameMethod.Invoke(templateProxy, null));
-
-                        // Get faction type
-                        var typeProp = templateType.GetProperty("Type",
-                            BindingFlags.Public | BindingFlags.Instance);
-                        if (typeProp != null)
-                        {
-                            info.FactionType = Convert.ToInt32(typeProp.GetValue(templateProxy));
-                            info.FactionTypeName = GetFactionTypeName(info.FactionType);
-                        }
-
-                        // Get operation count from template
-                        var opsProp = templateType.GetProperty("Operations",
-                            BindingFlags.Public | BindingFlags.Instance);
-                        var ops = opsProp?.GetValue(templateProxy);
-                        if (ops != null)
-                        {
-                            var lengthProp = ops.GetType().GetProperty("Length") ??
-                                           ops.GetType().GetProperty("Count");
-                            info.OperationCount = (int)(lengthProp?.GetValue(ops) ?? 0);
-                        }
+                        if (totalTrust >= levels[i]) level = i + 1;
+                        else break;
                     }
+                    info.TrustLevel = level;
                 }
             }
 
-            // Get trust
-            var getTrustMethod = factionType.GetMethod("GetTrust",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getTrustMethod != null)
-                info.Trust = (int)getTrustMethod.Invoke(proxy, null);
+            if (_hStatus.TryRead(faction, out var status))
+                info.Status = status;
 
-            // Get status
-            var getStatusMethod = factionType.GetMethod("GetStatus",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getStatusMethod != null)
+            if (_hUnlockedUpgrades.TryRead(faction, out var unlockedObj))
             {
-                info.Status = Convert.ToInt32(getStatusMethod.Invoke(proxy, null));
-                info.StatusName = GetStatusName(info.Status);
-            }
-
-            // Get upgrade counts
-            var getUnlockedMethod = factionType.GetMethod("GetUnlockedUpgrades",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getUnlockedMethod != null)
-            {
-                var unlocked = getUnlockedMethod.Invoke(proxy, null);
+                var unlocked = unlockedObj.AsManaged();
                 if (unlocked != null)
-                {
-                    var countProp = unlocked.GetType().GetProperty("Count");
-                    info.UnlockedUpgradeCount = (int)(countProp?.GetValue(unlocked) ?? 0);
-                }
+                    info.UnlockedUpgradeCount = unlocked.Count;
             }
 
-            var getAllUpgradesMethod = factionType.GetMethod("GetAllUpgrades",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getAllUpgradesMethod != null)
+            var factionTemplateObj = GameObj<Il2CppMenace.Strategy.FactionTemplate>.Wrap(templateObj.Untyped.Pointer);
+            if (_hOperations.TryRead(factionTemplateObj, out var opsObj))
             {
-                var all = getAllUpgradesMethod.Invoke(proxy, null);
-                if (all != null)
-                {
-                    var countProp = all.GetType().GetProperty("Count");
-                    info.TotalUpgradeCount = (int)(countProp?.GetValue(all) ?? 0);
-                }
+                var ops = opsObj.AsManaged();
+                if (ops != null)
+                    info.OperationCount = ops.Length;
             }
 
-            // Check for active operation
             info.HasActiveOperation = HasActiveOperation(faction);
 
             return info;
@@ -328,35 +248,18 @@ public static class Faction
     // ═══════════════════════════════════════════════════════════════════
 
     /// <summary>
-    /// Find a faction by template name.
+    /// Find a faction by faction Type.
     /// </summary>
-    public static GameObj FindByName(string templateName)
+    public static GameObj<Il2CppMenace.Strategy.StoryFaction> FindByType(StoryFactionType factionType)
     {
-        if (string.IsNullOrEmpty(templateName)) return GameObj.Null;
+        var ss = Il2CppMenace.States.StrategyState.Get();
+        if (ss == null) return default;
 
-        var factions = GetAllFactions();
-        foreach (var f in factions)
-        {
-            var info = GetFactionInfo(f);
-            if (info?.TemplateName?.Contains(templateName, StringComparison.OrdinalIgnoreCase) == true)
-                return f;
-        }
-        return GameObj.Null;
-    }
+        var faction = GameMethod.Call<Il2CppMenace.States.StrategyState>(ss, x => x.StoryFactions.GetFaction(factionType));
+        if (faction == null) return default;
 
-    /// <summary>
-    /// Find a faction by type.
-    /// </summary>
-    public static GameObj FindByType(int factionType)
-    {
-        var factions = GetAllFactions();
-        foreach (var f in factions)
-        {
-            var info = GetFactionInfo(f);
-            if (info?.FactionType == factionType)
-                return f;
-        }
-        return GameObj.Null;
+        GameObj<Il2CppMenace.Strategy.StoryFaction>.TryWrap(new GameObj(((Il2CppObjectBase)faction).Pointer), out var typed);
+        return typed;
     }
 
     /// <summary>
@@ -377,7 +280,7 @@ public static class Faction
     /// <summary>
     /// Get factions by status (Known/Unknown).
     /// </summary>
-    public static List<FactionInfo> GetFactionsByStatus(int status)
+    public static List<FactionInfo> GetFactionsByStatus(StoryFactionStatus status)
     {
         var result = new List<FactionInfo>();
         var factions = GetAllFactionInfo();
@@ -396,49 +299,25 @@ public static class Faction
     /// <summary>
     /// Get trust level with a faction.
     /// </summary>
-    public static int GetTrust(GameObj faction)
+    public static int GetTrust(GameObj<Il2CppMenace.Strategy.StoryFaction> faction)
     {
-        if (faction.IsNull) return 0;
-
-        try
-        {
-            var factionType = _storyFactionType?.ManagedType;
-            if (factionType == null) return 0;
-
-            var proxy = GetManagedProxy(faction, factionType);
-            if (proxy == null) return 0;
-
-            var method = factionType.GetMethod("GetTrust", BindingFlags.Public | BindingFlags.Instance);
-            if (method != null)
-                return (int)method.Invoke(proxy, null);
-
-            return 0;
-        }
-        catch
-        {
-            return 0;
-        }
+        if (!_hTotalTrust.TryRead(faction, out var trust)) return 0;
+        return trust;
     }
 
     /// <summary>
     /// Change trust with a faction.
     /// </summary>
-    public static bool ChangeTrust(GameObj faction, int delta)
+    public static bool ChangeTrust(GameObj<Il2CppMenace.Strategy.StoryFaction> faction, int delta)
     {
-        if (faction.IsNull || delta == 0) return false;
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive || delta == 0) return false;
 
         try
         {
-            var factionType = _storyFactionType?.ManagedType;
-            if (factionType == null) return false;
+            var managed = faction.AsManaged();
+            if (managed == null) return false;
 
-            var proxy = GetManagedProxy(faction, factionType);
-            if (proxy == null) return false;
-
-            var method = factionType.GetMethod("ChangeTrust", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            method.Invoke(proxy, new object[] { delta });
+            managed.ChangeTrust(delta);
             return true;
         }
         catch (Exception ex)
@@ -451,28 +330,16 @@ public static class Faction
     /// <summary>
     /// Set faction status (Known/Unknown).
     /// </summary>
-    public static bool SetStatus(GameObj faction, int status)
+    public static bool SetStatus(GameObj<Il2CppMenace.Strategy.StoryFaction> faction, StoryFactionStatus status)
     {
-        if (faction.IsNull) return false;
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            var factionType = _storyFactionType?.ManagedType;
-            if (factionType == null) return false;
+            var managed = faction.AsManaged();
+            if (managed == null) return false;
 
-            var proxy = GetManagedProxy(faction, factionType);
-            if (proxy == null) return false;
-
-            var method = factionType.GetMethod("SetStatus", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            // Convert to enum
-            var statusEnumType = FindTypeByName("StoryFactionStatus");
-            object statusEnum = status;
-            if (statusEnumType != null)
-                statusEnum = Enum.ToObject(statusEnumType, status);
-
-            method.Invoke(proxy, new[] { statusEnum });
+            managed.SetStatus(status);
             return true;
         }
         catch (Exception ex)
@@ -489,79 +356,47 @@ public static class Faction
     /// <summary>
     /// Get upgrades for a faction.
     /// </summary>
-    public static List<UpgradeInfo> GetUpgrades(GameObj faction)
+    public static List<UpgradeInfo> GetUpgrades(GameObj<Il2CppMenace.Strategy.StoryFaction> faction)
     {
         var result = new List<UpgradeInfo>();
-        if (faction.IsNull) return result;
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
         try
         {
-            var factionType = _storyFactionType?.ManagedType;
-            if (factionType == null) return result;
+            if (!_hFactionType.TryRead(GameObj<Il2CppMenace.Strategy.StoryFactionTemplate>.Wrap(
+                _hTemplate.Read(faction).Untyped.Pointer), out var factionType)) return result;
 
-            var proxy = GetManagedProxy(faction, factionType);
-            if (proxy == null) return result;
-
-            // Get all upgrades
-            var getAllMethod = factionType.GetMethod("GetAllUpgrades",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getAllMethod == null) return result;
-
-            var all = getAllMethod.Invoke(proxy, null);
-            if (all == null) return result;
-
-            // Get unlocked set for checking
-            var getUnlockedMethod = factionType.GetMethod("GetUnlockedUpgrades",
-                BindingFlags.Public | BindingFlags.Instance);
+            // Build unlocked set from m_UnlockedUpgrades
             var unlockedSet = new HashSet<IntPtr>();
-            if (getUnlockedMethod != null)
+            if (_hUnlockedUpgrades.TryRead(faction, out var unlockedObj))
             {
-                var unlocked = getUnlockedMethod.Invoke(proxy, null);
-                if (unlocked != null)
-                {
-                    var listType = unlocked.GetType();
-                    var countProp = listType.GetProperty("Count");
-                    var indexer = listType.GetMethod("get_Item");
-                    int count = (int)(countProp?.GetValue(unlocked) ?? 0);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var upgrade = indexer?.Invoke(unlocked, new object[] { i });
-                        if (upgrade != null)
-                            unlockedSet.Add(((Il2CppObjectBase)upgrade).Pointer);
-                    }
-                }
+                var unlockedList = unlockedObj.AsManaged();
+                if (unlockedList != null)
+                    for (int i = 0; i < unlockedList.Count; i++)
+                        if (unlockedList[i] != null)
+                            unlockedSet.Add(unlockedList[i].Pointer);
             }
 
-            // Iterate all upgrades
-            var allListType = all.GetType();
-            var allCountProp = allListType.GetProperty("Count");
-            var allIndexer = allListType.GetMethod("get_Item");
-            int allCount = (int)(allCountProp?.GetValue(all) ?? 0);
-
-            for (int i = 0; i < allCount; i++)
+            // All ShipUpgradeTemplates unlocked by this faction
+            var allTemplates = Templates.FindAll<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
+            foreach (var t in allTemplates)
             {
-                var upgrade = allIndexer?.Invoke(all, new object[] { i });
-                if (upgrade == null) continue;
+                var upgradeObj = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.Wrap(t.Pointer);
 
-                var upgradeObj = new GameObj(((Il2CppObjectBase)upgrade).Pointer);
-                var info = new UpgradeInfo
-                {
-                    Pointer = upgradeObj.Pointer,
-                    TemplateName = upgradeObj.GetName(),
-                    IsUnlocked = unlockedSet.Contains(upgradeObj.Pointer)
-                };
+                if (!_hUnlockType.TryRead(upgradeObj, out var unlockType)) continue;
+                if (unlockType != ShipUpgradeUnlockType.Faction) continue;
+                if (!_hUnlockedByFaction.TryRead(upgradeObj, out var unlockedByFaction)) continue;
+                if (unlockedByFaction != factionType) continue;
 
-                // Get display name and trust required
-                var upgradeType = upgrade.GetType();
-                var getNameMethod = upgradeType.GetMethod("GetName",
-                    BindingFlags.Public | BindingFlags.Instance);
-                if (getNameMethod != null)
-                    info.DisplayName = Il2CppUtils.ToManagedString(getNameMethod.Invoke(upgrade, null));
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(t.Pointer);
+                var info = new UpgradeInfo { Pointer = t.Pointer };
 
-                var trustProp = upgradeType.GetProperty("TrustRequired",
-                    BindingFlags.Public | BindingFlags.Instance);
-                if (trustProp != null)
-                    info.TrustRequired = (int)(trustProp.GetValue(upgrade) ?? 0);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.TemplateId = id;
+
+                info.UnlockType = unlockType;
+                info.UnlockedByFaction = unlockedByFaction;
+                info.IsUnlocked = unlockedSet.Contains(t.Pointer);
 
                 result.Add(info);
             }
@@ -578,27 +413,20 @@ public static class Faction
     /// <summary>
     /// Unlock an upgrade for a faction.
     /// </summary>
-    public static bool UnlockUpgrade(GameObj faction, GameObj upgrade)
+    public static bool UnlockUpgrade(GameObj<Il2CppMenace.Strategy.StoryFaction> faction, GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate> upgrade)
     {
-        if (faction.IsNull || upgrade.IsNull) return false;
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (upgrade.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            var factionType = _storyFactionType?.ManagedType;
-            if (factionType == null) return false;
+            var managed = faction.AsManaged();
+            if (managed == null) return false;
 
-            var proxy = GetManagedProxy(faction, factionType);
-            if (proxy == null) return false;
+            var upgradeManaed = upgrade.AsManaged();
+            if (upgradeManaed == null) return false;
 
-            var method = factionType.GetMethod("UnlockUpgrade",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            var upgradeType = method.GetParameters()[0].ParameterType;
-            var upgradeProxy = GetManagedProxy(upgrade, upgradeType);
-            if (upgradeProxy == null) return false;
-
-            method.Invoke(proxy, new[] { upgradeProxy });
+            managed.UnlockUpgrade(upgradeManaed);
             return true;
         }
         catch (Exception ex)
@@ -615,28 +443,28 @@ public static class Faction
     /// <summary>
     /// Check if faction has an active operation.
     /// </summary>
-    public static bool HasActiveOperation(GameObj faction)
+    public static bool HasActiveOperation(GameObj<Il2CppMenace.Strategy.StoryFaction> faction)
     {
-        if (faction.IsNull) return false;
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            // Get current operation and check if it's for this faction
             var currentOp = Operation.GetCurrentOperation();
-            if (currentOp.IsNull) return false;
+            if (currentOp.CheckAlive() != AliveStatus.Alive) return false;
 
-            var opInfo = Operation.GetOperationInfo(currentOp);
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(currentOp, out var typed)) return false;
+            var opInfo = Operation.GetOperationInfo(typed);
             if (opInfo == null) return false;
 
-            var factionInfo = GetFactionInfo(faction);
-            if (factionInfo == null) return false;
+            if (!_hTemplate.TryRead(faction, out var templateObj)) return false;
+            var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
+            if (!Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id)) return false;
 
-            // Compare faction names
-            return opInfo.EnemyFaction == factionInfo.TemplateName ||
-                   opInfo.FriendlyFaction == factionInfo.TemplateName;
+            return opInfo.EnemyFactionId == id || opInfo.FriendlyFactionId == id;
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Faction.HasActiveOperation", "Failed", ex);
             return false;
         }
     }
@@ -644,42 +472,26 @@ public static class Faction
     /// <summary>
     /// Get the operation template list for a faction.
     /// </summary>
-    public static List<GameObj> GetOperationTemplates(GameObj faction)
+    public static List<GameObj<Il2CppMenace.Strategy.OperationTemplate>> GetOperationTemplates(GameObj<Il2CppMenace.Strategy.StoryFaction> faction)
     {
-        var result = new List<GameObj>();
-        if (faction.IsNull) return result;
+        var result = new List<GameObj<Il2CppMenace.Strategy.OperationTemplate>>();
+        if (faction.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
         try
         {
-            var info = GetFactionInfo(faction);
-            if (info?.TemplatePointer == IntPtr.Zero) return result;
+            if (!_hTemplate.TryRead(faction, out var templateObj)) return result;
 
-            var templateObj = new GameObj(info.TemplatePointer);
-            var templateType = _storyFactionTemplateType?.ManagedType;
-            if (templateType == null) return result;
+            var factionTemplateObj = GameObj<Il2CppMenace.Strategy.FactionTemplate>.Wrap(templateObj.Untyped.Pointer);
+            if (!_hOperations.TryRead(factionTemplateObj, out var opsObj)) return result;
 
-            var templateProxy = GetManagedProxy(templateObj, templateType);
-            if (templateProxy == null) return result;
-
-            var opsProp = templateType.GetProperty("Operations",
-                BindingFlags.Public | BindingFlags.Instance);
-            var ops = opsProp?.GetValue(templateProxy);
+            var ops = opsObj.AsManaged();
             if (ops == null) return result;
 
-            // Iterate array
-            var arrayType = ops.GetType();
-            var lengthProp = arrayType.GetProperty("Length");
-            int length = (int)(lengthProp?.GetValue(ops) ?? 0);
-
-            var getMethod = arrayType.GetMethod("Get") ?? arrayType.GetMethod("get_Item");
-            if (getMethod != null)
+            for (int i = 0; i < ops.Length; i++)
             {
-                for (int i = 0; i < length; i++)
-                {
-                    var op = getMethod.Invoke(ops, new object[] { i });
-                    if (op != null)
-                        result.Add(new GameObj(((Il2CppObjectBase)op).Pointer));
-                }
+                if (ops[i] == null) continue;
+                if (GameObj<Il2CppMenace.Strategy.OperationTemplate>.TryWrap(new GameObj(ops[i].Pointer), out var typed))
+                    result.Add(typed);
             }
 
             return result;
@@ -689,42 +501,6 @@ public static class Faction
             ModError.ReportInternal("Faction.GetOperationTemplates", "Failed", ex);
             return result;
         }
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Name Helpers
-    // ═══════════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// Get faction type name from enum value.
-    /// </summary>
-    public static string GetFactionTypeName(int factionType)
-    {
-        return factionType switch
-        {
-            TYPE_JINGWEI => "Jingwei",
-            TYPE_UNBENT => "Unbent",
-            TYPE_DICE => "Dice",
-            TYPE_TOLIMEN => "Tolimen",
-            TYPE_LURCHEN => "Lurchen",
-            TYPE_FIRAN => "Firan",
-            TYPE_CMC => "CMC",
-            TYPE_ZBC => "ZBC",
-            _ => $"Faction{factionType}"
-        };
-    }
-
-    /// <summary>
-    /// Get status name from enum value.
-    /// </summary>
-    public static string GetStatusName(int status)
-    {
-        return status switch
-        {
-            STATUS_UNKNOWN => "Unknown",
-            STATUS_KNOWN => "Known",
-            _ => $"Status{status}"
-        };
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -746,66 +522,64 @@ public static class Faction
             var lines = new List<string> { $"Story Factions ({factions.Count}):" };
             foreach (var f in factions)
             {
-                var status = f.StatusName;
                 var ops = f.HasActiveOperation ? " [ACTIVE OP]" : "";
-                var upgrades = f.TotalUpgradeCount > 0
-                    ? $" [{f.UnlockedUpgradeCount}/{f.TotalUpgradeCount} upgrades]"
-                    : "";
-                lines.Add($"  {f.FactionTypeName}: Trust {f.Trust}, {status}{upgrades}{ops}");
+                var upgrades = f.UnlockedUpgradeCount > 0 ? $" [{f.UnlockedUpgradeCount} upgrades unlocked]" : "";
+                lines.Add($"  [{f.FactionType}] {f.TemplateId}: Trust {f.TotalTrust} (Lvl {f.TrustLevel}), {f.Status}{upgrades}{ops}");
             }
             return string.Join("\n", lines);
         });
 
-        // faction <name> - Show faction details
-        DevConsole.RegisterCommand("faction", "<name>", "Show faction details", args =>
+        // faction <type> - Show faction details
+        DevConsole.RegisterCommand("faction", "<type>", "Show faction details", args =>
         {
             if (args.Length == 0)
-                return "Usage: faction <name>";
+                return "Usage: faction <type> (e.g. Jingwei, Unbent, Dice)";
 
-            var name = string.Join(" ", args);
-            var faction = FindByName(name);
-            if (faction.IsNull)
-                return $"Faction '{name}' not found";
+            if (!Enum.TryParse<StoryFactionType>(args[0], true, out var factionType))
+                return $"Unknown faction type '{args[0]}'. Valid: {string.Join(", ", Enum.GetNames(typeof(StoryFactionType)))}";
+
+            var faction = FindByType(factionType);
+            if (faction.Untyped.CheckAlive() != AliveStatus.Alive)
+                return $"Faction '{factionType}' not found";
 
             var info = GetFactionInfo(faction);
             if (info == null)
                 return "Could not get faction info";
 
             var upgrades = GetUpgrades(faction);
-            var unlockedNames = new List<string>();
-            var lockedNames = new List<string>();
+            var unlocked = new List<string>();
+            var locked = new List<string>();
             foreach (var u in upgrades)
             {
-                var uName = !string.IsNullOrEmpty(u.DisplayName) ? u.DisplayName : u.TemplateName;
-                if (u.IsUnlocked)
-                    unlockedNames.Add(uName);
-                else
-                    lockedNames.Add($"{uName} (req: {u.TrustRequired})");
+                if (u.IsUnlocked) unlocked.Add(u.TemplateId);
+                else locked.Add(u.TemplateId);
             }
 
-            return $"Faction: {info.DisplayName ?? info.TemplateName}\n" +
-                   $"Type: {info.FactionTypeName}\n" +
-                   $"Status: {info.StatusName}\n" +
-                   $"Trust: {info.Trust}\n" +
+            return $"Faction: {info.TemplateId}\n" +
+                   $"Type: {info.FactionType}\n" +
+                   $"Status: {info.Status}\n" +
+                   $"Trust: {info.TotalTrust} (Level {info.TrustLevel})\n" +
                    $"Operations: {info.OperationCount} available\n" +
                    $"Active Operation: {info.HasActiveOperation}\n" +
-                   $"Unlocked ({unlockedNames.Count}): {string.Join(", ", unlockedNames)}\n" +
-                   $"Locked ({lockedNames.Count}): {string.Join(", ", lockedNames)}";
+                   $"Unlocked ({unlocked.Count}): {string.Join(", ", unlocked)}\n" +
+                   $"Locked ({locked.Count}): {string.Join(", ", locked)}";
         });
 
-        // settrust <faction> <value> - Set faction trust
-        DevConsole.RegisterCommand("settrust", "<faction> <delta>", "Change faction trust", args =>
+        // settrust <type> <delta> - Change faction trust
+        DevConsole.RegisterCommand("settrust", "<type> <delta>", "Change faction trust", args =>
         {
             if (args.Length < 2)
-                return "Usage: settrust <faction> <delta>";
+                return "Usage: settrust <type> <delta>";
 
-            var name = args[0];
+            if (!Enum.TryParse<StoryFactionType>(args[0], true, out var factionType))
+                return $"Unknown faction type '{args[0]}'";
+
             if (!int.TryParse(args[1], out int delta))
                 return "Invalid delta value";
 
-            var faction = FindByName(name);
-            if (faction.IsNull)
-                return $"Faction '{name}' not found";
+            var faction = FindByType(factionType);
+            if (faction.Untyped.CheckAlive() != AliveStatus.Alive)
+                return $"Faction '{factionType}' not found";
 
             var before = GetTrust(faction);
             if (ChangeTrust(faction, delta))
@@ -825,39 +599,9 @@ public static class Faction
 
             var lines = new List<string> { $"Factions with Operations ({factions.Count}):" };
             foreach (var f in factions)
-            {
-                lines.Add($"  {f.FactionTypeName}: Trust {f.Trust}");
-            }
+                lines.Add($"  [{f.FactionType}] {f.TemplateId}: Trust {f.TotalTrust} (Lvl {f.TrustLevel})");
+
             return string.Join("\n", lines);
         });
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Internal Helpers
-    // ═══════════════════════════════════════════════════════════════════
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
-
-    private static Type FindTypeByName(string typeName)
-    {
-        try
-        {
-            var gameAssembly = AppDomain.CurrentDomain.GetAssemblies()
-                .FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
-            if (gameAssembly != null)
-            {
-                foreach (var t in gameAssembly.GetTypes())
-                {
-                    if (t.Name == typeName)
-                        return t;
-                }
-            }
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }

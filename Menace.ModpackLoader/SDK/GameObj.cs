@@ -1,7 +1,9 @@
 using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes;
 using Menace.SDK.Internal;
 using System;
 using System.Runtime.InteropServices;
+using System.Reflection;
 
 namespace Menace.SDK;
 
@@ -41,8 +43,7 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         Pointer = pointer;
     }
 
-    // Used internally by the SDK.
-    internal static GameObj FromPointer(IntPtr pointer) => new GameObj(pointer);
+    public static GameObj FromPointer(IntPtr pointer) => new GameObj(pointer);
 
     public static GameObj Null => default;
 
@@ -136,6 +137,42 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         }
     }
 
+    public static object ReadField(Il2CppObjectBase obj, string fieldName)
+    {
+        if (obj == null || string.IsNullOrEmpty(fieldName))
+            return null;
+
+        try
+        {
+            var parts = fieldName.Split('.');
+            object current = obj;
+
+            foreach (var part in parts)
+            {
+                if (current == null) return null;
+
+                var prop = current.GetType().GetProperty(part,
+                    BindingFlags.Public | BindingFlags.Instance);
+
+                if (prop == null || !prop.CanRead)
+                {
+                    ModError.WarnInternal("Templates.ReadField",
+                        $"Property '{part}' not found on {current.GetType().Name}");
+                    return null;
+                }
+
+                current = prop.GetValue(current);
+            }
+
+            return current;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Templates.ReadField", $"Failed '{fieldName}'", ex);
+            return null;
+        }
+    }
+
     // --- Field writes by pre-cached offset ---
 
     public void WriteInt(uint offset, int value)
@@ -151,6 +188,13 @@ public readonly partial struct GameObj : IEquatable<GameObj>
         if (offset == 0) throw new GameObjException("WriteFloat: offset is zero");
         var intVal = BitConverter.SingleToInt32Bits(value);
         Marshal.WriteInt32(Pointer + (int)offset, intVal);
+    }
+
+    public void WriteBool(uint offset, bool value)
+    {
+        if (Pointer == IntPtr.Zero) throw new GameObjException("WriteBool: pointer is null");
+        if (offset == 0) throw new GameObjException("WriteBool: offset is zero");
+        Marshal.WriteByte(Pointer + (int)offset, value ? (byte)1 : (byte)0);
     }
 
     public void WritePtr(uint offset, IntPtr value)
@@ -182,6 +226,50 @@ public readonly partial struct GameObj : IEquatable<GameObj>
     {
         var gameType = GetGameType();
         return gameType?.FullName ?? "<unknown>";
+    }
+
+    /// <summary>
+    /// Returns true if this object's runtime type is exactly <typeparamref name="T"/>.
+    /// Does not match subclasses; use <see cref="IsAssignableTo{T}"/> for that.
+    /// </summary>
+    public bool IsType<T>() where T : Il2CppObjectBase
+    {
+        if (Pointer == IntPtr.Zero) return false;
+
+        var expected = GameType.Of<T>();
+        if (expected == null)
+            throw new GameObjException($"IsType<{typeof(T).Name}>: type not found in IL2CPP metadata");
+
+        var type = GetGameType();
+        if (type == null)
+            throw new GameObjException($"IsType<{typeof(T).Name}>: could not resolve runtime type of object @ 0x{Pointer:X}");
+
+        return type.ClassPointer == expected.ClassPointer;
+    }
+
+    /// <summary>
+    /// Returns true if this object's runtime type is <typeparamref name="T"/> or any subclass of it.
+    /// </summary>
+    public bool IsAssignableTo<T>() where T : Il2CppObjectBase
+    {
+        if (Pointer == IntPtr.Zero) return false;
+
+        var expected = GameType.Of<T>();
+        if (expected == null)
+            throw new GameObjException($"IsAssignableTo<{typeof(T).Name}>: type not found in IL2CPP metadata");
+
+        var type = GetGameType();
+        if (type == null)
+            throw new GameObjException($"IsAssignableTo<{typeof(T).Name}>: could not resolve runtime type of object @ 0x{Pointer:X}");
+
+        try
+        {
+            return IL2CPP.il2cpp_class_is_assignable_from(expected.ClassPointer, type.ClassPointer);
+        }
+        catch (Exception ex)
+        {
+            throw new GameObjException($"IsAssignableTo<{typeof(T).Name}>: native call faulted @ 0x{Pointer:X}", ex);
+        }
     }
 
     /// <summary>

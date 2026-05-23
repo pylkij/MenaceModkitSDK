@@ -234,7 +234,7 @@ public static class CombatSimulation
         {
             var targetInfo = EntitySpawner.GetEntityInfo(target);
             if (targetInfo == null || !targetInfo.IsAlive) continue;
-            if (targetInfo.FactionIndex == attackerInfo?.FactionIndex) continue; // Same faction
+            if (targetInfo.FactionId == attackerInfo?.FactionId) continue; // Same faction
 
             var hitChance = GetHitChance(attacker, target);
             if (hitChance.FinalValue >= 0)

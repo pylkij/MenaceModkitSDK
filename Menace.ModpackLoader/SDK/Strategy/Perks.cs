@@ -22,45 +22,70 @@ namespace Menace.SDK;
 /// </summary>
 public static class Perks
 {
-    // Cached types
-    private static readonly GameType _perkTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTemplate>();
-    private static readonly GameType _perkTreeTemplateType = GameType.Of<Il2CppMenace.Strategy.PerkTreeTemplate>();
-    private static readonly GameType _perkType = GameType.Of<Il2CppMenace.Strategy.Perk>();
-    private static readonly GameType _skillTemplateType = GameType.Of<Il2CppMenace.Tactical.Skills.SkillTemplate>();
-    private static readonly GameType _unitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    private static class Offsets
+    // SkillTemplate fields (inherited by PerkTemplate)
+    // Title/Description are LocalizedLine/LocalizedMultiLine object references — not strings.
+    // Use ObjFieldHandle and call GetRawDefaultTranslation() on the result.
+    private static ObjFieldHandle<PerkTemplate, LocalizedLine> _hTitle;
+    private static ObjFieldHandle<PerkTemplate, LocalizedMultiLine> _hDescription;
+    private static FieldHandle<PerkTemplate, int> _hActionPointCost;
+    private static FieldHandle<PerkTemplate, bool> _hIsActive;
+
+    // BaseUnitLeader fields
+    private static ObjFieldHandle<BaseUnitLeader, UnitLeaderTemplate> _hLeaderTemplate;
+    private static ObjFieldHandle<BaseUnitLeader, Il2CppSystem.Collections.Generic.List<PerkTemplate>> _hLeaderPerks;
+
+    // UnitLeaderTemplate fields
+    private static ObjFieldHandle<UnitLeaderTemplate, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<PerkTreeTemplate>> _hPerkTrees;
+
+    // PerkTreeTemplate fields
+    private static ObjFieldHandle<PerkTreeTemplate, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Perk>> _hTreePerks;
+
+    // Perk fields
+    private static ObjFieldHandle<Perk, PerkTemplate> _hPerkSkill;
+    private static FieldHandle<Perk, int> _hPerkTier;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
     {
-        // SkillTemplate fields (inherited by PerkTemplate)
-        // Title/Description are LocalizedLine/LocalizedMultiLine object pointers — not strings.
-        // Do NOT use ResolveStringField. ReadLocalizedText handles extraction.
-        internal static readonly Lazy<FieldHandle<PerkTemplate, IntPtr>> Title
-            = new(() => GameObj<PerkTemplate>.FieldAt<IntPtr>(0x78, nameof(Title)));
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
 
-        internal static readonly Lazy<FieldHandle<PerkTemplate, IntPtr>> Description
-            = new(() => GameObj<PerkTemplate>.FieldAt<IntPtr>(0x80, nameof(Description)));
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
 
-        internal static readonly Lazy<FieldHandle<PerkTemplate, int>> ActionPointCost
-            = new(() => GameObj<PerkTemplate>.ResolveField(x => x.ActionPointCost));
+        try
+        {
+            _hTitle = GameObj<PerkTemplate>.ResolveObjField(x => x.Title);
+            _hDescription = GameObj<PerkTemplate>.ResolveObjField(x => x.Description);
+            _hActionPointCost = GameObj<PerkTemplate>.ResolveField(x => x.ActionPointCost);
+            _hIsActive = GameObj<PerkTemplate>.ResolveField(x => x.IsActive);
 
-        internal static readonly Lazy<FieldHandle<PerkTemplate, bool>> IsActive
-            = new(() => GameObj<PerkTemplate>.ResolveField(x => x.IsActive));
+            _hLeaderTemplate = GameObj<BaseUnitLeader>.ResolveObjField(x => x.LeaderTemplate);
+            _hLeaderPerks = GameObj<BaseUnitLeader>.ResolveObjField(x => x.m_Perks);
 
-        // BaseUnitLeader fields
-        internal static readonly Lazy<FieldHandle<BaseUnitLeader, IntPtr>> m_Perks
-            = new(() => GameObj<BaseUnitLeader>.FieldAt<IntPtr>(0x48, nameof(m_Perks)));
+            _hPerkTrees = GameObj<UnitLeaderTemplate>.ResolveObjField(x => x.PerkTrees);
 
-        internal static readonly Lazy<FieldHandle<UnitLeaderTemplate, IntPtr>> PerkTrees
-            = new(() => GameObj<UnitLeaderTemplate>.FieldAt<IntPtr>(0x170, nameof(PerkTrees)));
+            _hTreePerks = GameObj<PerkTreeTemplate>.ResolveObjField(x => x.Perks);
 
-        internal static readonly Lazy<FieldHandle<PerkTreeTemplate, IntPtr>> Perks
-            = new(() => GameObj<PerkTreeTemplate>.FieldAt<IntPtr>(0x18, nameof(Perks)));
+            _hPerkSkill = GameObj<Perk>.ResolveObjField(x => x.Skill);
+            _hPerkTier = GameObj<Perk>.ResolveField(x => x.Tier);
 
-        internal static readonly Lazy<FieldHandle<Perk, IntPtr>> PerkSkill
-            = new(() => GameObj<Perk>.FieldAt<IntPtr>(0x10, "Skill"));
-
-        internal static readonly Lazy<FieldHandle<Perk, int>> PerkTier
-            = new(() => GameObj<Perk>.FieldAt<int>(0x18, nameof(Perk.Tier)));
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Perks.ResolveHandles", "Field handle resolution failed", ex);
+        }
     }
 
     /// <summary>
@@ -98,28 +123,22 @@ public static class Perks
     public static List<PerkInfo> GetLeaderPerks(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<PerkInfo>();
-        if (leader.Untyped.IsNull) return result;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
         try
         {
-            var perksPtr = Offsets.m_Perks.Value.Read(leader);
-            if (perksPtr == IntPtr.Zero) return result;
+            if (!_hLeaderPerks.TryRead(leader, out var perksObj) || perksObj.Untyped.IsNull) return result;
+            if (perksObj.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var perks = new Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.PerkTemplate>(perksPtr);
+            var perks = perksObj.AsManaged();
             if (perks == null) return result;
 
-            var listType = perks.GetType();
-            var countProp = listType.GetProperty("Count");
-            var indexer = listType.GetMethod("get_Item");
-            if (countProp == null || indexer == null) return result;
-
-            int count = (int)countProp.GetValue(perks);
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < perks.Count; i++)
             {
-                var perk = indexer.Invoke(perks, new object[] { i });
+                var perk = perks[i];
                 if (perk == null) continue;
 
-                var perkObj = GameObj<PerkTemplate>.Wrap(((Il2CppObjectBase)perk).Pointer);
+                var perkObj = GameObj<PerkTemplate>.Wrap(perk.Pointer);
                 var info = GetPerkInfo(perkObj);
                 if (info != null)
                     result.Add(info);
@@ -139,7 +158,7 @@ public static class Perks
     /// </summary>
     public static PerkInfo GetPerkInfo(GameObj<PerkTemplate> perkTemplate)
     {
-        if (perkTemplate.Untyped.IsNull) return null;
+        if (perkTemplate.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
@@ -149,16 +168,14 @@ public static class Perks
                 Name = perkTemplate.Untyped.GetName()
             };
 
-            var titlePtr = Offsets.Title.Value.Read(perkTemplate);
-            if (titlePtr != IntPtr.Zero)
-                info.Title = new BaseLocalizedString(titlePtr).GetRawDefaultTranslation() ?? info.Name;
+            if (_hTitle.TryRead(perkTemplate, out var titleObj) && !titleObj.Untyped.IsNull)
+                info.Title = titleObj.AsManaged().GetRawDefaultTranslation() ?? info.Name;
 
-            var descPtr = Offsets.Description.Value.Read(perkTemplate);
-            if (descPtr != IntPtr.Zero)
-                info.Description = new BaseLocalizedString(descPtr).GetRawDefaultTranslation();
+            if (_hDescription.TryRead(perkTemplate, out var descObj) && !descObj.Untyped.IsNull)
+                info.Description = descObj.AsManaged().GetRawDefaultTranslation();
 
-            info.ActionPointCost = Offsets.ActionPointCost.Value.Read(perkTemplate);
-            info.IsActive = Offsets.IsActive.Value.Read(perkTemplate);
+            info.ActionPointCost = _hActionPointCost.Read(perkTemplate);
+            info.IsActive = _hIsActive.Read(perkTemplate);
 
             return info;
         }
@@ -175,23 +192,16 @@ public static class Perks
     public static List<PerkTreeInfo> GetPerkTrees(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<PerkTreeInfo>();
-        if (leader.Untyped.IsNull) return result;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
         try
         {
-            var leaderProxy = leader.AsManaged();
-            if (leaderProxy == null) return result;
+            if (!_hLeaderTemplate.TryRead(leader, out var template) || template.Untyped.IsNull) return result;
+            if (template.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var templatePtr = leaderProxy.LeaderTemplate?.Pointer ?? IntPtr.Zero;
-            if (templatePtr == IntPtr.Zero) return result;
+            if (!_hPerkTrees.TryRead(template, out var perkTreesObj) || perkTreesObj.Untyped.IsNull) return result;
 
-            var template = GameObj<UnitLeaderTemplate>.Wrap(templatePtr);
-
-            var perkTreesPtr = Offsets.PerkTrees.Value.Read(template);
-            if (perkTreesPtr == IntPtr.Zero) return result;
-
-            // PerkTrees is a PerkTreeTemplate[] — read as Il2CppArrayBase
-            var perkTreesArray = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<PerkTreeTemplate>(perkTreesPtr);
+            var perkTreesArray = perkTreesObj.AsManaged();
             for (int i = 0; i < perkTreesArray.Length; i++)
             {
                 var treeProxy = perkTreesArray[i];
@@ -218,7 +228,7 @@ public static class Perks
     /// </summary>
     public static PerkTreeInfo GetPerkTreeInfo(GameObj<PerkTreeTemplate> perkTree)
     {
-        if (perkTree.Untyped.IsNull) return null;
+        if (perkTree.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
@@ -228,10 +238,9 @@ public static class Perks
                 Name = perkTree.Untyped.GetName()
             };
 
-            var perksPtr = Offsets.Perks.Value.Read(perkTree);
-            if (perksPtr == IntPtr.Zero) return info;
+            if (!_hTreePerks.TryRead(perkTree, out var perksObj) || perksObj.Untyped.IsNull) return info;
 
-            var perksArray = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Perk>(perksPtr);
+            var perksArray = perksObj.AsManaged();
             info.PerkCount = perksArray.Length;
 
             for (int i = 0; i < perksArray.Length; i++)
@@ -239,13 +248,15 @@ public static class Perks
                 var perk = perksArray[i];
                 if (perk == null) continue;
 
-                var skillPtr = Offsets.PerkSkill.Value.Read(GameObj<Perk>.Wrap(perk.Pointer));
-                if (skillPtr == IntPtr.Zero) continue;
+                var perkObj = GameObj<Perk>.Wrap(perk.Pointer);
+                if (perkObj.Untyped.CheckAlive() != AliveStatus.Alive) continue;
 
-                var perkInfo = GetPerkInfo(GameObj<PerkTemplate>.Wrap(skillPtr));
+                if (!_hPerkSkill.TryRead(perkObj, out var skillObj) || skillObj.Untyped.IsNull) continue;
+
+                var perkInfo = GetPerkInfo(skillObj);
                 if (perkInfo == null) continue;
 
-                perkInfo.Tier = Offsets.PerkTier.Value.Read(GameObj<Perk>.Wrap(perk.Pointer));
+                perkInfo.Tier = _hPerkTier.Read(perkObj);
                 info.Perks.Add(perkInfo);
             }
 
@@ -267,7 +278,7 @@ public static class Perks
     /// </summary>
     public static bool CanBePromoted(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
@@ -285,7 +296,7 @@ public static class Perks
     /// </summary>
     public static bool CanBeDemoted(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
@@ -306,7 +317,8 @@ public static class Perks
     /// <param name="spendPromotionPoints">Whether to spend promotion points (default true)</param>
     public static bool AddPerk(GameObj<BaseUnitLeader> leader, GameObj<PerkTemplate> perkTemplate, bool spendPromotionPoints = true)
     {
-        if (leader.Untyped.IsNull || perkTemplate.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (perkTemplate.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
@@ -325,7 +337,7 @@ public static class Perks
     /// </summary>
     public static bool RemoveLastPerk(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
@@ -343,7 +355,8 @@ public static class Perks
     /// </summary>
     public static bool HasPerk(GameObj<BaseUnitLeader> leader, GameObj<PerkTemplate> perkTemplate)
     {
-        if (leader.Untyped.IsNull || perkTemplate.Untyped.IsNull) return false;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        if (perkTemplate.Untyped.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
@@ -361,7 +374,7 @@ public static class Perks
     /// </summary>
     public static GameObj<PerkTemplate> GetLastPerk(GameObj<BaseUnitLeader> leader)
     {
-        if (leader.Untyped.IsNull) return default;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return default;
 
         try
         {
@@ -386,7 +399,7 @@ public static class Perks
     /// </summary>
     public static GameObj<PerkTemplate> FindPerkByName(GameObj<BaseUnitLeader> leader, string perkName)
     {
-        if (leader.Untyped.IsNull || string.IsNullOrEmpty(perkName)) return default;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive || string.IsNullOrEmpty(perkName)) return default;
 
         try
         {
@@ -416,7 +429,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            SdkLogger.Warning($"[Perks.FindPerkByName] Exception: {ex.Message}");
+            ModError.ReportInternal("Perks.FindPerkByName", "Failed", ex);
             return default;
         }
     }
@@ -427,7 +440,7 @@ public static class Perks
     public static List<PerkInfo> GetAvailablePerks(GameObj<BaseUnitLeader> leader)
     {
         var result = new List<PerkInfo>();
-        if (leader.Untyped.IsNull) return result;
+        if (leader.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
         try
         {

@@ -1,9 +1,8 @@
-using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Linq;
 
 namespace Menace.SDK;
 
@@ -21,23 +20,102 @@ namespace Menace.SDK;
 /// </summary>
 public static class Operation
 {
-    // Cached types
-    private static readonly GameType _operationType = GameType.Of<Il2CppMenace.Strategy.Operation>();
-    private static readonly GameType _operationsManagerType = GameType.Of<Il2CppMenace.Strategy.OperationsManager>();
-    private static readonly GameType _missionType = GameType.Of<Il2CppMenace.Strategy.Mission>();
-    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    private static uint? _planetTemplateOffset = null;
+    // Reference fields on Il2CppMenace.Strategy.Operation
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.OperationTemplate> _hTemplate;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.StoryFactionTemplate> _hClientFaction;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.FactionTemplate> _hEnemyFaction;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.OperationResult> _hResult;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.PlanetTemplate> _hPlanetTemplate;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.OperationDurationTemplate> _hDuration;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Tools.PseudoRandom> _hRandom;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.OperationProperties> _hInitialProperties;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppMenace.Strategy.OperationProperties> _hCurrentProperties;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, UnityEngine.Texture2D> _hScreenshot;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Operation, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.Mission>> _hMissions;
+
+    // Value fields on Il2CppMenace.Strategy.Operation
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, int> _hCurrentMissionIdx;
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, int> _hMaxTimeUntilTimeout;
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, int> _hPassedTime;
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, int> _hSeed;
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, int> _hIntroId;
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, bool> _hNeedsAutoSave;
+    private static FieldHandle<Il2CppMenace.Strategy.Operation, bool> _hAfterOperationFinishedEventsTriggered;
+
+    // Value fields on OperationsManager
+    private static FieldHandle<Il2CppMenace.Strategy.OperationsManager, int> _hCurrentOperationIdx;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.OperationsManager, Il2CppMenace.Strategy.OperationsManager> _hOperations;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.OperationsManager, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.Operation>> _hAvailableOperations;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.OperationsManager, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.OperationTemplate>> _hCompletedOperationTypes;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hTemplate = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_Template);
+            _hClientFaction = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_ClientFaction);
+            _hEnemyFaction = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_EnemyFaction);
+            _hResult = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_Result);
+            _hPlanetTemplate = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_PlanetTemplate);
+            _hDuration = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_Duration);
+            _hRandom = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_Random);
+            _hInitialProperties = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_InitialProperties);
+            _hCurrentProperties = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_CurrentProperties);
+            _hScreenshot = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_Screenshot);
+
+            _hCurrentMissionIdx = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_CurrentMissionIdx);
+            _hMissions = GameObj<Il2CppMenace.Strategy.Operation>.ResolveObjField(x => x.m_Missions);
+            _hMaxTimeUntilTimeout = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_MaxTimeUntilTimeout);
+            _hPassedTime = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_PassedTime);
+            _hSeed = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_Seed);
+            _hIntroId = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_IntroId);
+            _hNeedsAutoSave = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_NeedsAutoSave);
+            _hAfterOperationFinishedEventsTriggered = GameObj<Il2CppMenace.Strategy.Operation>.ResolveField(x => x.m_AfterOperationFinishedEventsTriggered);
+
+            _hCurrentOperationIdx = GameObj<Il2CppMenace.Strategy.OperationsManager>.ResolveField(x => x.m_CurrentOperationIdx);
+            _hAvailableOperations = GameObj<Il2CppMenace.Strategy.OperationsManager>.ResolveObjField(x => x.m_AvailableOperations);
+            _hCompletedOperationTypes = GameObj<Il2CppMenace.Strategy.OperationsManager>.ResolveObjField(x => x.m_CompletedOperationTypes);
+
+            Templates._hDataTemplateId = GameObj<Il2CppMenace.Tools.DataTemplate>.ResolveStringField(x => x.m_ID);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Operation.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
 
     /// <summary>
     /// Operation information structure.
     /// </summary>
     public class OperationInfo
     {
-        public string TemplateName { get; set; }
-        public string EnemyFaction { get; set; }
-        public string FriendlyFaction { get; set; }
-        public string Planet { get; set; }
+        /// <summary>Stable template ID (m_ID from DataTemplate).</summary>
+        public string TemplateId { get; set; }
+        /// <summary>Template ID of the enemy faction.</summary>
+        public string EnemyFactionId { get; set; }
+        /// <summary>Template ID of the friendly faction.</summary>
+        public string FriendlyFactionId { get; set; }
+        /// <summary>Template ID of the planet.</summary>
+        public string PlanetId { get; set; }
         public int CurrentMissionIndex { get; set; }
         public int MissionCount { get; set; }
         public int TimeSpent { get; set; }
@@ -54,31 +132,17 @@ public static class Operation
     {
         try
         {
-            // Access OperationsManager via StrategyState.Get().Operations (offset +0x58)
-            var strategyStateType = _strategyStateType?.ManagedType;
-            if (strategyStateType == null) return GameObj.Null;
+            var om = GetOperationsManager();
+            if (!GameObj<Il2CppMenace.Strategy.OperationsManager>.TryWrap(om, out var typedOm)) return GameObj.Null;
+            if (typedOm.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
 
-            // Use static Get() method instead of s_Singleton property
-            var getMethod = strategyStateType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var strategyState = getMethod?.Invoke(null, null);
-            if (strategyState == null) return GameObj.Null;
+            if (!_hCurrentOperationIdx.TryRead(typedOm, out var idx)) return GameObj.Null;
+            if (!_hAvailableOperations.TryRead(typedOm, out var opsObj)) return GameObj.Null;
 
-            // Use direct field access at offset +0x58 for Operations
-            var strategyStateObj = new GameObj(((Il2CppObjectBase)strategyState).Pointer);
-            var omPtr = strategyStateObj.ReadPtr(0x58);
-            if (omPtr == IntPtr.Zero) return GameObj.Null;
-            var om = GameObj<Il2CppObjectBase>.Wrap(new GameObj(omPtr)).AsManaged();
-            if (om == null) return GameObj.Null;
+            var opsList = new GameList(opsObj.Untyped.Pointer);
+            if (idx < 0 || idx >= opsList.Count) return GameObj.Null;
 
-            var omType = _operationsManagerType?.ManagedType;
-            if (omType == null) return GameObj.Null;
-
-            var getCurrentMethod = omType.GetMethod("GetCurrentOperation",
-                BindingFlags.Public | BindingFlags.Instance);
-            var operation = getCurrentMethod?.Invoke(om, null);
-            if (operation == null) return GameObj.Null;
-
-            return new GameObj(((Il2CppObjectBase)operation).Pointer);
+            return opsList[idx];
         }
         catch (Exception ex)
         {
@@ -93,96 +157,68 @@ public static class Operation
     public static OperationInfo GetOperationInfo()
     {
         var op = GetCurrentOperation();
-        return GetOperationInfo(op);
+        if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) return null;
+        return GetOperationInfo(typed);
     }
 
     /// <summary>
     /// Get information about an operation.
     /// </summary>
-    public static OperationInfo GetOperationInfo(GameObj operation)
+    public static OperationInfo GetOperationInfo(GameObj<Il2CppMenace.Strategy.Operation> operation)
     {
-        if (operation.IsNull) return null;
+        if (operation.Untyped.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var opType = _operationType?.ManagedType;
-            if (opType == null) return null;
+            var info = new OperationInfo { Pointer = operation.Untyped.Pointer };
 
-            var proxy = GetManagedProxy(operation, opType);
-            if (proxy == null) return null;
-
-            var info = new OperationInfo { Pointer = operation.Pointer };
-
-            // Get template via direct field access at offset +0x10
-            var templatePtr = operation.ReadPtr(0x10);
-            if (templatePtr != IntPtr.Zero)
+            // Template name
+            if (_hTemplate.TryRead(operation, out var templateObj))
             {
-                var templateObj = new GameObj(templatePtr);
-                info.TemplateName = templateObj.GetName();
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.TemplateId = id;
             }
 
-            // Get enemy faction via GetEnemyStoryFaction() method
-            var getEnemyMethod = opType.GetMethod("GetEnemyStoryFaction", BindingFlags.Public | BindingFlags.Instance);
-            var enemy = getEnemyMethod?.Invoke(proxy, null);
-            if (enemy != null)
+            if (_hEnemyFaction.TryRead(operation, out var enemyObj))
             {
-                var enemyObj = new GameObj(((Il2CppObjectBase)enemy).Pointer);
-                info.EnemyFaction = enemyObj.GetName();
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(enemyObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.EnemyFactionId = id;
             }
 
-            // Get friendly faction via GetFriendlyFaction() method
-            var getFriendlyMethod = opType.GetMethod("GetFriendlyFaction", BindingFlags.Public | BindingFlags.Instance);
-            var friendly = getFriendlyMethod?.Invoke(proxy, null);
-            if (friendly != null)
+            if (_hClientFaction.TryRead(operation, out var clientObj))
             {
-                var friendlyObj = new GameObj(((Il2CppObjectBase)friendly).Pointer);
-                info.FriendlyFaction = friendlyObj.GetName();
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(clientObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.FriendlyFactionId = id;
             }
 
-            // Get planet - GetPlanet(bool) requires a bool parameter
-            // Planet name is on m_Template, not directly on Planet object
-            var getPlanetMethod = opType.GetMethod("GetPlanet", BindingFlags.Public | BindingFlags.Instance);
-            if (getPlanetMethod != null)
+            if (_hPlanetTemplate.TryRead(operation, out var planetTemplateObj))
             {
-                var planet = getPlanetMethod.Invoke(proxy, new object[] { false });
-                if (planet != null)
-                {
-                    var planetObj = new GameObj(((Il2CppObjectBase)planet).Pointer);
-                    // Planet has m_Template field which contains the name
-                    if (_planetTemplateOffset == null)
-                    {
-                        var planetClass = IL2CPP.il2cpp_object_get_class(planetObj.Pointer);
-                        _planetTemplateOffset = OffsetCache.GetOrResolve(planetClass, "m_Template");
-                    }
-
-                    var planetTemplatePtr = _planetTemplateOffset.Value != 0
-                        ? planetObj.ReadPtr(_planetTemplateOffset.Value)
-                        : IntPtr.Zero;
-                }
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(planetTemplateObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.PlanetId = id;
             }
 
-            // Get mission info - use direct field read at offset +0x40
-            info.CurrentMissionIndex = operation.ReadInt(0x40);
+            // Mission index and count
+            if (_hCurrentMissionIdx.TryRead(operation, out var missionIdx))
+                info.CurrentMissionIndex = missionIdx;
 
-            // Get missions via direct field access at offset +0x50
-            var missionsPtr = operation.ReadPtr(0x50);
-            if (missionsPtr != IntPtr.Zero)
-            {
-                var missionsList = new GameList(missionsPtr);
-                info.MissionCount = missionsList.Count;
-            }
+            if (_hMissions.TryRead(operation, out var missionsObj))
+                info.MissionCount = new GameList(missionsObj.Untyped.Pointer).Count;
 
-            // Get time info - use direct field reads at +0x5c (m_PassedTime) and +0x58 (m_MaxTimeUntilTimeout)
-            info.TimeSpent = operation.ReadInt(0x5c);
-            info.TimeLimit = operation.ReadInt(0x58);
+            // Time
+            if (_hPassedTime.TryRead(operation, out var passed))
+                info.TimeSpent = passed;
 
-            var getRemainingMethod = opType.GetMethod("GetRemainingTime", BindingFlags.Public | BindingFlags.Instance);
-            if (getRemainingMethod != null)
-                info.TimeRemaining = Convert.ToInt32(getRemainingMethod.Invoke(proxy, null) ?? 0);
+            if (_hMaxTimeUntilTimeout.TryRead(operation, out var limit))
+                info.TimeLimit = limit;
 
-            // HasCompletedOnce doesn't exist on Operation - would need OperationsManager.m_CompletedOperationTypes
-            // Leave as default (false) for now
+            info.TimeRemaining = GameMethod.CallInt<Il2CppMenace.Strategy.Operation>(
+                operation, x => x.GetRemainingTime());
 
+            // HasCompletedOnce still requires OperationsManager — leave as default
             return info;
         }
         catch (Exception ex)
@@ -200,23 +236,16 @@ public static class Operation
         try
         {
             var op = GetCurrentOperation();
-            if (op.IsNull) return GameObj.Null;
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) return GameObj.Null;
+            if (typed.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
 
-            var opType = _operationType?.ManagedType;
-            if (opType == null) return GameObj.Null;
-
-            var proxy = GetManagedProxy(op, opType);
-            if (proxy == null) return GameObj.Null;
-
-            var getCurrentMethod = opType.GetMethod("GetCurrentMission",
-                BindingFlags.Public | BindingFlags.Instance);
-            var mission = getCurrentMethod?.Invoke(proxy, null);
-            if (mission == null) return GameObj.Null;
-
-            return new GameObj(((Il2CppObjectBase)mission).Pointer);
+            var result = GameMethod.Call<Il2CppMenace.Strategy.Operation>(typed, x => x.GetCurrentMission());
+            if (result == null) return GameObj.Null;
+            return GameObj.FromPointer(((Il2CppObjectBase)result).Pointer);
         }
-        catch
+        catch (Exception ex)
         {
+            ModError.ReportInternal("Operation.GetCurrentMission", "Failed", ex);
             return GameObj.Null;
         }
     }
@@ -233,11 +262,12 @@ public static class Operation
             var op = GetCurrentOperation();
             if (op.IsNull) return result;
 
-            // Get missions via direct field access at offset +0x50
-            var missionsPtr = op.ReadPtr(0x50);
-            if (missionsPtr == IntPtr.Zero) return result;
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) return result;
+            if (typed.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var missionsList = new GameList(missionsPtr);
+            if (!_hMissions.TryRead(typed, out var missionsObj)) return result;
+
+            var missionsList = new GameList(missionsObj.Untyped.Pointer);
             for (int i = 0; i < missionsList.Count; i++)
             {
                 var mission = missionsList[i];
@@ -259,7 +289,7 @@ public static class Operation
     /// </summary>
     public static bool HasActiveOperation()
     {
-        return !GetCurrentOperation().IsNull;
+        return GetCurrentOperation().CheckAlive() == AliveStatus.Alive;
     }
 
     /// <summary>
@@ -267,8 +297,10 @@ public static class Operation
     /// </summary>
     public static int GetRemainingTime()
     {
-        var info = GetOperationInfo();
-        return info?.TimeRemaining ?? 0;
+        var op = GetCurrentOperation();
+        if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) return 0;
+        if (typed.Untyped.CheckAlive() != AliveStatus.Alive) return 0;
+        return GameMethod.CallInt<Il2CppMenace.Strategy.Operation>(typed, x => x.GetRemainingTime());
     }
 
     /// <summary>
@@ -276,8 +308,10 @@ public static class Operation
     /// </summary>
     public static bool CanTimeOut()
     {
-        var info = GetOperationInfo();
-        return info != null && info.TimeLimit > 0;
+        var op = GetCurrentOperation();
+        if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) return false;
+        if (typed.Untyped.CheckAlive() != AliveStatus.Alive) return false;
+        return GameMethod.CallBool<Il2CppMenace.Strategy.Operation>(typed, x => x.CanTimeOut());
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -291,19 +325,16 @@ public static class Operation
     {
         try
         {
-            var strategyStateType = _strategyStateType?.ManagedType;
-            if (strategyStateType == null) return GameObj.Null;
-
-            var getMethod = strategyStateType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var strategyState = getMethod?.Invoke(null, null);
+            var strategyState = GameQuery.FindAllCached<Il2CppMenace.States.StrategyState>().FirstOrDefault();
             if (strategyState == null) return GameObj.Null;
 
-            // OperationsManager at offset +0x58
-            var strategyStateObj = new GameObj(((Il2CppObjectBase)strategyState).Pointer);
-            var omPtr = strategyStateObj.ReadPtr(0x58);
+            var strategyStateObj = GameObj<Il2CppMenace.States.StrategyState>.Wrap(strategyState.Pointer);
+            if (strategyStateObj.Untyped.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
+
+            var omPtr = strategyStateObj.Untyped.ReadPtr(0x58);
             if (omPtr == IntPtr.Zero) return GameObj.Null;
 
-            return new GameObj(omPtr);
+            return GameObj.FromPointer(omPtr);
         }
         catch (Exception ex)
         {
@@ -322,49 +353,17 @@ public static class Operation
         try
         {
             var om = GetOperationsManager();
-            if (om.IsNull) return result;
+            if (!GameObj<Il2CppMenace.Strategy.OperationsManager>.TryWrap(om, out var typedOm)) return result;
+            if (typedOm.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var omType = _operationsManagerType?.ManagedType;
-            if (omType == null) return result;
+            if (!_hAvailableOperations.TryRead(typedOm, out var opsObj)) return result;
 
-            var omProxy = GetManagedProxy(om, omType);
-            if (omProxy == null) return result;
-
-            // Try GetAllOperations method first
-            var getAllMethod = omType.GetMethod("GetAllOperations",
-                BindingFlags.Public | BindingFlags.Instance);
-
-            if (getAllMethod != null)
+            var opsList = new GameList(opsObj.Untyped);
+            for (int i = 0; i < opsList.Count; i++)
             {
-                var ops = getAllMethod.Invoke(omProxy, null);
-                if (ops != null)
-                {
-                    var listType = ops.GetType();
-                    var countProp = listType.GetProperty("Count");
-                    var indexer = listType.GetMethod("get_Item");
-
-                    int count = (int)(countProp?.GetValue(ops) ?? 0);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var op = indexer?.Invoke(ops, new object[] { i });
-                        if (op != null)
-                            result.Add(new GameObj(((Il2CppObjectBase)op).Pointer));
-                    }
-                    return result;
-                }
-            }
-
-            // Fallback: Try m_Operations field at offset +0x18
-            var opsPtr = om.ReadPtr(0x18);
-            if (opsPtr != IntPtr.Zero)
-            {
-                var opsList = new GameList(opsPtr);
-                for (int i = 0; i < opsList.Count; i++)
-                {
-                    var op = opsList[i];
-                    if (!op.IsNull)
-                        result.Add(op);
-                }
+                var op = opsList[i];
+                if (op.CheckAlive() == AliveStatus.Alive)
+                    result.Add(op);
             }
 
             return result;
@@ -385,7 +384,8 @@ public static class Operation
         var operations = GetAllOperations();
         foreach (var op in operations)
         {
-            var info = GetOperationInfo(op);
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) continue;
+            var info = GetOperationInfo(typed);
             if (info != null)
                 result.Add(info);
         }
@@ -396,21 +396,26 @@ public static class Operation
     /// Find an operation by faction name.
     /// </summary>
     /// <param name="factionName">Name of enemy or friendly faction.</param>
-    public static GameObj FindByFaction(string factionName)
+    public static GameObj FindByFaction(string factionId)
     {
-        if (string.IsNullOrEmpty(factionName)) return GameObj.Null;
+        if (string.IsNullOrEmpty(factionId)) return GameObj.Null;
 
         var operations = GetAllOperations();
         foreach (var op in operations)
         {
-            var info = GetOperationInfo(op);
-            if (info == null) continue;
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) continue;
 
-            if (info.EnemyFaction?.Contains(factionName, StringComparison.OrdinalIgnoreCase) == true ||
-                info.FriendlyFaction?.Contains(factionName, StringComparison.OrdinalIgnoreCase) == true)
-            {
+            if (_hEnemyFaction.TryRead(typed, out var enemy) &&
+                GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(enemy.Untyped, out var enemyTemplate) &&
+                Templates._hDataTemplateId.TryRead(enemyTemplate, out var enemyId) &&
+                enemyId == factionId)
                 return op;
-            }
+
+            if (_hClientFaction.TryRead(typed, out var client) &&
+                GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(client.Untyped, out var clientTemplate) &&
+                Templates._hDataTemplateId.TryRead(clientTemplate, out var clientId) &&
+                clientId == factionId)
+                return op;
         }
         return GameObj.Null;
     }
@@ -418,15 +423,19 @@ public static class Operation
     /// <summary>
     /// Find an operation by planet name.
     /// </summary>
-    public static GameObj FindByPlanet(string planetName)
+    public static GameObj FindByPlanet(string planetId)
     {
-        if (string.IsNullOrEmpty(planetName)) return GameObj.Null;
+        if (string.IsNullOrEmpty(planetId)) return GameObj.Null;
 
         var operations = GetAllOperations();
         foreach (var op in operations)
         {
-            var info = GetOperationInfo(op);
-            if (info?.Planet?.Contains(planetName, StringComparison.OrdinalIgnoreCase) == true)
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed)) continue;
+
+            if (_hPlanetTemplate.TryRead(typed, out var planetTemplate) &&
+                GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(planetTemplate.Untyped, out var dataTemplate) &&
+                Templates._hDataTemplateId.TryRead(dataTemplate, out var id) &&
+                id == planetId)
                 return op;
         }
         return GameObj.Null;
@@ -442,47 +451,20 @@ public static class Operation
         try
         {
             var om = GetOperationsManager();
-            if (om.IsNull) return result;
+            if (!GameObj<Il2CppMenace.Strategy.OperationsManager>.TryWrap(om, out var typedOm)) return result;
+            if (typedOm.Untyped.CheckAlive() != AliveStatus.Alive) return result;
 
-            var omType = _operationsManagerType?.ManagedType;
-            if (omType == null) return result;
+            if (!_hCompletedOperationTypes.TryRead(typedOm, out var completedObj)) return result;
 
-            var omProxy = GetManagedProxy(om, omType);
-            if (omProxy == null) return result;
-
-            // Try m_CompletedOperationTypes HashSet
-            var completedProp = omType.GetProperty("CompletedOperationTypes",
-                BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
-            if (completedProp == null)
+            var completedList = new GameList(completedObj.Untyped.Pointer);
+            for (int i = 0; i < completedList.Count; i++)
             {
-                // Try field directly
-                var completedField = omType.GetField("m_CompletedOperationTypes",
-                    BindingFlags.NonPublic | BindingFlags.Instance);
-                if (completedField != null)
-                {
-                    var completed = completedField.GetValue(omProxy);
-                    if (completed != null)
-                    {
-                        var setType = completed.GetType();
-                        var enumerator = setType.GetMethod("GetEnumerator")?.Invoke(completed, null);
-                        if (enumerator != null)
-                        {
-                            var enumType = enumerator.GetType();
-                            var moveNext = enumType.GetMethod("MoveNext");
-                            var currentProp = enumType.GetProperty("Current");
+                var entry = completedList[i];
+                if (entry.CheckAlive() != AliveStatus.Alive) continue;
 
-                            while ((bool)moveNext.Invoke(enumerator, null))
-                            {
-                                var current = currentProp.GetValue(enumerator);
-                                if (current != null)
-                                {
-                                    var templateObj = new GameObj(((Il2CppObjectBase)current).Pointer);
-                                    result.Add(templateObj.GetName() ?? "Unknown");
-                                }
-                            }
-                        }
-                    }
-                }
+                if (GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(entry, out var dataTemplate) &&
+                    Templates._hDataTemplateId.TryRead(dataTemplate, out var id))
+                    result.Add(id);
             }
 
             return result;
@@ -497,10 +479,10 @@ public static class Operation
     /// <summary>
     /// Check if an operation type has been completed before.
     /// </summary>
-    public static bool HasCompletedOperationType(string operationTemplateName)
+    public static bool HasCompletedOperationType(string operationTemplateId)
     {
         var completed = GetCompletedOperationTypes();
-        return completed.Exists(c => c.Equals(operationTemplateName, StringComparison.OrdinalIgnoreCase));
+        return completed.Contains(operationTemplateId);
     }
 
     /// <summary>
@@ -519,16 +501,16 @@ public static class Operation
                 ? $"Time: {info.TimeSpent}/{info.TimeLimit} ({info.TimeRemaining} remaining)"
                 : "Time: Unlimited";
 
-            return $"Operation: {info.TemplateName}\n" +
-                   $"Planet: {info.Planet ?? "Unknown"}\n" +
-                   $"Enemy: {info.EnemyFaction ?? "Unknown"}\n" +
-                   $"Allied: {info.FriendlyFaction ?? "Unknown"}\n" +
+            return $"Operation: {info.TemplateId}\n" +
+                   $"Planet: {info.PlanetId ?? "Unknown"}\n" +
+                   $"Enemy: {info.EnemyFactionId ?? "Unknown"}\n" +
+                   $"Allied: {info.FriendlyFactionId ?? "Unknown"}\n" +
                    $"Missions: {info.CurrentMissionIndex + 1}/{info.MissionCount}\n" +
                    $"{timeInfo}\n" +
                    $"Completed Before: {info.HasCompletedOnce}";
         });
 
-        // missions - List operation missions
+        // opmissions - List operation missions
         DevConsole.RegisterCommand("opmissions", "", "List missions in current operation", args =>
         {
             var missions = GetMissions();
@@ -541,10 +523,12 @@ public static class Operation
             var lines = new List<string> { $"Operation Missions ({missions.Count}):" };
             for (int i = 0; i < missions.Count; i++)
             {
-                var missionInfo = Mission.GetMissionInfo(missions[i]);
+                var typed = GameObj<Il2CppMenace.Strategy.Mission>.Wrap(missions[i]);
+                var mission = typed.AsManaged();
+                var missionInfo = mission != null ? Mission.GetMissionInfo(mission) : null;
                 var current = i == currentIdx ? " <-- CURRENT" : "";
-                var status = missionInfo?.StatusName ?? "Unknown";
-                lines.Add($"  {i}. {missionInfo?.TemplateName ?? "Unknown"} [{status}]{current}");
+                var status = missionInfo?.Status.ToString() ?? "Unknown";
+                lines.Add($"  {i}. {missionInfo?.TemplateId ?? "Unknown"} [{status}]{current}");
             }
             return string.Join("\n", lines);
         });
@@ -578,8 +562,8 @@ public static class Operation
             {
                 var isCurrent = op.Pointer == currentPtr ? " <-- CURRENT" : "";
                 var time = op.TimeLimit > 0 ? $" (Time: {op.TimeRemaining} left)" : "";
-                lines.Add($"  {op.TemplateName}: {op.EnemyFaction} vs {op.FriendlyFaction}{time}{isCurrent}");
-                lines.Add($"    Planet: {op.Planet}, Mission {op.CurrentMissionIndex + 1}/{op.MissionCount}");
+                lines.Add($"  {op.TemplateId}: {op.EnemyFactionId} vs {op.FriendlyFactionId}{time}{isCurrent}");
+                lines.Add($"    Planet: {op.PlanetId}, Mission {op.CurrentMissionIndex + 1}/{op.MissionCount}");
             }
             return string.Join("\n", lines);
         });
@@ -593,50 +577,47 @@ public static class Operation
 
             var lines = new List<string> { $"Completed Operation Types ({completed.Count}):" };
             foreach (var c in completed)
-            {
                 lines.Add($"  {c}");
-            }
             return string.Join("\n", lines);
         });
 
-        // findop <faction|planet> - Find operation by faction or planet
-        DevConsole.RegisterCommand("findop", "<name>", "Find operation by faction or planet name", args =>
+        // findop <id> - Find operation by faction or planet ID
+        DevConsole.RegisterCommand("findop", "<id>", "Find operation by faction or planet ID", args =>
         {
             if (args.Length == 0)
-                return "Usage: findop <faction_or_planet_name>";
+                return "Usage: findop <faction_or_planet_id>";
 
-            var name = string.Join(" ", args);
+            var id = string.Join(" ", args);
 
-            // Try faction first
-            var op = FindByFaction(name);
-            if (!op.IsNull)
+            var op = FindByFaction(id);
+            if (op.CheckAlive() == AliveStatus.Alive)
             {
-                var info = GetOperationInfo(op);
-                return $"Found by faction:\n" +
-                       $"  {info.TemplateName}\n" +
-                       $"  Enemy: {info.EnemyFaction}\n" +
-                       $"  Friendly: {info.FriendlyFaction}\n" +
-                       $"  Planet: {info.Planet}";
+                if (GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed))
+                {
+                    var info = GetOperationInfo(typed);
+                    return $"Found by faction:\n" +
+                           $"  {info.TemplateId}\n" +
+                           $"  Enemy: {info.EnemyFactionId}\n" +
+                           $"  Friendly: {info.FriendlyFactionId}\n" +
+                           $"  Planet: {info.PlanetId}";
+                }
             }
 
-            // Try planet
-            op = FindByPlanet(name);
-            if (!op.IsNull)
+            op = FindByPlanet(id);
+            if (op.CheckAlive() == AliveStatus.Alive)
             {
-                var info = GetOperationInfo(op);
-                return $"Found by planet:\n" +
-                       $"  {info.TemplateName}\n" +
-                       $"  Enemy: {info.EnemyFaction}\n" +
-                       $"  Friendly: {info.FriendlyFaction}\n" +
-                       $"  Planet: {info.Planet}";
+                if (GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(op, out var typed))
+                {
+                    var info = GetOperationInfo(typed);
+                    return $"Found by planet:\n" +
+                           $"  {info.TemplateId}\n" +
+                           $"  Enemy: {info.EnemyFactionId}\n" +
+                           $"  Friendly: {info.FriendlyFactionId}\n" +
+                           $"  Planet: {info.PlanetId}";
+                }
             }
 
-            return $"No operation found for '{name}'";
+            return $"No operation found for '{id}'";
         });
     }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }

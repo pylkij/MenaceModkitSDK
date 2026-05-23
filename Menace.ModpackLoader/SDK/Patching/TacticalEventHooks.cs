@@ -46,7 +46,6 @@ public static class TacticalEventHooks
     public static event Action<IntPtr, int> OnMoraleStateChanged;            // actor, moraleState
     public static event Action<IntPtr, float, int> OnHitpointsChanged;       // entity, hitpointsPct, animationDurationInMs
     public static event Action<IntPtr, float, int, int> OnArmorChanged;      // entity, armorDurability, armor, animationDurationInMs
-    public static event Action<IntPtr, int, int> OnActionPointsChanged;      // actor, oldAp, newAp
 
     // Visibility Events
     public static event Action<IntPtr, IntPtr> OnDiscovered;                 // entity, discoverer
@@ -116,7 +115,6 @@ public static class TacticalEventHooks
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnMoraleStateChanged", hooks.GetMethod(nameof(OnMoraleStateChanged_Postfix), flags)) ? 1 : 0;
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnHitpointsChanged", hooks.GetMethod(nameof(OnHitpointsChanged_Postfix), flags)) ? 1 : 0;
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnArmorChanged", hooks.GetMethod(nameof(OnArmorChanged_Postfix), flags)) ? 1 : 0;
-            patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnActionPointsChanged", hooks.GetMethod(nameof(OnActionPointsChanged_Postfix), flags)) ? 1 : 0;
 
             // Visibility Events
             patchCount += GamePatch.Postfix(harmony, tacticalManager, "InvokeOnDiscovered", hooks.GetMethod(nameof(OnDiscovered_Postfix), flags)) ? 1 : 0;
@@ -393,22 +391,6 @@ public static class TacticalEventHooks
             ["armor_durability"] = _armorDurability,
             ["armor"] = _armor,
             ["animation_duration_ms"] = _animationDurationInMs
-        });
-    }
-
-    private static void OnActionPointsChanged_Postfix(object __instance, object _actor, int _oldAP, int _newAP)
-    {
-        var actorPtr = Il2CppUtils.GetPointer(_actor);
-
-        OnActionPointsChanged?.Invoke(actorPtr, _oldAP, _newAP);
-
-        FireLuaEvent("ap_changed", new Dictionary<string, object>
-        {
-            ["actor"] = GetName(_actor),
-            ["actor_ptr"] = actorPtr.ToInt64(),
-            ["old_ap"] = _oldAP,
-            ["new_ap"] = _newAP,
-            ["delta"] = _newAP - _oldAP
         });
     }
 

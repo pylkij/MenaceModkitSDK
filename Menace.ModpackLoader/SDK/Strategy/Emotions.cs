@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime.InteropTypes;
-
 using Il2CppMenace.Strategy;
 using Menace.SDK.Internal;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Menace.SDK;
 
@@ -27,49 +27,80 @@ namespace Menace.SDK;
 /// </summary>
 public static class Emotions
 {
-    // Cached types
-    private static readonly GameType _emotionalStatesType = GameType.Of<Il2CppMenace.Strategy.EmotionalStates>();
-    private static readonly GameType _emotionalStateType = GameType.Of<Il2CppMenace.Strategy.EmotionalState>();
-    private static readonly GameType _emotionalStateTemplateType = GameType.Of<Il2CppMenace.Strategy.EmotionalStateTemplate>();
-    private static readonly GameType _baseUnitLeaderType = GameType.Of<Il2CppMenace.Strategy.BaseUnitLeader>();
-    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
-    private static readonly GameType _rosterType = GameType.Of<Il2CppMenace.Strategy.Roster>();
-    private static readonly GameType _pseudoRandomType = GameType.Of<Il2CppMenace.Tools.PseudoRandom>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    // EmotionalStates field offsets
-    private const uint OFFSET_ES_OWNER = 0x10;
-    private const uint OFFSET_ES_STATES = 0x18;
-    private const uint OFFSET_ES_LAST_MISSION_PARTICIPATION = 0x20;
-    private const uint OFFSET_ES_LAST_OPERATION_PARTICIPATION = 0x24;
+    // EmotionalStates fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.EmotionalStates, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.EmotionalState>> _hStates;
 
-    // EmotionalState field offsets
-    private const uint OFFSET_STATE_TEMPLATE = 0x10;
-    private const uint OFFSET_STATE_TRIGGER = 0x18;
-    private const uint OFFSET_STATE_TARGET_LEADER = 0x20;
-    private const uint OFFSET_STATE_REMAINING_DURATION = 0x28;
-    private const uint OFFSET_STATE_IS_FIRST_MISSION = 0x2C;
+    // EmotionalState fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.EmotionalState, Il2CppMenace.Strategy.EmotionalStateTemplate> _hTemplate;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalState, Il2CppMenace.Strategy.EmotionalTrigger> _hTrigger;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.EmotionalState, Il2CppMenace.Strategy.UnitLeaderTemplate> _hTarget;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalState, int> _hRemainingDuration;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalState, bool> _hIsNew;
 
-    // EmotionalStateTemplate field offsets
-    private const uint OFFSET_TEMPLATE_TYPE = 0x78;
-    private const uint OFFSET_TEMPLATE_ICON = 0x80;
-    private const uint OFFSET_TEMPLATE_EFFECT = 0x98;
-    private const uint OFFSET_TEMPLATE_DURATION = 0xC0;
-    private const uint OFFSET_TEMPLATE_IS_POSITIVE = 0xCC;
-    private const uint OFFSET_TEMPLATE_IS_SUPER_STATE = 0xCD;
-    private const uint OFFSET_TEMPLATE_SUPER_STATE = 0xD0;
+    // EmotionalStateTemplate fields
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, Il2CppMenace.Strategy.EmotionalStateType> _hStateType;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, Il2CppMenace.Strategy.EmotionalStateCategory> _hCategory;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, Il2CppMenace.Tactical.Skills.SkillTemplate> _hEffect;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, UnityEngine.Vector2Int> _hDurationInMissions;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, bool> _hIsPositive;
+    private static FieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, bool> _hIsSuperState;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.EmotionalStateTemplate, Il2CppMenace.Strategy.EmotionalStateTemplate> _hSuperState;
 
-    // BaseUnitLeader offset for Emotions
-    private const uint OFFSET_LEADER_EMOTIONS = 0x58;
+    // BaseUnitLeader fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, Il2CppMenace.Strategy.EmotionalStates> _hLeaderEmotionalStates;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.BaseUnitLeader, Il2CppMenace.Strategy.UnitLeaderTemplate> _hLeaderTemplate;
 
-    // Initialization constants
-    private const int INIT_LAST_MISSION = -1;
-    private const int INIT_LAST_OPERATION = -1;
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Save version threshold for operation tracking
-    private const int VERSION_OPERATION_TRACKING = 101;
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hStates = GameObj<Il2CppMenace.Strategy.EmotionalStates>.ResolveObjField(x => x.m_States);
+
+            _hTemplate = GameObj<Il2CppMenace.Strategy.EmotionalState>.ResolveObjField(x => x.m_Template);
+            _hTrigger = GameObj<Il2CppMenace.Strategy.EmotionalState>.ResolveField(x => x.m_Trigger);
+            _hTarget = GameObj<Il2CppMenace.Strategy.EmotionalState>.ResolveObjField(x => x.m_Target);
+            _hRemainingDuration = GameObj<Il2CppMenace.Strategy.EmotionalState>.ResolveField(x => x.m_RemainingDuration);
+            _hIsNew = GameObj<Il2CppMenace.Strategy.EmotionalState>.ResolveField(x => x.m_IsNew);
+
+            _hStateType = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveField(x => x.StateType);
+            _hCategory = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveField(x => x.Category);
+            _hEffect = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveObjField(x => x.Effect);
+            _hDurationInMissions = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveField(x => x.DurationInMissions);
+            _hIsPositive = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveField(x => x.IsPositive);
+            _hIsSuperState = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveField(x => x.IsSuperState);
+            _hSuperState = GameObj<Il2CppMenace.Strategy.EmotionalStateTemplate>.ResolveObjField(x => x.SuperState);
+
+            _hLeaderEmotionalStates = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.ResolveObjField(x => x.m_EmotionalStates);
+            _hLeaderTemplate = GameObj<Il2CppMenace.Strategy.BaseUnitLeader>.ResolveObjField(x => x.LeaderTemplate);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Emotions.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
 
     /// <summary>
-    /// Emotional state types that can affect unit leaders.
+    /// Mirrors <see cref="Il2CppMenace.Strategy.EmotionalStateType"/>.
+    /// This is a [Flags] bitmask — values may be combined.
     /// </summary>
     public enum EmotionalStateType
     {
@@ -83,43 +114,44 @@ public static class Emotions
         Determined = 2,
 
         /// <summary>Weary - tired from extended duty.</summary>
-        Weary = 3,
+        Weary = 4,
 
         /// <summary>Disheartened - morale reduced.</summary>
-        Disheartened = 4,
+        Disheartened = 8,
 
         /// <summary>Eager - enthusiastic and ready for action.</summary>
-        Eager = 5,
+        Eager = 16,
 
         /// <summary>Frustrated - annoyed and less effective.</summary>
-        Frustrated = 6,
+        Frustrated = 32,
 
         /// <summary>Exhausted - severely fatigued.</summary>
-        Exhausted = 7,
+        Exhausted = 64,
 
-        /// <summary>Goodwill towards a specific target.</summary>
-        GoodwillTowards = 8,
+        /// <summary>GoodwillTowards a specific target.</summary>
+        GoodwillTowards = 128,
 
         /// <summary>Hesitant - uncertain and cautious.</summary>
-        Hesitant = 9,
+        Hesitant = 256,
 
         /// <summary>Overconfident - too bold, may make mistakes.</summary>
-        Overconfident = 10,
+        Overconfident = 512,
 
         /// <summary>Injured - physically wounded.</summary>
-        Injured = 11,
+        Injured = 1024,
 
         /// <summary>Bruised - minor physical damage.</summary>
-        Bruised = 12,
+        Bruised = 2048,
 
         /// <summary>Euphoric - extremely positive mood.</summary>
-        Euphoric = 13,
+        Euphoric = 4096,
 
         /// <summary>Miserable - extremely negative mood.</summary>
-        Miserable = 14
+        Miserable = 8192
     }
 
     /// <summary>
+    /// Mirrors <see cref="Il2CppMenace.Strategy.EmotionalTrigger"/>.
     /// Triggers that can cause emotional states to be applied.
     /// </summary>
     public enum EmotionalTrigger
@@ -164,25 +196,22 @@ public static class Emotions
         GameEffect = 12,
 
         /// <summary>Event trigger.</summary>
-        Event = 13,
+        Event = 14,
 
         /// <summary>Cheat trigger.</summary>
-        Cheat = 14,
+        Cheat = 16,
 
         /// <summary>Other leader killed civilian element on favorite planet.</summary>
-        OtherLeaderKilledCivElementOnFavPlanet = 15,
+        OtherLeaderKilledCivElementOnFavPlanet = 18,
 
         /// <summary>Unit fled from combat.</summary>
-        Fled = 16,
+        Fled = 19,
 
         /// <summary>Near death experience.</summary>
-        NearDeathExperience = 17,
+        NearDeathExperience = 20,
 
         /// <summary>Lost all squaddies.</summary>
-        LostAllSquaddies = 18,
-
-        /// <summary>Last trigger type marker.</summary>
-        Last = 19
+        LostAllSquaddies = 21
     }
 
     /// <summary>
@@ -193,17 +222,11 @@ public static class Emotions
         /// <summary>The type of emotion.</summary>
         public EmotionalStateType Type { get; set; }
 
-        /// <summary>Name of the emotion type.</summary>
-        public string TypeName { get; set; }
-
-        /// <summary>Name of the emotion template.</summary>
-        public string TemplateName { get; set; }
-
         /// <summary>What triggered this emotion.</summary>
         public EmotionalTrigger Trigger { get; set; }
 
-        /// <summary>Name of the trigger.</summary>
-        public string TriggerName { get; set; }
+        /// <summary>The category of this emotion (Normal, Injuries, Exhaustion, Relationship).</summary>
+        public EmotionalStateCategory Category { get; set; }
 
         /// <summary>Target leader for targeted emotions (may be null).</summary>
         public string TargetLeaderName { get; set; }
@@ -212,7 +235,7 @@ public static class Emotions
         public int RemainingDuration { get; set; }
 
         /// <summary>True if this emotion was just applied this mission.</summary>
-        public bool IsFirstMission { get; set; }
+        public bool IsNew { get; set; }
 
         /// <summary>True if this is a positive emotion.</summary>
         public bool IsPositive { get; set; }
@@ -238,26 +261,20 @@ public static class Emotions
         /// <summary>Pointer to the owner BaseUnitLeader.</summary>
         public IntPtr OwnerPointer { get; set; }
 
+        /// <summary>Pointer to the EmotionalStates collection.</summary>
+        public IntPtr Pointer { get; set; }
+
         /// <summary>List of all active emotional states.</summary>
         public List<EmotionalStateInfo> ActiveStates { get; set; } = new();
-
-        /// <summary>Last mission this unit participated in (-1 if never).</summary>
-        public int LastMissionParticipation { get; set; }
-
-        /// <summary>Last operation this unit participated in (-1 if never).</summary>
-        public int LastOperationParticipation { get; set; }
 
         /// <summary>Total count of active emotions.</summary>
         public int StateCount => ActiveStates.Count;
 
         /// <summary>Count of positive emotions.</summary>
-        public int PositiveCount => ActiveStates.FindAll(s => s.IsPositive).Count;
+        public int PositiveCount => ActiveStates.Count(s => s.IsPositive);
 
         /// <summary>Count of negative (non-positive) emotions.</summary>
-        public int NegativeCount => ActiveStates.FindAll(s => !s.IsPositive).Count;
-
-        /// <summary>Pointer to the EmotionalStates collection.</summary>
-        public IntPtr Pointer { get; set; }
+        public int NegativeCount => ActiveStates.Count(s => !s.IsPositive);
     }
 
     /// <summary>
@@ -291,15 +308,20 @@ public static class Emotions
     /// </summary>
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <returns>GameObj representing the EmotionalStates collection, or Null if not found.</returns>
-    public static GameObj GetEmotionalStates(GameObj leader)
+    public static GameObj GetEmotionalStates(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader)
     {
-        if (leader.IsNull)
-            return GameObj.Null;
-
         try
         {
-            var emotionsPtr = leader.ReadPtr(OFFSET_LEADER_EMOTIONS);
-            return new GameObj(emotionsPtr);
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
+                return GameObj.Null;
+
+            if (!_hLeaderEmotionalStates.TryRead(leader, out var emotions))
+                return GameObj.Null;
+
+            if (emotions.Untyped.CheckAlive() != AliveStatus.Alive)
+                return GameObj.Null;
+
+            return emotions.Untyped;
         }
         catch (Exception ex)
         {
@@ -313,33 +335,80 @@ public static class Emotions
     /// </summary>
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <returns>EmotionalStatesInfo with all active emotions, or null if not available.</returns>
-    public static EmotionalStatesInfo GetEmotionalStatesInfo(GameObj leader)
+    public static EmotionalStatesInfo GetEmotionalStatesInfo(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader)
     {
-        if (leader.IsNull)
-            return null;
-
         try
         {
             var emotions = GetEmotionalStates(leader);
-            if (emotions.IsNull)
+            if (emotions.CheckAlive() != AliveStatus.Alive)
+                return null;
+
+            if (!GameObj<Il2CppMenace.Strategy.EmotionalStates>.TryWrap(emotions, out var emotionsTyped))
                 return null;
 
             var info = new EmotionalStatesInfo
             {
                 Pointer = emotions.Pointer,
-                OwnerPointer = leader.Pointer,
-                OwnerName = leader.GetName() ?? "Unknown",
-                LastMissionParticipation = emotions.ReadInt(OFFSET_ES_LAST_MISSION_PARTICIPATION),
-                LastOperationParticipation = emotions.ReadInt(OFFSET_ES_LAST_OPERATION_PARTICIPATION)
+                OwnerPointer = leader.Untyped.Pointer,
+                OwnerName = leader.Untyped.GetName() ?? "Unknown"
             };
 
-            // Get the States list
-            var statesListPtr = emotions.ReadPtr(OFFSET_ES_STATES);
-            if (statesListPtr != IntPtr.Zero)
+            if (!_hStates.TryRead(emotionsTyped, out var statesListObj))
+                return info;
+
+            if (statesListObj.Untyped.CheckAlive() != AliveStatus.Alive)
+                return info;
+
+            var statesList = statesListObj.AsManaged();
+            if (statesList == null)
+                return info;
+
+            for (int i = 0; i < statesList.Count; i++)
             {
-                var statesList = new GameObj(statesListPtr);
-                var states = GetStatesFromList(statesList);
-                info.ActiveStates = states;
+                var stateManaged = statesList[i];
+                if (stateManaged == null) continue;
+
+                var stateObj = GameObj<Il2CppMenace.Strategy.EmotionalState>.Wrap(stateManaged.Pointer);
+
+                var stateInfo = new EmotionalStateInfo
+                {
+                    Pointer = stateManaged.Pointer
+                };
+
+                if (_hTrigger.TryRead(stateObj, out var trigger))
+                    stateInfo.Trigger = (EmotionalTrigger)(int)trigger;
+
+                if (_hRemainingDuration.TryRead(stateObj, out var duration))
+                    stateInfo.RemainingDuration = duration;
+
+                if (_hIsNew.TryRead(stateObj, out var isNew))
+                    stateInfo.IsNew = isNew;
+
+                if (_hTarget.TryRead(stateObj, out var targetObj) &&
+                    targetObj.Untyped.CheckAlive() == AliveStatus.Alive)
+                    stateInfo.TargetLeaderName = targetObj.Untyped.GetName();
+
+                if (_hTemplate.TryRead(stateObj, out var templateObj) &&
+                    templateObj.Untyped.CheckAlive() == AliveStatus.Alive)
+                {
+                    if (_hStateType.TryRead(templateObj, out var stateType))
+                        stateInfo.Type = (EmotionalStateType)(int)stateType;
+
+                    if (_hCategory.TryRead(templateObj, out var category))
+                        stateInfo.Category = (EmotionalStateCategory)(int)category;
+
+                    if (_hIsPositive.TryRead(templateObj, out var isPositive))
+                        stateInfo.IsPositive = isPositive;
+
+                    if (_hIsSuperState.TryRead(templateObj, out var isSuperState))
+                        stateInfo.IsSuperState = isSuperState;
+
+                    if (_hEffect.TryRead(templateObj, out var effectObj) &&
+                        effectObj.Untyped.CheckAlive() == AliveStatus.Alive)
+                        stateInfo.SkillName = effectObj.Untyped.GetName();
+                }
+
+                info.ActiveStates.Add(stateInfo);
             }
 
             return info;
@@ -357,31 +426,19 @@ public static class Emotions
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <param name="type">The emotional state type to check for.</param>
     /// <returns>True if the leader has an active emotion of that type.</returns>
-    public static bool HasEmotion(GameObj leader, EmotionalStateType type)
+    public static bool HasEmotion(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, EmotionalStateType type)
     {
-        if (leader.IsNull)
-            return false;
-
         try
         {
             var emotions = GetEmotionalStates(leader);
-            if (emotions.IsNull)
+            if (emotions.CheckAlive() != AliveStatus.Alive)
                 return false;
 
-            var emotionsType = _emotionalStatesType?.ManagedType;
-            if (emotionsType == null)
+            var emotionsManaged = emotions.As<Il2CppMenace.Strategy.EmotionalStates>();
+            if (emotionsManaged == null)
                 return false;
 
-            var proxy = GetManagedProxy(emotions, emotionsType);
-            if (proxy == null)
-                return false;
-
-            var hasStateMethod = emotionsType.GetMethod("HasState",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (hasStateMethod == null)
-                return false;
-
-            return (bool)hasStateMethod.Invoke(proxy, new object[] { type });
+            return emotionsManaged.HasState((Il2CppMenace.Strategy.EmotionalStateType)(int)type);
         }
         catch (Exception ex)
         {
@@ -396,7 +453,7 @@ public static class Emotions
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <param name="types">Array of emotional state types to check for.</param>
     /// <returns>True if the leader has any of the specified emotion types.</returns>
-    public static bool HasAnyEmotion(GameObj leader, params EmotionalStateType[] types)
+    public static bool HasAnyEmotion(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, params EmotionalStateType[] types)
     {
         foreach (var type in types)
         {
@@ -407,50 +464,29 @@ public static class Emotions
     }
 
     /// <summary>
-    /// Check if a unit leader has all of the specified emotional state types.
-    /// </summary>
-    /// <param name="leader">The BaseUnitLeader GameObj.</param>
-    /// <param name="types">Array of emotional state types to check for.</param>
-    /// <returns>True if the leader has all of the specified emotion types.</returns>
-    public static bool HasAllEmotions(GameObj leader, params EmotionalStateType[] types)
-    {
-        foreach (var type in types)
-        {
-            if (!HasEmotion(leader, type))
-                return false;
-        }
-        return true;
-    }
-
-    /// <summary>
     /// Get the set of all active emotional state types for a unit leader.
     /// </summary>
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <returns>HashSet of active EmotionalStateType values.</returns>
-    public static HashSet<EmotionalStateType> GetStateSet(GameObj leader)
+    public static EmotionalStateType GetStateSet(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader)
     {
-        var result = new HashSet<EmotionalStateType>();
-
-        if (leader.IsNull)
-            return result;
-
         try
         {
-            var info = GetEmotionalStatesInfo(leader);
-            if (info == null)
-                return result;
+            var emotions = GetEmotionalStates(leader);
+            if (emotions.CheckAlive() != AliveStatus.Alive)
+                return EmotionalStateType.None;
 
-            foreach (var state in info.ActiveStates)
-            {
-                result.Add(state.Type);
-            }
+            var emotionsManaged = emotions.As<Il2CppMenace.Strategy.EmotionalStates>();
+            if (emotionsManaged == null)
+                return EmotionalStateType.None;
+
+            return (EmotionalStateType)(int)emotionsManaged.GetStateSet();
         }
         catch (Exception ex)
         {
             ModError.ReportInternal("Emotions.GetStateSet", "Failed", ex);
+            return EmotionalStateType.None;
         }
-
-        return result;
     }
 
     /// <summary>
@@ -459,7 +495,7 @@ public static class Emotions
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <param name="type">The emotional state type to get info for.</param>
     /// <returns>EmotionalStateInfo if found, null otherwise.</returns>
-    public static EmotionalStateInfo GetEmotionInfo(GameObj leader, EmotionalStateType type)
+    public static EmotionalStateInfo GetEmotionInfo(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, EmotionalStateType type)
     {
         var info = GetEmotionalStatesInfo(leader);
         return info?.ActiveStates.Find(s => s.Type == type);
@@ -472,54 +508,35 @@ public static class Emotions
     /// <param name="trigger">The trigger event causing the emotion.</param>
     /// <param name="target">Optional target leader for targeted emotions.</param>
     /// <returns>EmotionResult indicating success/failure.</returns>
-    public static EmotionResult TriggerEmotion(GameObj leader, EmotionalTrigger trigger, GameObj target = default)
+    public static EmotionResult TriggerEmotion(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, EmotionalTrigger trigger, GameObj<Il2CppMenace.Strategy.BaseUnitLeader> target = default)
     {
-        if (leader.IsNull)
-            return EmotionResult.Failed("Invalid leader");
-
         try
         {
             var emotions = GetEmotionalStates(leader);
-            if (emotions.IsNull)
+            if (emotions.CheckAlive() != AliveStatus.Alive)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
 
-            var emotionsType = _emotionalStatesType?.ManagedType;
-            if (emotionsType == null)
-                return EmotionResult.Failed("EmotionalStates type not available");
-
-            var proxy = GetManagedProxy(emotions, emotionsType);
-            if (proxy == null)
+            var emotionsManaged = emotions.As<Il2CppMenace.Strategy.EmotionalStates>();
+            if (emotionsManaged == null)
                 return EmotionResult.Failed("Failed to create EmotionalStates proxy");
 
-            // Get target leader template if provided
-            object targetTemplate = null;
-            if (!target.IsNull)
+            Il2CppMenace.Strategy.UnitLeaderTemplate targetTemplate = null;
+            if (target.Untyped.CheckAlive() == AliveStatus.Alive)
             {
-                var leaderType = _baseUnitLeaderType?.ManagedType;
-                if (leaderType != null)
-                {
-                    var targetProxy = GetManagedProxy(target, leaderType);
-                    if (targetProxy != null)
-                    {
-                        var getTemplateMethod = leaderType.GetMethod("GetTemplate",
-                            BindingFlags.Public | BindingFlags.Instance);
-                        targetTemplate = getTemplateMethod?.Invoke(targetProxy, null);
-                    }
-                }
+                if (_hLeaderTemplate.TryRead(target, out var leaderTemplate))
+                    targetTemplate = leaderTemplate.AsManaged();
             }
 
-            // Get random and mission for TriggerEmotion
-            var random = GetPseudoRandom();
-            var mission = GetCurrentMission();
+            var random = new Il2CppMenace.Tools.PseudoRandom(Environment.TickCount);
+            var mission = Mission.GetMission();
 
-            var triggerMethod = emotionsType.GetMethod("TriggerEmotion",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (triggerMethod == null)
-                return EmotionResult.Failed("TriggerEmotion method not found");
+            emotionsManaged.TriggerEmotion(
+                (Il2CppMenace.Strategy.EmotionalTrigger)(int)trigger,
+                targetTemplate,
+                random,
+                mission);
 
-            triggerMethod.Invoke(proxy, new object[] { trigger, targetTemplate, random, mission });
-
-            ModError.Info("Menace.SDK", $"Triggered emotion: {trigger} on {leader.GetName()}");
+            ModError.Info("Menace.SDK", $"Triggered emotion: {trigger} on {leader.Untyped.GetName()}");
             return EmotionResult.Ok(EmotionalStateType.None, "Triggered");
         }
         catch (Exception ex)
@@ -537,66 +554,45 @@ public static class Emotions
     /// <param name="trigger">The trigger causing this emotion.</param>
     /// <param name="target">Optional target leader for targeted emotions.</param>
     /// <returns>EmotionResult indicating success/failure.</returns>
-    public static EmotionResult ApplyEmotion(GameObj leader, string templateName,
-    EmotionalTrigger trigger = EmotionalTrigger.Cheat, GameObj target = default)
+    public static EmotionResult ApplyEmotion(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, string templateId,
+    EmotionalTrigger trigger = EmotionalTrigger.Cheat, GameObj<Il2CppMenace.Strategy.BaseUnitLeader> target = default)
     {
-        if (leader.IsNull)
-            return EmotionResult.Failed("Invalid leader");
-
-        if (string.IsNullOrEmpty(templateName))
-            return EmotionResult.Failed("Template name required");
+        if (string.IsNullOrEmpty(templateId))
+            return EmotionResult.Failed("Template ID required");
 
         try
         {
-            var template = GameQuery.FindByName<EmotionalStateTemplate>(templateName);
-            if (template == null)
-                return EmotionResult.Failed($"Template '{templateName}' not found");
+            if (!Templates.TryGet<Il2CppMenace.Strategy.EmotionalStateTemplate>(templateId, out var template))
+                return EmotionResult.Failed($"Template '{templateId}' not found");
 
             var emotions = GetEmotionalStates(leader);
-            if (emotions.IsNull)
+            if (emotions.CheckAlive() != AliveStatus.Alive)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
 
-            var emotionsType = _emotionalStatesType?.ManagedType;
-            var templateType = _emotionalStateTemplateType?.ManagedType;
-            if (emotionsType == null || templateType == null)
-                return EmotionResult.Failed("Required types not available");
+            var emotionsManaged = emotions.As<Il2CppMenace.Strategy.EmotionalStates>();
+            if (emotionsManaged == null)
+                return EmotionResult.Failed("Failed to create EmotionalStates proxy");
 
-            var proxy = GetManagedProxy(emotions, emotionsType);
-            var templateProxy = GetManagedProxy(new GameObj(template.Pointer), templateType);
-            if (proxy == null || templateProxy == null)
-                return EmotionResult.Failed("Failed to create proxies");
-
-            object targetTemplate = null;
-            if (!target.IsNull)
+            Il2CppMenace.Strategy.UnitLeaderTemplate targetTemplate = null;
+            if (target.Untyped.CheckAlive() == AliveStatus.Alive)
             {
-                var leaderType = _baseUnitLeaderType?.ManagedType;
-                if (leaderType != null)
-                {
-                    var targetProxy = GetManagedProxy(target, leaderType);
-                    if (targetProxy != null)
-                    {
-                        var getTemplateMethod = leaderType.GetMethod("GetTemplate",
-                            BindingFlags.Public | BindingFlags.Instance);
-                        targetTemplate = getTemplateMethod?.Invoke(targetProxy, null);
-                    }
-                }
+                if (_hLeaderTemplate.TryRead(target, out var leaderTemplate))
+                    targetTemplate = leaderTemplate.AsManaged();
             }
 
-            var random = GetPseudoRandom();
+            var random = new Il2CppMenace.Tools.PseudoRandom(Environment.TickCount);
 
-            var applyMethod = emotionsType.GetMethod("TryApplyEmotionalState",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (applyMethod == null)
-                return EmotionResult.Failed("TryApplyEmotionalState method not found");
-
-            var result = (bool)applyMethod.Invoke(proxy,
-                new object[] { templateProxy, trigger, targetTemplate, random, false });
+            var result = emotionsManaged.TryApplyEmotionalState(
+                template.StateType,
+                (Il2CppMenace.Strategy.EmotionalTrigger)(int)trigger,
+                targetTemplate,
+                random,
+                false);
 
             if (result)
             {
-                ModError.Info("Menace.SDK",
-                    $"Applied emotion '{templateName}' to {leader.GetName()}");
-                return EmotionResult.Ok((Menace.SDK.Emotions.EmotionalStateType)(int)template.StateType, "Applied");
+                ModError.Info("Menace.SDK", $"Applied emotion '{templateId}' to {leader.Untyped.GetName()}");
+                return EmotionResult.Ok((EmotionalStateType)(int)template.StateType, "Applied");
             }
             else
             {
@@ -616,44 +612,30 @@ public static class Emotions
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <param name="type">The emotional state type to remove.</param>
     /// <returns>EmotionResult indicating success/failure.</returns>
-    public static EmotionResult RemoveEmotion(GameObj leader, EmotionalStateType type)
+    public static EmotionResult RemoveEmotion(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, EmotionalStateType type)
     {
-        if (leader.IsNull)
-            return EmotionResult.Failed("Invalid leader");
-
         try
         {
             var emotions = GetEmotionalStates(leader);
-            if (emotions.IsNull)
+            if (emotions.CheckAlive() != AliveStatus.Alive)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
 
-            var emotionsType = _emotionalStatesType?.ManagedType;
-            if (emotionsType == null)
-                return EmotionResult.Failed("EmotionalStates type not available");
+            var emotionsManaged = emotions.As<Il2CppMenace.Strategy.EmotionalStates>();
+            if (emotionsManaged == null)
+                return EmotionResult.Failed("Failed to create EmotionalStates proxy");
 
-            var proxy = GetManagedProxy(emotions, emotionsType);
-            if (proxy == null)
-                return EmotionResult.Failed("Failed to create proxy");
-
-            // Get state index
-            var getIdxMethod = emotionsType.GetMethod("GetStateIdx",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getIdxMethod == null)
-                return EmotionResult.Failed("GetStateIdx method not found");
-
-            var idx = (int)getIdxMethod.Invoke(proxy, new object[] { type });
+            var idx = emotionsManaged.GetStateIdx((Il2CppMenace.Strategy.EmotionalStateType)(int)type);
             if (idx < 0)
                 return EmotionResult.Failed($"No active emotion of type {type}");
 
-            // Remove at index
-            var removeMethod = emotionsType.GetMethod("RemoveState",
-                BindingFlags.Public | BindingFlags.Instance);
+            var removeMethod = typeof(Il2CppMenace.Strategy.EmotionalStates).GetMethod("RemoveState",
+                BindingFlags.NonPublic | BindingFlags.Instance);
             if (removeMethod == null)
                 return EmotionResult.Failed("RemoveState method not found");
 
-            removeMethod.Invoke(proxy, new object[] { idx });
+            removeMethod.Invoke(emotionsManaged, new object[] { idx });
 
-            ModError.Info("Menace.SDK", $"Removed emotion {type} from {leader.GetName()}");
+            ModError.Info("Menace.SDK", $"Removed emotion {type} from {leader.Untyped.GetName()}");
             return EmotionResult.Ok(type, "Removed");
         }
         catch (Exception ex)
@@ -668,11 +650,8 @@ public static class Emotions
     /// </summary>
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <returns>Number of emotions removed.</returns>
-    public static int ClearEmotions(GameObj leader)
+    public static int ClearEmotions(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader)
     {
-        if (leader.IsNull)
-            return 0;
-
         try
         {
             var info = GetEmotionalStatesInfo(leader);
@@ -680,7 +659,6 @@ public static class Emotions
                 return 0;
 
             int removed = 0;
-            // Remove in reverse order to avoid index shifting issues
             for (int i = info.ActiveStates.Count - 1; i >= 0; i--)
             {
                 var result = RemoveEmotion(leader, info.ActiveStates[i].Type);
@@ -702,23 +680,20 @@ public static class Emotions
     /// </summary>
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <returns>Number of negative emotions removed.</returns>
-    public static int ClearNegativeEmotions(GameObj leader)
+    public static int ClearNegativeEmotions(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader)
     {
-        if (leader.IsNull)
-            return 0;
-
         try
         {
             var info = GetEmotionalStatesInfo(leader);
-            if (info == null)
+            if (info == null || info.StateCount == 0)
                 return 0;
 
             int removed = 0;
-            foreach (var state in info.ActiveStates)
+            for (int i = info.ActiveStates.Count - 1; i >= 0; i--)
             {
-                if (!state.IsPositive)
+                if (!info.ActiveStates[i].IsPositive)
                 {
-                    var result = RemoveEmotion(leader, state.Type);
+                    var result = RemoveEmotion(leader, info.ActiveStates[i].Type);
                     if (result.Success)
                         removed++;
                 }
@@ -738,23 +713,20 @@ public static class Emotions
     /// </summary>
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <returns>Number of positive emotions removed.</returns>
-    public static int ClearPositiveEmotions(GameObj leader)
+    public static int ClearPositiveEmotions(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader)
     {
-        if (leader.IsNull)
-            return 0;
-
         try
         {
             var info = GetEmotionalStatesInfo(leader);
-            if (info == null)
+            if (info == null || info.StateCount == 0)
                 return 0;
 
             int removed = 0;
-            foreach (var state in info.ActiveStates)
+            for (int i = info.ActiveStates.Count - 1; i >= 0; i--)
             {
-                if (state.IsPositive)
+                if (info.ActiveStates[i].IsPositive)
                 {
-                    var result = RemoveEmotion(leader, state.Type);
+                    var result = RemoveEmotion(leader, info.ActiveStates[i].Type);
                     if (result.Success)
                         removed++;
                 }
@@ -776,67 +748,42 @@ public static class Emotions
     /// <param name="type">The emotional state type to extend.</param>
     /// <param name="missions">Number of missions to add to duration.</param>
     /// <returns>EmotionResult indicating success/failure.</returns>
-    public static EmotionResult ExtendDuration(GameObj leader, EmotionalStateType type, int missions = 1)
+    public static EmotionResult ExtendDuration(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, EmotionalStateType type, int missions = 1)
     {
-        if (leader.IsNull)
-            return EmotionResult.Failed("Invalid leader");
-
         try
         {
             var emotions = GetEmotionalStates(leader);
-            if (emotions.IsNull)
+            if (emotions.CheckAlive() != AliveStatus.Alive)
                 return EmotionResult.Failed("Leader has no EmotionalStates");
 
-            var emotionsType = _emotionalStatesType?.ManagedType;
-            var stateType = _emotionalStateType?.ManagedType;
-            if (emotionsType == null || stateType == null)
-                return EmotionResult.Failed("Required types not available");
+            if (!GameObj<Il2CppMenace.Strategy.EmotionalStates>.TryWrap(emotions, out var emotionsTyped))
+                return EmotionResult.Failed("Failed to wrap EmotionalStates");
 
-            var proxy = GetManagedProxy(emotions, emotionsType);
-            if (proxy == null)
-                return EmotionResult.Failed("Failed to create proxy");
+            if (!_hStates.TryRead(emotionsTyped, out var statesListObj))
+                return EmotionResult.Failed("Failed to read states list");
 
-            // Get the States list (field: m_States)
-            var statesField = emotionsType.GetField("m_States",
-                BindingFlags.NonPublic | BindingFlags.Instance);
-            if (statesField == null)
-                return EmotionResult.Failed("m_States field not found");
+            if (statesListObj.Untyped.CheckAlive() != AliveStatus.Alive)
+                return EmotionResult.Failed("States list is not alive");
 
-            var statesList = statesField.GetValue(proxy);
+            var statesList = statesListObj.AsManaged();
             if (statesList == null)
-                return EmotionResult.Failed("States list is null");
+                return EmotionResult.Failed("Failed to get states list proxy");
 
-            // Find and update the state
-            var countProp = statesList.GetType().GetProperty("Count");
-            var indexer = statesList.GetType().GetMethod("get_Item");
-            int count = (int)countProp.GetValue(statesList);
-
-            for (int i = 0; i < count; i++)
+            for (int i = 0; i < statesList.Count; i++)
             {
-                var state = indexer.Invoke(statesList, new object[] { i });
-                if (state == null) continue;
+                var stateManaged = statesList[i];
+                if (stateManaged == null) continue;
 
-                var getTemplateMethod = stateType.GetMethod("GetTemplate",
-                    BindingFlags.Public | BindingFlags.Instance);
-                var template = getTemplateMethod?.Invoke(state, null);
-                if (template == null) continue;
+                var stateObj = GameObj<Il2CppMenace.Strategy.EmotionalState>.Wrap(stateManaged.Pointer);
 
-                var stateTypeProp = template.GetType().GetProperty("StateType",
-                    BindingFlags.Public | BindingFlags.Instance);
-                var stateTypeValue = stateTypeProp?.GetValue(template);
-                if (stateTypeValue == null) continue;
+                if (!_hTemplate.TryRead(stateObj, out var templateObj)) continue;
+                if (!_hStateType.TryRead(templateObj, out var stateType)) continue;
 
-                if ((EmotionalStateType)stateTypeValue == type)
+                if ((EmotionalStateType)(int)stateType == type)
                 {
-                    var extendMethod = stateType.GetMethod("ExtendDuration",
-                        BindingFlags.Public | BindingFlags.Instance);
-                    if (extendMethod != null)
-                    {
-                        extendMethod.Invoke(state, new object[] { missions });
-                        ModError.Info("Menace.SDK",
-                            $"Extended {type} duration by {missions} on {leader.GetName()}");
-                        return EmotionResult.Ok(type, "Extended");
-                    }
+                    stateManaged.ExtendDuration(missions);
+                    ModError.Info("Menace.SDK", $"Extended {type} duration by {missions} on {leader.Untyped.GetName()}");
+                    return EmotionResult.Ok(type, "Extended");
                 }
             }
 
@@ -855,128 +802,10 @@ public static class Emotions
     /// <param name="leader">The BaseUnitLeader GameObj.</param>
     /// <param name="type">The emotional state type to check.</param>
     /// <returns>Remaining missions, or -1 if emotion not found.</returns>
-    public static int GetRemainingDuration(GameObj leader, EmotionalStateType type)
+    public static int GetRemainingDuration(GameObj<Il2CppMenace.Strategy.BaseUnitLeader> leader, EmotionalStateType type)
     {
         var info = GetEmotionInfo(leader, type);
         return info?.RemainingDuration ?? -1;
-    }
-
-    /// <summary>
-    /// Check if an emotion type is negative (not positive).
-    /// </summary>
-    /// <param name="type">The emotional state type to check.</param>
-    /// <returns>True if the emotion type is typically negative.</returns>
-    public static bool IsNegativeType(EmotionalStateType type)
-    {
-        return type switch
-        {
-            EmotionalStateType.Weary => true,
-            EmotionalStateType.Disheartened => true,
-            EmotionalStateType.Frustrated => true,
-            EmotionalStateType.Exhausted => true,
-            EmotionalStateType.Hesitant => true,
-            EmotionalStateType.Injured => true,
-            EmotionalStateType.Bruised => true,
-            EmotionalStateType.Miserable => true,
-            _ => false
-        };
-    }
-
-    /// <summary>
-    /// Check if an emotion type requires a target leader.
-    /// </summary>
-    /// <param name="type">The emotional state type to check.</param>
-    /// <returns>True if the emotion type requires a target.</returns>
-    public static bool RequiresTarget(EmotionalStateType type)
-    {
-        return type == EmotionalStateType.AnimosityTowards || type == EmotionalStateType.GoodwillTowards;
-    }
-
-    /// <summary>
-    /// Get the name of an emotional state type.
-    /// </summary>
-    /// <param name="type">The emotional state type.</param>
-    /// <returns>Human-readable name of the type.</returns>
-    public static string GetTypeName(EmotionalStateType type)
-    {
-        return type switch
-        {
-            EmotionalStateType.None => "None",
-            EmotionalStateType.AnimosityTowards => "Animosity Towards",
-            EmotionalStateType.Determined => "Determined",
-            EmotionalStateType.Weary => "Weary",
-            EmotionalStateType.Disheartened => "Disheartened",
-            EmotionalStateType.Eager => "Eager",
-            EmotionalStateType.Frustrated => "Frustrated",
-            EmotionalStateType.Exhausted => "Exhausted",
-            EmotionalStateType.GoodwillTowards => "Goodwill Towards",
-            EmotionalStateType.Hesitant => "Hesitant",
-            EmotionalStateType.Overconfident => "Overconfident",
-            EmotionalStateType.Injured => "Injured",
-            EmotionalStateType.Bruised => "Bruised",
-            EmotionalStateType.Euphoric => "Euphoric",
-            EmotionalStateType.Miserable => "Miserable",
-            _ => $"Unknown ({(int)type})"
-        };
-    }
-
-    /// <summary>
-    /// Get the name of an emotional trigger.
-    /// </summary>
-    /// <param name="trigger">The emotional trigger.</param>
-    /// <returns>Human-readable name of the trigger.</returns>
-    public static string GetTriggerName(EmotionalTrigger trigger)
-    {
-        return trigger switch
-        {
-            EmotionalTrigger.StabilizedBy => "Stabilized By",
-            EmotionalTrigger.StabilizedOthers => "Stabilized Others",
-            EmotionalTrigger.ReceivedFriendlyFireFrom => "Received Friendly Fire",
-            EmotionalTrigger.DeployedXTimesWithOther => "Deployed With Other",
-            EmotionalTrigger.KilledXEnemyEntities => "Killed Enemies",
-            EmotionalTrigger.KilledXEnemyMiniBosses => "Killed Mini-Bosses",
-            EmotionalTrigger.DeployedInTheXMissionsBeforeCurrent => "Recently Deployed",
-            EmotionalTrigger.NotDeployedInTheXMissionsBeforeCurrent => "Not Recently Deployed",
-            EmotionalTrigger.KilledXCivElements => "Killed Civilians",
-            EmotionalTrigger.SuccessOnFavPlanet => "Success on Favorite Planet",
-            EmotionalTrigger.FailedOnFavPlanet => "Failed on Favorite Planet",
-            EmotionalTrigger.LostOverXPercentHitpoints => "Lost Significant HP",
-            EmotionalTrigger.GameEffect => "Game Effect",
-            EmotionalTrigger.Event => "Event",
-            EmotionalTrigger.Cheat => "Cheat",
-            EmotionalTrigger.OtherLeaderKilledCivElementOnFavPlanet => "Other Killed Civilian on Fav Planet",
-            EmotionalTrigger.Fled => "Fled",
-            EmotionalTrigger.NearDeathExperience => "Near Death Experience",
-            EmotionalTrigger.LostAllSquaddies => "Lost All Squaddies",
-            EmotionalTrigger.Last => "Last",
-            _ => $"Unknown ({(int)trigger})"
-        };
-    }
-
-    /// <summary>
-    /// Get all available emotion templates.
-    /// </summary>
-    /// <returns>Array of template names.</returns>
-    public static string[] GetAvailableTemplates()
-    {
-        try
-        {
-            var templates = GameQuery.FindAll<EmotionalStateTemplate>();
-            var names = new List<string>();
-            foreach (var template in templates)
-            {
-                var name = template.GetName();
-                if (!string.IsNullOrEmpty(name))
-                    names.Add(name);
-            }
-            names.Sort();
-            return names.ToArray();
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Emotions.GetAvailableTemplates", "Failed", ex);
-            return Array.Empty<string>();
-        }
     }
 
     /// <summary>
@@ -984,7 +813,6 @@ public static class Emotions
     /// </summary>
     public static void RegisterConsoleCommands()
     {
-        // emotions <nickname> - Show emotions for a unit
         DevConsole.RegisterCommand("emotions", "<nickname>", "Show emotional states for a unit", args =>
         {
             if (args.Length == 0)
@@ -992,10 +820,10 @@ public static class Emotions
 
             var nickname = string.Join(" ", args);
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
-            var info = GetEmotionalStatesInfo(leader.Untyped);
+            var info = GetEmotionalStatesInfo(leader);
             if (info == null)
                 return "Could not get emotional states";
 
@@ -1003,10 +831,10 @@ public static class Emotions
                 return $"{info.OwnerName} has no active emotions";
 
             var lines = new List<string>
-    {
-        $"Emotional States for {info.OwnerName} ({info.StateCount} active):",
-        $"  Positive: {info.PositiveCount}, Negative: {info.NegativeCount}"
-    };
+        {
+            $"Emotional States for {info.OwnerName} ({info.StateCount} active):",
+            $"  Positive: {info.PositiveCount}, Negative: {info.NegativeCount}"
+        };
 
             foreach (var state in info.ActiveStates)
             {
@@ -1014,16 +842,15 @@ public static class Emotions
                 var target = !string.IsNullOrEmpty(state.TargetLeaderName)
                     ? $" -> {state.TargetLeaderName}"
                     : "";
-                var first = state.IsFirstMission ? " [NEW]" : "";
-                lines.Add($"  [{polarity}] {state.TypeName}: {state.RemainingDuration} missions{target}{first}");
+                var isNew = state.IsNew ? " [NEW]" : "";
+                lines.Add($"  [{polarity}] {state.Type}: {state.RemainingDuration} missions{target}{isNew}");
             }
 
             return string.Join("\n", lines);
         });
 
-        // triggeremotion <nickname> <trigger> - Trigger an emotion
         DevConsole.RegisterCommand("triggeremotion", "<nickname> <trigger>",
-        "Trigger an emotion (KilledEnemy, WasWounded, AllyKilled, etc.)", args =>
+        "Trigger an emotion (KilledXEnemyEntities, GameEffect, Cheat, etc.)", args =>
         {
             if (args.Length < 2)
                 return "Usage: triggeremotion <nickname> <trigger>";
@@ -1032,41 +859,39 @@ public static class Emotions
             var triggerName = args[1];
 
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalTrigger>(triggerName, true, out var trigger))
                 return $"Unknown trigger '{triggerName}'. Valid: StabilizedBy, StabilizedOthers, KilledXEnemyEntities, GameEffect, Event, Cheat, etc.";
 
-            var result = TriggerEmotion(leader.Untyped, trigger);
+            var result = TriggerEmotion(leader, trigger);
             return result.Success
                 ? $"Triggered {trigger} on {leader.AsManaged().GetNickname()}"
                 : $"Failed: {result.Error}";
         });
 
-        // applyemotion <nickname> <template> - Apply an emotion template
-        DevConsole.RegisterCommand("applyemotion", "<nickname> <template>",
-        "Apply an emotion template to a unit", args =>
+        DevConsole.RegisterCommand("applyemotion", "<nickname> <templateId>",
+        "Apply an emotion template to a unit by template ID", args =>
         {
             if (args.Length < 2)
-                return "Usage: applyemotion <nickname> <template>";
+                return "Usage: applyemotion <nickname> <templateId>";
 
             var nickname = args[0];
-            var templateName = string.Join(" ", args, 1, args.Length - 1);
+            var templateId = args[1];
 
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
-            var result = ApplyEmotion(leader.Untyped, templateName);
+            var result = ApplyEmotion(leader, templateId);
             return result.Success
-                ? $"Applied '{templateName}' to {leader.AsManaged().GetNickname()}: {result.Action}"
+                ? $"Applied '{templateId}' to {leader.AsManaged().GetNickname()}: {result.Action}"
                 : $"Failed: {result.Error}";
         });
 
-        // removeemotion <nickname> <type> - Remove an emotion
         DevConsole.RegisterCommand("removeemotion", "<nickname> <type>",
-        "Remove an emotion type (Angry, Confident, Grief, etc.)", args =>
+        "Remove an emotion type (Determined, Weary, Eager, Frustrated, etc.)", args =>
         {
             if (args.Length < 2)
                 return "Usage: removeemotion <nickname> <type>";
@@ -1075,19 +900,18 @@ public static class Emotions
             var typeName = args[1];
 
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalStateType>(typeName, true, out var type))
                 return $"Unknown emotion type '{typeName}'. Valid: Determined, Weary, Eager, Frustrated, Euphoric, Miserable, etc.";
 
-            var result = RemoveEmotion(leader.Untyped, type);
+            var result = RemoveEmotion(leader, type);
             return result.Success
                 ? $"Removed {type} from {leader.AsManaged().GetNickname()}"
                 : $"Failed: {result.Error}";
         });
 
-        // clearemotions <nickname> [negative|positive] - Clear emotions
         DevConsole.RegisterCommand("clearemotions", "<nickname> [negative|positive]",
         "Clear all, negative, or positive emotions from a unit", args =>
         {
@@ -1098,35 +922,32 @@ public static class Emotions
             var filter = args.Length > 1 ? args[1].ToLowerInvariant() : "all";
 
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
             int removed = filter switch
             {
-                "negative" => ClearNegativeEmotions(leader.Untyped),
-                "positive" => ClearPositiveEmotions(leader.Untyped),
-                _ => ClearEmotions(leader.Untyped)
+                "negative" => ClearNegativeEmotions(leader),
+                "positive" => ClearPositiveEmotions(leader),
+                _ => ClearEmotions(leader)
             };
 
             return $"Removed {removed} {filter} emotion(s) from {leader.AsManaged().GetNickname()}";
         });
 
-        // emotemplates - List available emotion templates
         DevConsole.RegisterCommand("emotemplates", "", "List available emotion templates", args =>
         {
-            var templates = GetAvailableTemplates();
-            if (templates.Length == 0)
+            var templates = Templates.FindAll<Il2CppMenace.Strategy.EmotionalStateTemplate>();
+            if (templates.Count == 0)
                 return "No emotion templates found";
 
-            var lines = new List<string> { $"Emotion Templates ({templates.Length}):" };
+            var lines = new List<string> { $"Emotion Templates ({templates.Count}):" };
             foreach (var t in templates)
-            {
-                lines.Add($"  {t}");
-            }
+                lines.Add($"  {t.name}");
+
             return string.Join("\n", lines);
         });
 
-        // hasemotion <nickname> <type> - Check if unit has emotion
         DevConsole.RegisterCommand("hasemotion", "<nickname> <type>",
         "Check if a unit has a specific emotion type", args =>
         {
@@ -1137,22 +958,21 @@ public static class Emotions
             var typeName = args[1];
 
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalStateType>(typeName, true, out var type))
                 return $"Unknown emotion type '{typeName}'";
 
-            var has = HasEmotion(leader.Untyped, type);
+            var has = HasEmotion(leader, type);
             if (has)
             {
-                var duration = GetRemainingDuration(leader.Untyped, type);
+                var duration = GetRemainingDuration(leader, type);
                 return $"{leader.AsManaged().GetNickname()} HAS {type} ({duration} missions remaining)";
             }
             return $"{leader.AsManaged().GetNickname()} does NOT have {type}";
         });
 
-        // extendemotion <nickname> <type> [missions] - Extend emotion duration
         DevConsole.RegisterCommand("extendemotion", "<nickname> <type> [missions]",
         "Extend the duration of an active emotion", args =>
         {
@@ -1164,203 +984,16 @@ public static class Emotions
             var missions = args.Length > 2 && int.TryParse(args[2], out int m) ? m : 1;
 
             var leader = Roster.FindByNicknameTyped(nickname);
-            if (leader.Untyped.IsNull)
+            if (leader.Untyped.CheckAlive() != AliveStatus.Alive)
                 return $"Unit '{nickname}' not found";
 
             if (!Enum.TryParse<EmotionalStateType>(typeName, true, out var type))
                 return $"Unknown emotion type '{typeName}'";
 
-            var result = ExtendDuration(leader.Untyped, type, missions);
+            var result = ExtendDuration(leader, type, missions);
             return result.Success
-        ? $"Extended {type} by {missions} mission(s)"
-        : $"Failed: {result.Error}";
+                ? $"Extended {type} by {missions} mission(s)"
+                : $"Failed: {result.Error}";
         });
-    }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
-
-    private static object GetPseudoRandom()
-    {
-        try
-        {
-            var randomType = _pseudoRandomType?.ManagedType;
-            if (randomType == null) return null;
-
-            // PseudoRandom has no singleton - must create instance with constructor
-            // Try constructor with seed parameter first
-            var seedCtor = randomType.GetConstructor(new[] { typeof(int) });
-            if (seedCtor != null)
-                return seedCtor.Invoke(new object[] { Environment.TickCount });
-
-            // Try constructor with uint seed
-            var uintCtor = randomType.GetConstructor(new[] { typeof(uint) });
-            if (uintCtor != null)
-                return uintCtor.Invoke(new object[] { (uint)Environment.TickCount });
-
-            // Try parameterless constructor
-            var ctor = randomType.GetConstructor(Type.EmptyTypes);
-            return ctor?.Invoke(null);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static object GetCurrentMission()
-    {
-        try
-        {
-            // Try to get the current mission from StrategyState
-            var strategyType = _strategyStateType?.ManagedType;
-            if (strategyType == null) return null;
-
-            var instanceProp = strategyType.GetProperty("Instance",
-                BindingFlags.Public | BindingFlags.Static);
-            if (instanceProp == null) return null;
-
-            var instance = instanceProp.GetValue(null);
-            if (instance == null) return null;
-
-            var missionProp = strategyType.GetProperty("CurrentMission",
-                BindingFlags.Public | BindingFlags.Instance);
-            return missionProp?.GetValue(instance);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static List<EmotionalStateInfo> GetStatesFromList(GameObj statesList)
-    {
-        var result = new List<EmotionalStateInfo>();
-        if (statesList.IsNull) return result;
-
-        try
-        {
-            var listType = typeof(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<>);
-            var stateType = _emotionalStateType?.ManagedType;
-
-            // Try to iterate via reflection on the Il2Cpp list
-            var listProxy = GetListProxy(statesList);
-            if (listProxy == null) return result;
-
-            var countProp = listProxy.GetType().GetProperty("Count");
-            var indexer = listProxy.GetType().GetMethod("get_Item");
-
-            if (countProp == null || indexer == null) return result;
-
-            int count = (int)countProp.GetValue(listProxy);
-            for (int i = 0; i < count; i++)
-            {
-                var state = indexer.Invoke(listProxy, new object[] { i });
-                if (state == null) continue;
-
-                var info = ExtractStateInfo(state);
-                if (info != null)
-                    result.Add(info);
-            }
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Emotions.GetStatesFromList", "Failed", ex);
-        }
-
-        return result;
-    }
-
-    private static object GetListProxy(GameObj list)
-    {
-        if (list.IsNull) return null;
-
-        try
-        {
-            // Try generic List<EmotionalState>
-            var stateType = _emotionalStateType?.ManagedType;
-            if (stateType == null) return null;
-
-            var listType = typeof(Il2CppSystem.Collections.Generic.List<>).MakeGenericType(stateType);
-            var ptrCtor = listType.GetConstructor(new[] { typeof(IntPtr) });
-            return ptrCtor?.Invoke(new object[] { list.Pointer });
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static EmotionalStateInfo ExtractStateInfo(object state)
-    {
-        if (state == null) return null;
-
-        try
-        {
-            var stateObj = new GameObj(((Il2CppObjectBase)state).Pointer);
-            var info = new EmotionalStateInfo
-            {
-                Pointer = stateObj.Pointer
-            };
-
-            // Read template
-            var templatePtr = stateObj.ReadPtr(OFFSET_STATE_TEMPLATE);
-            if (templatePtr != IntPtr.Zero)
-            {
-                var template = new GameObj(templatePtr);
-                info.TemplateName = template.GetName();
-                info.Type = (EmotionalStateType)template.ReadInt(OFFSET_TEMPLATE_TYPE);
-                info.TypeName = GetTypeName(info.Type);
-                info.IsPositive = ReadBoolAtOffset(template, OFFSET_TEMPLATE_IS_POSITIVE);
-                info.IsSuperState = ReadBoolAtOffset(template, OFFSET_TEMPLATE_IS_SUPER_STATE);
-
-                // Get effect name
-                var effectPtr = template.ReadPtr(OFFSET_TEMPLATE_EFFECT);
-                if (effectPtr != IntPtr.Zero)
-                {
-                    var effect = new GameObj(effectPtr);
-                    info.SkillName = effect.GetName();
-                }
-            }
-
-            // Read trigger
-            info.Trigger = (EmotionalTrigger)stateObj.ReadInt(OFFSET_STATE_TRIGGER);
-            info.TriggerName = GetTriggerName(info.Trigger);
-
-            // Read target leader
-            var targetPtr = stateObj.ReadPtr(OFFSET_STATE_TARGET_LEADER);
-            if (targetPtr != IntPtr.Zero)
-            {
-                var target = new GameObj(targetPtr);
-                info.TargetLeaderName = target.GetName();
-            }
-
-            // Read duration and first mission flag
-            info.RemainingDuration = stateObj.ReadInt(OFFSET_STATE_REMAINING_DURATION);
-            info.IsFirstMission = ReadBoolAtOffset(stateObj, OFFSET_STATE_IS_FIRST_MISSION);
-
-            return info;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Emotions.ExtractStateInfo", "Failed", ex);
-            return null;
-        }
-    }
-
-    private static bool ReadBoolAtOffset(GameObj obj, uint offset)
-    {
-        if (obj.IsNull || offset == 0) return false;
-
-        try
-        {
-            return Marshal.ReadByte(obj.Pointer + (int)offset) != 0;
-        }
-        catch
-        {
-            return false;
-        }
     }
 }

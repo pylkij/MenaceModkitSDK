@@ -94,6 +94,8 @@ public partial class ModpackLoaderMod : MelonMod
 
         //CustomMaps.Initialize(HarmonyInstance); // CRASHES
 
+        TemplateIdLookup.Initialize();
+
         try
         {
             LuaScriptEngine.Instance.Initialize(LoggerInstance);
@@ -129,6 +131,18 @@ public partial class ModpackLoaderMod : MelonMod
         {
             SdkLogger.Warning($"[Localization] Failed to initialize multi-lingual system: {ex.Message}");
         }
+
+        // Field Handle Initializers
+        Templates.Initialize();
+
+        Operation.Initialize();
+        Mission.Initialize();
+        Roster.Initialize();
+        Perks.Initialize();
+        OCI.Initialize();
+        BlackMarket.Initialize();
+        Faction.Initialize();
+        Emotions.Initialize();
 
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
@@ -615,28 +629,19 @@ public partial class ModpackLoaderMod : MelonMod
         }
 
         RegisterBundleClones();
+        InvalidateNameLookupCache();
 
         var allSucceeded = true;
 
         foreach (var modpack in _loadedModpacks.Values.OrderBy(m => m.LoadOrder))
         {
-            var hasClones = modpack.Clones != null && modpack.Clones.Count > 0;
             var hasPatches = modpack.Patches != null && modpack.Patches.Count > 0;
             var hasTemplates = modpack.Templates != null && modpack.Templates.Count > 0;
 
-            if (!hasClones && !hasPatches && !hasTemplates)
+            if (!hasPatches && !hasTemplates)
                 continue;
 
             SdkLogger.Msg($"Applying modpack: {modpack.Name}");
-
-            // Apply clones BEFORE patches so cloned templates exist when patches run
-            if (hasClones)
-            {
-                if (!ApplyClones(modpack))
-                    allSucceeded = false;
-
-                InvalidateNameLookupCache();
-            }
 
             bool success;
             if (hasPatches && modpack.ManifestVersion >= 2)

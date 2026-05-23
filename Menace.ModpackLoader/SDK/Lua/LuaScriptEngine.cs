@@ -1628,11 +1628,11 @@ public class LuaScriptEngine
 
     // --- Spawn (experimental) ---
 
-    private DynValue LuaSpawnUnit(string templateName, int x, int y, int faction)
+    private DynValue LuaSpawnUnit(string templateName, int x, int z, int faction)
     {
         try
         {
-            var result = EntitySpawner.SpawnUnit(templateName, x, y, faction);
+            var result = EntitySpawner.SpawnUnit(templateName, x, z, (Il2CppMenace.Tactical.FactionType)faction);
 
             var table = new Table(_lua);
             table["success"] = result.Success;
@@ -1663,7 +1663,10 @@ public class LuaScriptEngine
     {
         try
         {
-            var entities = EntitySpawner.ListEntities(factionFilter);
+            var faction = factionFilter >= 0
+                ? (Il2CppMenace.Tactical.FactionType?)((Il2CppMenace.Tactical.FactionType)factionFilter)
+                : null;
+            var entities = EntitySpawner.ListEntities(faction);
             var table = new Table(_lua);
             int i = 1;
             foreach (var entity in entities)
@@ -1690,7 +1693,7 @@ public class LuaScriptEngine
         table["entity_id"] = info.EntityId;
         table["name"] = info.Name ?? "";
         table["type_name"] = info.TypeName ?? "";
-        table["faction"] = info.FactionIndex;
+        table["faction"] = info.FactionId;
         table["alive"] = info.IsAlive;
         table["ptr"] = info.Pointer.ToInt64();
         return DynValue.NewTable(table);

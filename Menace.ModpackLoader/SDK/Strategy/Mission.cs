@@ -1,10 +1,9 @@
+using Il2CppMenace.Strategy;
+using Il2CppMenace.Tactical;
+using Il2CppMenace.Tactical.Objectives;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using Il2CppInterop.Runtime.InteropTypes;
-
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -20,43 +19,86 @@ namespace Menace.SDK;
 /// </summary>
 public static class Mission
 {
-    // Cached types
-    private static readonly GameType _objectiveType = GameType.Of<Il2CppMenace.Tactical.Objectives.Objective>();
-    private static readonly GameType _missionType = GameType.Of<Il2CppMenace.Strategy.Mission>();
-    private static readonly GameType _missionTemplateType = GameType.Of<Il2CppMenace.Strategy.Missions.MissionTemplate>(); // not assigned but it probably should be so it is staying for now
-    private static readonly GameType _objectiveManagerType = GameType.Of<Il2CppMenace.Tactical.Objectives.ObjectiveManager>();
-    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Mission status constants
-    public const int STATUS_PENDING = 0;
-    public const int STATUS_ACTIVE = 1;
-    public const int STATUS_COMPLETE = 2;
-    public const int STATUS_FAILED = 3;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.Missions.MissionTemplate> _hTemplate;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.MissionDifficultyTemplate> _hDifficulty;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppTactical.Weather.WeatherTemplate> _hWeather;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.BiomeTemplate> _hBiome;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.FactionTemplate> _hClientFaction;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.OperationAssetTemplate> _hAssetReward;
 
-    // Mission layer constants
-    public const int LAYER_SURFACE = 0;
-    public const int LAYER_UNDERGROUND = 1;
-    public const int LAYER_INTERIOR = 2;
-    public const int LAYER_SPACE = 3;
-    public const int LAYER_RANDOM = 4;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.MissionStatus> _hStatus;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.MissionLayer> _hLayer;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, int> _hSeed;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, int> _hLayerIdx;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, int> _hIdx;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, float> _hTacticalPlaytimeInSec;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, bool> _hReinforcementsEnabled;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.LightConditionType> _hLightConditions;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hTemplate = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Template);
+            _hDifficulty = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Difficulty);
+            _hWeather = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Weather);
+            _hBiome = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Biome);
+            _hClientFaction = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_ClientFaction);
+            _hAssetReward = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_AssetReward);
+
+            _hStatus = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Status);
+            _hLayer = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Layer);
+            _hSeed = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Seed);
+            _hLayerIdx = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_LayerIdx);
+            _hIdx = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Idx);
+            _hTacticalPlaytimeInSec = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.TacticalPlaytimeInSec);
+            _hReinforcementsEnabled = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_ReinforcementsEnabled);
+            _hLightConditions = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_LightConditions);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Mission.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
+
+    // Mission class enums
+    public enum MissionStatus { Playable = 0, Locked = 1, Played = 2, Unplayable = 3 }
+    public enum MissionLayer { Invalid = 0, First = 1, Middle = 2, Final = 3 }
+    public enum LightConditionType { Dawn = 0, Day = 1, Dusk = 2, Night = 3, Random = 4 }
 
     /// <summary>
     /// Mission information structure.
     /// </summary>
     public class MissionInfo
     {
-        public string TemplateName { get; set; }
-        public int Status { get; set; }
-        public string StatusName { get; set; }
-        public int Layer { get; set; }
-        public string LayerName { get; set; }
-        public int MapWidth { get; set; }
+        public string TemplateId { get; set; }
+        public MissionStatus Status { get; set; }
+        public MissionLayer Layer { get; set; }
         public int Seed { get; set; }
-        public string BiomeName { get; set; }
-        public string WeatherName { get; set; }
-        public string LightCondition { get; set; }
-        public string DifficultyName { get; set; }
-        public int EnemyArmyPoints { get; set; }
+        public string BiomeId { get; set; }
+        public string WeatherId { get; set; }
+        public LightConditionType LightCondition { get; set; }
+        public string DifficultyId { get; set; }
+        public float EnemyArmyPoints { get; set; }
         public IntPtr Pointer { get; set; }
     }
 
@@ -69,384 +111,432 @@ public static class Mission
         public string Description { get; set; }
         public bool IsComplete { get; set; }
         public bool IsFailed { get; set; }
-        public bool IsOptional { get; set; }
         public int Progress { get; set; }
         public int TargetProgress { get; set; }
         public IntPtr Pointer { get; set; }
     }
 
     /// <summary>
-    /// Get the current active mission.
-    /// Mission is accessed via StrategyState -> Operation chain, not TacticalManager.
+    /// Retrieves the currently active mission via the TacticalManager.
+    /// Returns <c>null</c> if no mission is active or the manager is unavailable.
     /// </summary>
-    public static GameObj GetCurrentMission()
+    public static Il2CppMenace.Strategy.Mission GetMission()
     {
         try
         {
-            // Get TacticalManager via Get() static method
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return GameObj.Null;
-
-            var getMethod = tmType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var tm = getMethod?.Invoke(null, null);
-            if (tm == null) return GameObj.Null;
-
-            // TacticalManager likely holds a Mission directly — try common property names
-            var tmActualType = tm.GetType();
-
-            // Try "Mission" property first
-            var missionProp = tmActualType.GetProperty("Mission", BindingFlags.Public | BindingFlags.Instance)
-                           ?? tmActualType.GetProperty("CurrentMission", BindingFlags.Public | BindingFlags.Instance);
-
-            object mission = missionProp?.GetValue(tm);
-
-            // Fallback: TacticalManager may expose it via a field instead
-            if (mission == null)
+            var tm = TacticalManager.Get();
+            if (tm == null)
             {
-                var missionField = tmActualType.GetField("m_Mission", BindingFlags.NonPublic | BindingFlags.Instance)
-                                ?? tmActualType.GetField("Mission", BindingFlags.Public | BindingFlags.Instance);
-                mission = missionField?.GetValue(tm);
+                ModError.WarnInternal("Mission.GetMission", "TacticalManager returned null");
+                return null;
             }
-
-            if (mission == null) return GameObj.Null;
-
-            // Verify it's actually a Menace.Strategy.Mission
-            var missionType = _missionType.ManagedType;
-            if (missionType == null || !missionType.IsInstanceOfType(mission)) return GameObj.Null;
-
-            return new GameObj(((Il2CppObjectBase)mission).Pointer);
+            return tm.GetMission();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Mission.GetCurrentMission", "Failed", ex);
-            return GameObj.Null;
-        }
-    }
-
-    /// <summary>
-    /// Get information about the current mission.
-    /// </summary>
-    public static MissionInfo GetMissionInfo()
-    {
-        var mission = GetCurrentMission();
-        return GetMissionInfo(mission);
-    }
-
-    /// <summary>
-    /// Get information about a mission.
-    /// </summary>
-    public static MissionInfo GetMissionInfo(GameObj mission)
-    {
-        if (mission.IsNull) return null;
-
-        try
-        {
-            var missionType = _missionType?.ManagedType;
-            if (missionType == null) return null;
-
-            var proxy = GetManagedProxy(mission, missionType);
-            if (proxy == null) return null;
-
-            var info = new MissionInfo { Pointer = mission.Pointer };
-
-            // Get template via direct field at +0x10
-            var templatePtr = Marshal.ReadIntPtr(mission.Pointer + 0x10);
-            if (templatePtr != IntPtr.Zero)
-            {
-                var templateObj = new GameObj(templatePtr);
-                info.TemplateName = templateObj.GetName();
-            }
-
-            // Get status via direct field at +0xB8
-            info.Status = Marshal.ReadInt32(mission.Pointer + 0xB8);
-            info.StatusName = GetStatusName(info.Status);
-
-            // Get layer via direct field at +0x20
-            info.Layer = Marshal.ReadInt32(mission.Pointer + 0x20);
-            info.LayerName = GetLayerName(info.Layer);
-
-            // Get seed via direct field at +0x24
-            info.Seed = Marshal.ReadInt32(mission.Pointer + 0x24);
-            // MapWidth doesn't exist - leave as default 0
-
-            // Get biome via direct field at +0x70
-            var biomePtr = Marshal.ReadIntPtr(mission.Pointer + 0x70);
-            if (biomePtr != IntPtr.Zero)
-            {
-                var biomeObj = new GameObj(biomePtr);
-                info.BiomeName = biomeObj.GetName();
-            }
-
-            // Get weather template via direct field at +0x60
-            var weatherPtr = Marshal.ReadIntPtr(mission.Pointer + 0x60);
-            if (weatherPtr != IntPtr.Zero)
-            {
-                var weatherObj = new GameObj(weatherPtr);
-                info.WeatherName = weatherObj.GetName();
-            }
-
-            // Get light condition via GetLightConditionTemplate() method
-            var getLightMethod = missionType.GetMethod("GetLightConditionTemplate", BindingFlags.Public | BindingFlags.Instance);
-            if (getLightMethod != null)
-            {
-                var lightCondition = getLightMethod.Invoke(proxy, null);
-                if (lightCondition != null)
-                {
-                    var lightObj = new GameObj(((Il2CppObjectBase)lightCondition).Pointer);
-                    info.LightCondition = lightObj.GetName();
-                }
-            }
-
-            // Get difficulty via direct field at +0x38
-            var diffPtr = Marshal.ReadIntPtr(mission.Pointer + 0x38);
-            if (diffPtr != IntPtr.Zero)
-            {
-                var diffObj = new GameObj(diffPtr);
-                info.DifficultyName = diffObj.GetName();
-            }
-
-            // Get enemy army points
-            var getArmyPointsMethod = missionType.GetMethod("GetEnemyArmyPoints",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getArmyPointsMethod != null)
-            {
-                info.EnemyArmyPoints = (int)getArmyPointsMethod.Invoke(proxy, null);
-            }
-
-            return info;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Mission.GetMissionInfo", "Failed", ex);
+            ModError.ReportInternal("Mission.GetMission", "Failed", ex);
             return null;
         }
     }
 
     /// <summary>
-    /// Get all objectives for the current mission.
+    /// Reads and returns a <see cref="MissionInfo"/> snapshot for the given mission,
+    /// including its template name, status, layer, seed, biome, weather, light condition,
+    /// difficulty, and enemy army points. Fields that fail to read are left at their
+    /// default values; a warning or error is logged for each failure.
+    /// Returns <c>null</c> if <paramref name="mission"/> is <c>null</c>.
     /// </summary>
-    public static List<ObjectiveInfo> GetObjectives()
+    public static MissionInfo GetMissionInfo(Il2CppMenace.Strategy.Mission mission)
     {
-        var mission = GetCurrentMission();
-        return GetObjectives(mission);
+        if (mission == null)
+        {
+            ModError.WarnInternal("Mission.GetMissionInfo", "Mission is null");
+            return null;
+        }
+
+        var info = new MissionInfo { Pointer = mission.Pointer };
+        var missionObj = GameObj<Il2CppMenace.Strategy.Mission>.Wrap(mission.Pointer);
+
+        if (!_hTemplate.TryRead(missionObj, out var templateObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Template");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer), out var templateId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading TemplateId");
+        else
+            info.TemplateId = templateId;
+
+        if (!_hStatus.TryRead(missionObj, out var status))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Status");
+        else
+            info.Status = (MissionStatus)(int)status;
+
+        if (!_hLayer.TryRead(missionObj, out var layer))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Layer");
+        else
+            info.Layer = (MissionLayer)(int)layer;
+
+        if (!_hSeed.TryRead(missionObj, out var seed))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Seed");
+        else
+            info.Seed = seed;
+
+        if (!_hBiome.TryRead(missionObj, out var biomeObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Biome");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(biomeObj.Untyped.Pointer), out var biomeId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading BiomeId");
+        else
+            info.BiomeId = biomeId;
+
+        if (!_hWeather.TryRead(missionObj, out var weatherObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Weather");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(weatherObj.Untyped.Pointer), out var weatherId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading WeatherId");
+        else
+            info.WeatherId = weatherId;
+
+        if (!_hLightConditions.TryRead(missionObj, out var lightCondition))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading LightCondition");
+        else
+            info.LightCondition = (LightConditionType)(int)lightCondition;
+
+        if (!_hDifficulty.TryRead(missionObj, out var difficultyObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Difficulty");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(difficultyObj.Untyped.Pointer), out var difficultyId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading DifficultyId");
+        else
+            info.DifficultyId = difficultyId;
+
+        try { info.EnemyArmyPoints = mission.GetEnemyArmyPoints(); }
+        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading EnemyArmyPoints", ex); }
+
+        return info;
     }
 
     /// <summary>
-    /// Get all objectives for a mission.
+    /// Returns a list of <see cref="ObjectiveInfo"/> snapshots for all objectives
+    /// on the given mission. Each entry captures the objective's title, description,
+    /// completion/failure state, and current and required progress values.
+    /// Null or unreadable objectives are skipped with a warning logged.
+    /// Returns an empty list if <paramref name="mission"/> is <c>null</c> or has no objective manager.
     /// </summary>
-    public static List<ObjectiveInfo> GetObjectives(GameObj mission)
+    public static List<ObjectiveInfo> GetObjectives(Il2CppMenace.Strategy.Mission mission)
     {
         var result = new List<ObjectiveInfo>();
-        if (mission.IsNull) return result;
 
+        if (mission == null)
+        {
+            ModError.WarnInternal("Mission.GetObjectives", "Mission is null");
+            return result;
+        }
+
+        var objectiveManager = mission.Objectives;
+        if (objectiveManager == null)
+        {
+            ModError.WarnInternal("Mission.GetObjectives", "ObjectiveManager is null");
+            return result;
+        }
+
+        IReadOnlyList<Objective> objectives = null;
+        try 
+        { 
+            objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); 
+        }
+        catch (Exception ex) 
+        { 
+            ModError.ReportInternal("Mission.GetObjectives", "Failed calling GetObjectives", ex); 
+            return result; 
+        }
+
+        if (objectives == null)
+        {
+            ModError.WarnInternal("Mission.GetObjectives", "GetObjectives returned null");
+            return result;
+        }
+
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            var obj = objectives[i];
+
+            if (obj == null)
+            {
+                ModError.WarnInternal("Mission.GetObjectives", "Null entry in objectives list");
+                continue;
+            }
+
+            var info = new ObjectiveInfo { Pointer = obj.Pointer };
+
+            try { info.Name = obj.GetTitle(); }
+            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Name", ex); }
+
+            try { info.Description = obj.GetTranslatedObjectiveText(); }
+            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Description", ex); }
+
+            try { info.IsComplete = obj.IsCompleted(); }
+            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading IsComplete", ex); }
+
+            try { info.IsFailed = obj.IsFailed(); }
+            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading IsFailed", ex); }
+
+            try { info.Progress = obj.GetProgress(); }
+            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Progress", ex); }
+
+            try 
+            { 
+                info.TargetProgress = obj.GetRequiredProgress(); 
+            }
+            catch (Exception ex) 
+            { 
+                ModError.ReportInternal("Mission.GetObjectives", "Failed reading TargetProgress", ex); 
+            }
+
+            result.Add(info);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Returns the <see cref="MissionStatus"/> of the current active mission.
+    /// Returns <c>null</c> if no mission is active or the TacticalManager is unavailable.
+    /// </summary>
+    public static MissionStatus? GetStatus()
+    {
         try
         {
-            var missionType = _missionType?.ManagedType;
-            if (missionType == null) return result;
-
-            var proxy = GetManagedProxy(mission, missionType);
-            if (proxy == null) return result;
-
-            // Get ObjectiveManager via direct field at +0x40
-            var objMgrPtr = Marshal.ReadIntPtr(mission.Pointer + 0x40);
-            if (objMgrPtr == IntPtr.Zero) return result;
-
-            // Get objectives array via direct field at +0x18 in ObjectiveManager
-            var objectivesArrayPtr = Marshal.ReadIntPtr(objMgrPtr + 0x18);
-            if (objectivesArrayPtr == IntPtr.Zero) return result;
-
-            // Create managed proxy for the objectives array
-            var objMgrType = _objectiveManagerType?.ManagedType;
-            if (objMgrType == null) return result;
-
-            var objMgrProxy = GetManagedProxy(new GameObj(objMgrPtr), objMgrType);
-            if (objMgrProxy == null) return result;
-
-            // Read the array - Il2Cpp arrays have length at +0x18 and elements starting at +0x20
-            var arrayLength = Marshal.ReadInt32(objectivesArrayPtr + 0x18);
-            if (arrayLength <= 0 || arrayLength > 1000) return result; // Sanity check
-
-            var objectives = new List<IntPtr>();
-            for (int i = 0; i < arrayLength; i++)
+            var mission = TacticalManager.Get()?.GetMission();
+            if (mission == null)
             {
-                var elementPtr = Marshal.ReadIntPtr(objectivesArrayPtr + 0x20 + (i * IntPtr.Size));
-                if (elementPtr != IntPtr.Zero)
-                    objectives.Add(elementPtr);
+                ModError.WarnInternal("Mission.GetStatus", "No active mission");
+                return null;
             }
-
-            if (objectives.Count == 0) return result;
-
-            // Iterate objectives array
-            var objectiveType = _objectiveType.ManagedType;
-
-            foreach (var objPtr in objectives)
-            {
-                var info = new ObjectiveInfo
-                {
-                    Pointer = objPtr
-                };
-
-                // Create managed proxy for this objective
-                if (objectiveType != null)
-                {
-                    var objProxy = GetManagedProxy(new GameObj(objPtr), objectiveType);
-                    if (objProxy != null)
-                    {
-                        var objType = objProxy.GetType();
-
-                        // Get name/description via GetTitle() method (no Description method exists)
-                        var getTitleMethod = objType.GetMethod("GetTitle", BindingFlags.Public | BindingFlags.Instance);
-                        var getDescMethod = objType.GetMethod("GetTranslatedObjectiveText", BindingFlags.Public | BindingFlags.Instance);
-                        if (getTitleMethod != null) info.Name = Il2CppUtils.ToManagedString(getTitleMethod.Invoke(objProxy, null));
-                        if (getDescMethod != null) info.Description = Il2CppUtils.ToManagedString(getDescMethod.Invoke(objProxy, null));
-
-                        // Get completed status via IsCompleted() method
-                        var isCompletedMethod = objType.GetMethod("IsCompleted", BindingFlags.Public | BindingFlags.Instance);
-                        if (isCompletedMethod != null) info.IsComplete = (bool)isCompletedMethod.Invoke(objProxy, null);
-
-                        // Check failed status via direct field - state == 3 at offset +0x1C
-                        var stateValue = Marshal.ReadInt32(objPtr + 0x1C);
-                        info.IsFailed = (stateValue == 3);
-                        // IsOptional doesn't exist - leave as default (false)
-
-                        // Get progress via GetProgress() and GetRequiredProgress() methods
-                        var getProgressMethod = objType.GetMethod("GetProgress", BindingFlags.Public | BindingFlags.Instance);
-                        var getRequiredMethod = objType.GetMethod("GetRequiredProgress", BindingFlags.Public | BindingFlags.Instance);
-
-                        if (getProgressMethod != null) info.Progress = Convert.ToInt32(getProgressMethod.Invoke(objProxy, null) ?? 0);
-                        if (getRequiredMethod != null) info.TargetProgress = Convert.ToInt32(getRequiredMethod.Invoke(objProxy, null) ?? 0);
-                    }
-                }
-
-                result.Add(info);
-            }
-
-            return result;
+            return (MissionStatus)(int)mission.GetStatus();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Mission.GetObjectives", "Failed", ex);
-            return result;
+            ModError.ReportInternal("Mission.GetStatus", "Failed", ex);
+            return null;
         }
     }
 
     /// <summary>
-    /// Get current mission status.
+    /// Check if mission is playable.
     /// </summary>
-    public static int GetStatus()
+    public static bool IsPlayable()
     {
-        var info = GetMissionInfo();
-        return info?.Status ?? STATUS_PENDING;
+        var status = GetStatus();
+        if (status == null) return false;
+        return status == MissionStatus.Playable;
     }
 
     /// <summary>
-    /// Check if mission is active.
+    /// Check if mission is locked.
     /// </summary>
-    public static bool IsActive()
+    public static bool IsLocked()
     {
-        return GetStatus() == STATUS_ACTIVE;
+        var status = GetStatus();
+        if (status == null) return false;
+        return status == MissionStatus.Locked;
     }
 
     /// <summary>
-    /// Check if mission is complete.
+    /// Check if mission has been played.
     /// </summary>
-    public static bool IsComplete()
+    public static bool IsPlayed()
     {
-        return GetStatus() == STATUS_COMPLETE;
+        var status = GetStatus();
+        if (status == null) return false;
+        return status == MissionStatus.Played;
     }
 
     /// <summary>
-    /// Check if mission has failed.
+    /// Check if the mission is unplayable.
     /// </summary>
-    public static bool IsFailed()
+    public static bool IsUnplayable()
     {
-        return GetStatus() == STATUS_FAILED;
+        var status = GetStatus();
+        if (status == null) return false;
+        return status == MissionStatus.Unplayable;
     }
 
     /// <summary>
-    /// Complete an objective by index.
+    /// Force-completes all objectives on the current mission that are not already
+    /// completed or failed. Silently skips objectives that are in a terminal state.
+    /// Logs a warning or error if the TacticalManager, mission, or objective manager
+    /// is unavailable, or if <c>ForceComplete</c> throws on any individual objective.
+    /// </summary>
+    public static void CompletePendingObjectives()
+    {
+        var tm = TacticalManager.Get();
+        if (tm == null)
+        {
+            ModError.WarnInternal("Mission.CompletePendingObjectives", "TacticalManager is null");
+            return;
+        }
+
+        var mission = tm.GetMission();
+        if (mission == null)
+        {
+            ModError.WarnInternal("Mission.CompletePendingObjectives", "Mission is null");
+            return;
+        }
+
+        var objectiveManager = mission.Objectives;
+        if (objectiveManager == null)
+        {
+            ModError.WarnInternal("Mission.CompletePendingObjectives", "ObjectiveManager is null");
+            return;
+        }
+
+        IReadOnlyList<Objective> objectives = null;
+        try 
+        { 
+            objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); 
+        }
+        catch (Exception ex) 
+        { 
+            ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling GetObjectives", ex); return; 
+        }
+
+        if (objectives == null)
+        {
+            ModError.WarnInternal("Mission.CompletePendingObjectives", "GetObjectives returned null");
+            return;
+        }
+
+        for (int i = 0; i < objectives.Count; i++)
+        {
+            var obj = objectives[i];
+
+            if (obj == null)
+            {
+                ModError.WarnInternal("Mission.CompletePendingObjectives", "Null entry in objectives list");
+                continue;
+            }
+
+            if (obj.IsCompleted() || obj.IsFailed()) continue;
+
+            try 
+            { 
+                obj.ForceComplete(); 
+            }
+            catch (Exception ex) 
+            { 
+                ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling ForceComplete", ex); 
+            }
+        }
+    }
+
+    /// <summary>
+    /// Force-completes the objective at the specified <paramref name="index"/> in the
+    /// current mission's objective list. Does nothing and returns <c>false</c> if the
+    /// index is out of range, the objective is already completed or failed, or any
+    /// required manager is unavailable. Returns <c>true</c> on success.
     /// </summary>
     public static bool CompleteObjective(int index)
     {
-        var objectives = GetObjectives();
-        if (index < 0 || index >= objectives.Count) return false;
-
-        try
+        var tm = TacticalManager.Get();
+        if (tm == null)
         {
-            var objPtr = objectives[index].Pointer;
-            var objType = _objectiveType.ManagedType;
-            if (objType == null) return false;
-
-            var proxy = GetManagedProxy(new GameObj(objPtr), objType);
-            if (proxy == null) return false;
-
-            var completeMethod = objType.GetMethod("ForceComplete", BindingFlags.Public | BindingFlags.Instance);
-            completeMethod?.Invoke(proxy, null);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Mission.CompleteObjective", "Failed", ex);
+            ModError.WarnInternal("Mission.CompleteObjective", "TacticalManager is null");
             return false;
         }
-    }
 
-    /// <summary>
-    /// Get status name from status code.
-    /// </summary>
-    public static string GetStatusName(int status)
-    {
-        return status switch
+        var mission = tm.GetMission();
+        if (mission == null)
         {
-            0 => "Pending",
-            1 => "Active",
-            2 => "Complete",
-            3 => "Failed",
-            _ => $"Status {status}"
-        };
-    }
+            ModError.WarnInternal("Mission.CompleteObjective", "Mission is null");
+            return false;
+        }
 
-    /// <summary>
-    /// Get layer name from layer code.
-    /// </summary>
-    public static string GetLayerName(int layer)
-    {
-        return layer switch
+        var objectiveManager = mission.Objectives;
+        if (objectiveManager == null)
         {
-            0 => "Surface",
-            1 => "Underground",
-            2 => "Interior",
-            3 => "Space",
-            4 => "Random",
-            _ => $"Layer {layer}"
-        };
+            ModError.WarnInternal("Mission.CompleteObjective", "ObjectiveManager is null");
+            return false;
+        }
+
+        IReadOnlyList<Objective> objectives = null;
+        try { objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); }
+        catch (Exception ex) { ModError.ReportInternal("Mission.CompleteObjective", "Failed calling GetObjectives", ex); return false; }
+
+        if (objectives == null)
+        {
+            ModError.WarnInternal("Mission.CompleteObjective", "GetObjectives returned null");
+            return false;
+        }
+
+        if (index < 0 || index >= objectives.Count)
+        {
+            ModError.WarnInternal("Mission.CompleteObjective", $"Index {index} out of range (count: {objectives.Count})");
+            return false;
+        }
+
+        var obj = objectives[index];
+        if (obj == null)
+        {
+            ModError.WarnInternal("Mission.CompleteObjective", $"Objective at index {index} is null");
+            return false;
+        }
+
+        if (obj.IsCompleted() || obj.IsFailed()) return false;
+
+        try 
+        { 
+            obj.ForceComplete(); 
+            return true; 
+        }
+        catch (Exception ex) 
+        { 
+            ModError.ReportInternal("Mission.CompleteObjective", $"Failed calling ForceComplete on objective {index}", ex); 
+            return false; 
+        }
     }
 
     /// <summary>
-    /// Register console commands for Mission SDK.
+    /// Registers the following dev-console commands for in-game use:
+    /// <list type="bullet">
+    /// <item><c>mission</c> — Prints template name, status, layer, seed, biome, weather, light condition, difficulty, and enemy army points for the active mission.</item>
+    /// <item><c>objectives</c> — Lists all objectives with their index, completion state, and progress counters.</item>
+    /// <item><c>completeobjective &lt;index&gt;</c> — Force-completes the objective at the given index.</item>
+    /// <item><c>missionstatus</c> — Prints the current mission status and a summary count of completed, failed, and remaining objectives.</item>
+    /// </list>
     /// </summary>
     public static void RegisterConsoleCommands()
     {
         // mission - Show current mission info
         DevConsole.RegisterCommand("mission", "", "Show current mission info", args =>
         {
-            var info = GetMissionInfo();
+            var tm = TacticalManager.Get();
+            if (tm == null)
+                return "No active mission";
+
+            var mission = tm.GetMission();
+            if (mission == null)
+                return "No active mission";
+
+            var info = GetMissionInfo(mission);
             if (info == null)
                 return "No active mission";
 
-            return $"Mission: {info.TemplateName}\n" +
-                   $"Status: {info.StatusName}, Layer: {info.LayerName}\n" +
-                   $"Map: {info.MapWidth}x{info.MapWidth}, Seed: {info.Seed}\n" +
-                   $"Biome: {info.BiomeName ?? "N/A"}, Weather: {info.WeatherName ?? "N/A"}\n" +
-                   $"Light: {info.LightCondition ?? "N/A"}, Difficulty: {info.DifficultyName ?? "N/A"}\n" +
+            return $"Mission: {info.TemplateId}\n" +
+                   $"Status: {info.Status}, Layer: {info.Layer}\n" +
+                   $"Seed: {info.Seed}\n" +
+                   $"Biome: {info.BiomeId ?? "N/A"}, Weather: {info.WeatherId ?? "N/A"}\n" +
+                   $"Light: {info.LightCondition}, Difficulty: {info.DifficultyId ?? "N/A"}\n" +
                    $"Enemy Army Points: {info.EnemyArmyPoints}";
         });
 
         // objectives - List mission objectives
         DevConsole.RegisterCommand("objectives", "", "List mission objectives", args =>
         {
-            var objectives = GetObjectives();
+            var tm = TacticalManager.Get();
+            if (tm == null)
+                return "No active mission";
+
+            var mission = tm.GetMission();
+            if (mission == null)
+                return "No active mission";
+
+            var objectives = GetObjectives(mission);
             if (objectives.Count == 0)
                 return "No objectives";
 
@@ -455,9 +545,8 @@ public static class Mission
             {
                 var obj = objectives[i];
                 var status = obj.IsComplete ? "[DONE]" : obj.IsFailed ? "[FAIL]" : "[    ]";
-                var optional = obj.IsOptional ? " (optional)" : "";
                 var progress = obj.TargetProgress > 0 ? $" [{obj.Progress}/{obj.TargetProgress}]" : "";
-                lines.Add($"  {i}. {status} {obj.Name}{optional}{progress}");
+                lines.Add($"  {i}. {status} {obj.Name}{progress}");
             }
             return string.Join("\n", lines);
         });
@@ -470,6 +559,18 @@ public static class Mission
             if (!int.TryParse(args[0], out int index))
                 return "Invalid index";
 
+            var mission = TacticalManager.Get()?.GetMission();
+            if (mission == null)
+                return "No active mission";
+
+            var objectives = GetObjectives(mission);
+            if (index < 0 || index >= objectives.Count)
+                return $"Objective {index} is out of range";
+
+            var obj = objectives[index];
+            if (obj.IsComplete || obj.IsFailed)
+                return $"Objective {index} is already complete or failed";
+
             return CompleteObjective(index)
                 ? $"Completed objective {index}"
                 : "Failed to complete objective";
@@ -478,18 +579,23 @@ public static class Mission
         // missionstatus - Show mission status
         DevConsole.RegisterCommand("missionstatus", "", "Show mission status", args =>
         {
+            var tm = TacticalManager.Get();
+            if (tm == null)
+                return "No active mission";
+
+            var mission = tm.GetMission();
+            if (mission == null)
+                return "No active mission";
+
             var status = GetStatus();
-            var objectives = GetObjectives();
+            if (status == null)
+                return "Error: could not read mission status";
+            var objectives = GetObjectives(mission);
             int complete = objectives.FindAll(o => o.IsComplete).Count;
             int failed = objectives.FindAll(o => o.IsFailed).Count;
 
-            return $"Mission Status: {GetStatusName(status)}\n" +
+            return $"Mission Status: {status}\n" +
                    $"Objectives: {complete} complete, {failed} failed, {objectives.Count - complete - failed} remaining";
         });
     }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }
