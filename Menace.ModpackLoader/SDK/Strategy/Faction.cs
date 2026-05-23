@@ -460,9 +460,7 @@ public static class Faction
             var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
             if (!Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id)) return false;
 
-            // BODGE: EnemyFaction/FriendlyFaction on OperationInfo are not yet confirmed to be
-            // template IDs — Operation.cs needs refactoring before this comparison is reliable.
-            return opInfo.EnemyFaction == id || opInfo.FriendlyFaction == id;
+            return opInfo.EnemyFactionId == id || opInfo.FriendlyFactionId == id;
         }
         catch (Exception ex)
         {

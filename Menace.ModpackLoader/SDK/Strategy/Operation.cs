@@ -108,10 +108,14 @@ public static class Operation
     /// </summary>
     public class OperationInfo
     {
-        public string TemplateName { get; set; }
-        public string EnemyFaction { get; set; }
-        public string FriendlyFaction { get; set; }
-        public string Planet { get; set; }
+        /// <summary>Stable template ID (m_ID from DataTemplate).</summary>
+        public string TemplateId { get; set; }
+        /// <summary>Template ID of the enemy faction.</summary>
+        public string EnemyFactionId { get; set; }
+        /// <summary>Template ID of the friendly faction.</summary>
+        public string FriendlyFactionId { get; set; }
+        /// <summary>Template ID of the planet.</summary>
+        public string PlanetId { get; set; }
         public int CurrentMissionIndex { get; set; }
         public int MissionCount { get; set; }
         public int TimeSpent { get; set; }
@@ -170,19 +174,32 @@ public static class Operation
 
             // Template name
             if (_hTemplate.TryRead(operation, out var templateObj))
-                info.TemplateName = templateObj.Untyped.GetName();
+            {
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.TemplateId = id;
+            }
 
-            // Enemy faction
             if (_hEnemyFaction.TryRead(operation, out var enemyObj))
-                info.EnemyFaction = enemyObj.Untyped.GetName();
+            {
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(enemyObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.EnemyFactionId = id;
+            }
 
-            // Friendly faction — client faction is the hiring party (friendly side)
             if (_hClientFaction.TryRead(operation, out var clientObj))
-                info.FriendlyFaction = clientObj.Untyped.GetName();
+            {
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(clientObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.FriendlyFactionId = id;
+            }
 
-            // Planet name sits on m_PlanetTemplate, not the Planet scene object
             if (_hPlanetTemplate.TryRead(operation, out var planetTemplateObj))
-                info.Planet = planetTemplateObj.Untyped.GetName();
+            {
+                var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(planetTemplateObj.Untyped.Pointer);
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                    info.PlanetId = id;
+            }
 
             // Mission index and count
             if (_hCurrentMissionIdx.TryRead(operation, out var missionIdx))
@@ -484,16 +501,16 @@ public static class Operation
                 ? $"Time: {info.TimeSpent}/{info.TimeLimit} ({info.TimeRemaining} remaining)"
                 : "Time: Unlimited";
 
-            return $"Operation: {info.TemplateName}\n" +
-                   $"Planet: {info.Planet ?? "Unknown"}\n" +
-                   $"Enemy: {info.EnemyFaction ?? "Unknown"}\n" +
-                   $"Allied: {info.FriendlyFaction ?? "Unknown"}\n" +
+            return $"Operation: {info.TemplateId}\n" +
+                   $"Planet: {info.PlanetId ?? "Unknown"}\n" +
+                   $"Enemy: {info.EnemyFactionId ?? "Unknown"}\n" +
+                   $"Allied: {info.FriendlyFactionId ?? "Unknown"}\n" +
                    $"Missions: {info.CurrentMissionIndex + 1}/{info.MissionCount}\n" +
                    $"{timeInfo}\n" +
                    $"Completed Before: {info.HasCompletedOnce}";
         });
 
-        // missions - List operation missions
+        // opmissions - List operation missions
         DevConsole.RegisterCommand("opmissions", "", "List missions in current operation", args =>
         {
             var missions = GetMissions();
@@ -545,8 +562,8 @@ public static class Operation
             {
                 var isCurrent = op.Pointer == currentPtr ? " <-- CURRENT" : "";
                 var time = op.TimeLimit > 0 ? $" (Time: {op.TimeRemaining} left)" : "";
-                lines.Add($"  {op.TemplateName}: {op.EnemyFaction} vs {op.FriendlyFaction}{time}{isCurrent}");
-                lines.Add($"    Planet: {op.Planet}, Mission {op.CurrentMissionIndex + 1}/{op.MissionCount}");
+                lines.Add($"  {op.TemplateId}: {op.EnemyFactionId} vs {op.FriendlyFactionId}{time}{isCurrent}");
+                lines.Add($"    Planet: {op.PlanetId}, Mission {op.CurrentMissionIndex + 1}/{op.MissionCount}");
             }
             return string.Join("\n", lines);
         });
@@ -560,13 +577,11 @@ public static class Operation
 
             var lines = new List<string> { $"Completed Operation Types ({completed.Count}):" };
             foreach (var c in completed)
-            {
                 lines.Add($"  {c}");
-            }
             return string.Join("\n", lines);
         });
 
-        // findop <faction|planet> - Find operation by faction or planet
+        // findop <id> - Find operation by faction or planet ID
         DevConsole.RegisterCommand("findop", "<id>", "Find operation by faction or planet ID", args =>
         {
             if (args.Length == 0)
@@ -581,10 +596,10 @@ public static class Operation
                 {
                     var info = GetOperationInfo(typed);
                     return $"Found by faction:\n" +
-                           $"  {info.TemplateName}\n" +
-                           $"  Enemy: {info.EnemyFaction}\n" +
-                           $"  Friendly: {info.FriendlyFaction}\n" +
-                           $"  Planet: {info.Planet}";
+                           $"  {info.TemplateId}\n" +
+                           $"  Enemy: {info.EnemyFactionId}\n" +
+                           $"  Friendly: {info.FriendlyFactionId}\n" +
+                           $"  Planet: {info.PlanetId}";
                 }
             }
 
@@ -595,10 +610,10 @@ public static class Operation
                 {
                     var info = GetOperationInfo(typed);
                     return $"Found by planet:\n" +
-                           $"  {info.TemplateName}\n" +
-                           $"  Enemy: {info.EnemyFaction}\n" +
-                           $"  Friendly: {info.FriendlyFaction}\n" +
-                           $"  Planet: {info.Planet}";
+                           $"  {info.TemplateId}\n" +
+                           $"  Enemy: {info.EnemyFactionId}\n" +
+                           $"  Friendly: {info.FriendlyFactionId}\n" +
+                           $"  Planet: {info.PlanetId}";
                 }
             }
 
