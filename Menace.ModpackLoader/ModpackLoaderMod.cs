@@ -133,9 +133,14 @@ public partial class ModpackLoaderMod : MelonMod
         }
 
         // Field Handle Initializers
+        Templates.Initialize();
+
         Operation.Initialize();
         Mission.Initialize();
-        Templates.Initialize();
+        Roster.Initialize();
+        Perks.Initialize();
+        OCI.Initialize();
+        BlackMarket.Initialize();
 
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
