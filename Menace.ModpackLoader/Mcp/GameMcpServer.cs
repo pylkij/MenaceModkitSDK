@@ -590,7 +590,7 @@ public static class GameMcpServer
             leaders = leaders.Select(l => new
             {
                 name = l.Nickname,
-                template = l.TemplateName,
+                template = l.TemplateId,
                 rank = l.RankName,
                 status = l.StatusName,
                 health = l.HealthPercent,
