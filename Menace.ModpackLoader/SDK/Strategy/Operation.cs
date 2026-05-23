@@ -52,8 +52,6 @@ public static class Operation
     private static ObjFieldHandle<Il2CppMenace.Strategy.OperationsManager, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.Operation>> _hAvailableOperations;
     private static ObjFieldHandle<Il2CppMenace.Strategy.OperationsManager, Il2CppSystem.Collections.Generic.List<Il2CppMenace.Strategy.OperationTemplate>> _hCompletedOperationTypes;
 
-    private static StringFieldHandle<Il2CppMenace.Tools.DataTemplate> _hDataTemplateId;
-
     // ═══════════════════════════════════════════════════════════════════
     //  Initialisation — wire up to GameState.SceneLoaded
     // ═══════════════════════════════════════════════════════════════════
@@ -95,7 +93,7 @@ public static class Operation
             _hAvailableOperations = GameObj<Il2CppMenace.Strategy.OperationsManager>.ResolveObjField(x => x.m_AvailableOperations);
             _hCompletedOperationTypes = GameObj<Il2CppMenace.Strategy.OperationsManager>.ResolveObjField(x => x.m_CompletedOperationTypes);
 
-            _hDataTemplateId = GameObj<Il2CppMenace.Tools.DataTemplate>.ResolveStringField(x => x.m_ID);
+            Templates._hDataTemplateId = GameObj<Il2CppMenace.Tools.DataTemplate>.ResolveStringField(x => x.m_ID);
 
             _handlesResolved = true;
         }
@@ -402,13 +400,13 @@ public static class Operation
 
             if (_hEnemyFaction.TryRead(typed, out var enemy) &&
                 GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(enemy.Untyped, out var enemyTemplate) &&
-                _hDataTemplateId.TryRead(enemyTemplate, out var enemyId) &&
+                Templates._hDataTemplateId.TryRead(enemyTemplate, out var enemyId) &&
                 enemyId == factionId)
                 return op;
 
             if (_hClientFaction.TryRead(typed, out var client) &&
                 GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(client.Untyped, out var clientTemplate) &&
-                _hDataTemplateId.TryRead(clientTemplate, out var clientId) &&
+                Templates._hDataTemplateId.TryRead(clientTemplate, out var clientId) &&
                 clientId == factionId)
                 return op;
         }
@@ -429,7 +427,7 @@ public static class Operation
 
             if (_hPlanetTemplate.TryRead(typed, out var planetTemplate) &&
                 GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(planetTemplate.Untyped, out var dataTemplate) &&
-                _hDataTemplateId.TryRead(dataTemplate, out var id) &&
+                Templates._hDataTemplateId.TryRead(dataTemplate, out var id) &&
                 id == planetId)
                 return op;
         }
@@ -458,7 +456,7 @@ public static class Operation
                 if (entry.CheckAlive() != AliveStatus.Alive) continue;
 
                 if (GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(entry, out var dataTemplate) &&
-                    _hDataTemplateId.TryRead(dataTemplate, out var id))
+                    Templates._hDataTemplateId.TryRead(dataTemplate, out var id))
                     result.Add(id);
             }
 

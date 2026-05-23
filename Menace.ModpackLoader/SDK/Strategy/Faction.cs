@@ -617,21 +617,22 @@ public static class Faction
     /// </summary>
     public static bool HasActiveOperation(GameObj faction)
     {
-        if (faction.IsNull) return false;
+        if (faction.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
-            // Get current operation and check if it's for this faction
             var currentOp = Operation.GetCurrentOperation();
-            if (currentOp.IsNull) return false;
+            if (currentOp.CheckAlive() != AliveStatus.Alive) return false;
 
-            var opInfo = Operation.GetOperationInfo(currentOp);
+            // BODGE: Faction module not yet updated to field handle pattern.
+            // Replace with proper ID comparison once Faction.cs is refactored.
+            if (!GameObj<Il2CppMenace.Strategy.Operation>.TryWrap(currentOp, out var typed)) return false;
+            var opInfo = Operation.GetOperationInfo(typed);
             if (opInfo == null) return false;
 
             var factionInfo = GetFactionInfo(faction);
             if (factionInfo == null) return false;
 
-            // Compare faction names
             return opInfo.EnemyFaction == factionInfo.TemplateName ||
                    opInfo.FriendlyFaction == factionInfo.TemplateName;
         }

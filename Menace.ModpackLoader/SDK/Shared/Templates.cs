@@ -21,7 +21,18 @@ namespace Menace.SDK;
 /// </summary>
 public static class Templates
 {
+    internal static StringFieldHandle<Il2CppMenace.Tools.DataTemplate> _hDataTemplateId;
     private static readonly HashSet<Type> _loadedTypes = new();
+
+    internal static void OnInitialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        _hDataTemplateId = GameObj<Il2CppMenace.Tools.DataTemplate>.ResolveStringField(x => x.m_ID);
+    }
 
     private static void EnsureLoaded<T>() where T : DataTemplate
     {
