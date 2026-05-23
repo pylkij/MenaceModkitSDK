@@ -571,11 +571,12 @@ public static class GameMcpServer
             totalItems = info.TotalItemCount,
             stacks = stacks.Select(s => new
             {
-                name = s.TemplateName,
+                templateId = s.TemplateID,
                 count = s.ItemCount,
                 value = s.TradeValue,
-                operationsRemaining = s.OperationsRemaining,
-                type = s.TypeName
+                remainingTimeout = s.RemainingTimeout,
+                canTimeout = s.CanTimeout,
+                type = s.Type.ToString()
             }).ToList()
         };
     }
