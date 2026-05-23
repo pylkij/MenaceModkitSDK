@@ -546,10 +546,10 @@ public static class GameMcpServer
         return new
         {
             active = true,
-            name = info.TemplateName,
-            planet = info.Planet,
-            enemyFaction = info.EnemyFaction,
-            friendlyFaction = info.FriendlyFaction,
+            name = info.TemplateId,
+            planet = info.PlanetId,
+            enemyFaction = info.EnemyFactionId,
+            friendlyFaction = info.FriendlyFactionId,
             currentMission = info.CurrentMissionIndex + 1,
             totalMissions = info.MissionCount,
             timeSpent = info.TimeSpent,
