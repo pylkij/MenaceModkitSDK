@@ -615,9 +615,4 @@ public static class Operation
             return $"No operation found for '{id}'";
         });
     }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }
