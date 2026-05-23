@@ -132,6 +132,11 @@ public partial class ModpackLoaderMod : MelonMod
             SdkLogger.Warning($"[Localization] Failed to initialize multi-lingual system: {ex.Message}");
         }
 
+        // Field Handle Initializers
+        Operation.Initialize();
+        Mission.Initialize();
+        Templates.Initialize();
+
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
         PlayerLog(ModkitVersion.LoaderFull);

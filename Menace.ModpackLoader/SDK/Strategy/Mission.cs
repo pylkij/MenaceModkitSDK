@@ -19,25 +19,24 @@ namespace Menace.SDK;
 /// </summary>
 public static class Mission
 {
-    // Mission status enums
-    public enum MissionStatus { Pending = 0, Active = 1, Complete = 2, Failed = 3 }
-
-    // Mission layer enums
-    public enum MissionLayer { Surface = 0, Underground = 1, Interior = 2, Space = 3, Random = 4 }
+    // Mission class enums
+    public enum MissionStatus { Playable = 0, Locked = 1, Played = 2, Unplayable = 3 }
+    public enum MissionLayer { Invalid = 0, First = 1, Middle = 2, Final = 3 }
+    public enum LightConditionType { Dawn = 0, Day = 1, Dusk = 2, Night = 3, Random = 4 }
 
     /// <summary>
     /// Mission information structure.
     /// </summary>
     public class MissionInfo
     {
-        public string TemplateName { get; set; }
+        public string TemplateId { get; set; }
         public MissionStatus Status { get; set; }
         public MissionLayer Layer { get; set; }
         public int Seed { get; set; }
-        public string BiomeName { get; set; }
-        public string WeatherName { get; set; }
+        public string BiomeId { get; set; }
+        public string WeatherId { get; set; }
         public LightConditionType LightCondition { get; set; }
-        public string DifficultyName { get; set; }
+        public string DifficultyId { get; set; }
         public float EnemyArmyPoints { get; set; }
         public IntPtr Pointer { get; set; }
     }
@@ -54,6 +53,67 @@ public static class Mission
         public int Progress { get; set; }
         public int TargetProgress { get; set; }
         public IntPtr Pointer { get; set; }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.Missions.MissionTemplate> _hTemplate;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.MissionDifficultyTemplate> _hDifficulty;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppTactical.Weather.WeatherTemplate> _hWeather;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.BiomeTemplate> _hBiome;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.FactionTemplate> _hClientFaction;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.OperationAssetTemplate> _hAssetReward;
+
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.MissionStatus> _hStatus;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.MissionLayer> _hLayer;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, int> _hSeed;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, int> _hLayerIdx;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, int> _hIdx;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, float> _hTacticalPlaytimeInSec;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, bool> _hReinforcementsEnabled;
+    private static FieldHandle<Il2CppMenace.Strategy.Mission, Il2CppMenace.Strategy.LightConditionType> _hLightConditions;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hTemplate = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Template);
+            _hDifficulty = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Difficulty);
+            _hWeather = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Weather);
+            _hBiome = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_Biome);
+            _hClientFaction = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_ClientFaction);
+            _hAssetReward = GameObj<Il2CppMenace.Strategy.Mission>.ResolveObjField(x => x.m_AssetReward);
+
+            _hStatus = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Status);
+            _hLayer = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Layer);
+            _hSeed = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Seed);
+            _hLayerIdx = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_LayerIdx);
+            _hIdx = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_Idx);
+            _hTacticalPlaytimeInSec = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.TacticalPlaytimeInSec);
+            _hReinforcementsEnabled = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_ReinforcementsEnabled);
+            _hLightConditions = GameObj<Il2CppMenace.Strategy.Mission>.ResolveField(x => x.m_LightConditions);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("Mission.ResolveHandles", "Field handle resolution failed", ex);
+        }
     }
 
     /// <summary>
@@ -95,30 +155,55 @@ public static class Mission
         }
 
         var info = new MissionInfo { Pointer = mission.Pointer };
+        var missionObj = GameObj<Il2CppMenace.Strategy.Mission>.Wrap(mission.Pointer);
 
-        try { info.TemplateName = mission.GetTemplate()?.name; }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading TemplateName", ex); }
+        if (!_hTemplate.TryRead(missionObj, out var templateObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Template");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer), out var templateId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading TemplateId");
+        else
+            info.TemplateId = templateId;
 
-        try { info.Status = (MissionStatus)(int)mission.GetStatus(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading Status", ex); }
+        if (!_hStatus.TryRead(missionObj, out var status))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Status");
+        else
+            info.Status = (MissionStatus)(int)status;
 
-        try { info.Layer = (MissionLayer)(int)mission.GetLayer(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading Layer", ex); }
+        if (!_hLayer.TryRead(missionObj, out var layer))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Layer");
+        else
+            info.Layer = (MissionLayer)(int)layer;
 
-        try { info.Seed = mission.GetSeed(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading Seed", ex); }
+        if (!_hSeed.TryRead(missionObj, out var seed))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Seed");
+        else
+            info.Seed = seed;
 
-        try { info.BiomeName = mission.GetBiome()?.name; }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading BiomeName", ex); }
+        if (!_hBiome.TryRead(missionObj, out var biomeObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Biome");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(biomeObj.Untyped.Pointer), out var biomeId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading BiomeId");
+        else
+            info.BiomeId = biomeId;
 
-        try { info.WeatherName = mission.GetWeatherTemplate()?.name; }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading WeatherName", ex); }
+        if (!_hWeather.TryRead(missionObj, out var weatherObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Weather");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(weatherObj.Untyped.Pointer), out var weatherId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading WeatherId");
+        else
+            info.WeatherId = weatherId;
 
-        try { info.LightCondition = (LightConditionType)(int)mission.GetLightCondition(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading LightCondition", ex); }
+        if (!_hLightConditions.TryRead(missionObj, out var lightCondition))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading LightCondition");
+        else
+            info.LightCondition = (LightConditionType)(int)lightCondition;
 
-        try { info.DifficultyName = mission.GetDifficulty()?.name; }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading DifficultyName", ex); }
+        if (!_hDifficulty.TryRead(missionObj, out var difficultyObj))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Difficulty");
+        else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(difficultyObj.Untyped.Pointer), out var difficultyId))
+            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading DifficultyId");
+        else
+            info.DifficultyId = difficultyId;
 
         try { info.EnemyArmyPoints = mission.GetEnemyArmyPoints(); }
         catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading EnemyArmyPoints", ex); }
@@ -233,33 +318,43 @@ public static class Mission
     }
 
     /// <summary>
-    /// Check if mission is active.
+    /// Check if mission is playable.
     /// </summary>
-    public static bool IsActive()
+    public static bool IsPlayable()
     {
         var status = GetStatus();
         if (status == null) return false;
-        return status == MissionStatus.Active;
+        return status == MissionStatus.Playable;
     }
 
     /// <summary>
-    /// Check if mission is complete.
+    /// Check if mission is locked.
     /// </summary>
-    public static bool IsComplete()
+    public static bool IsLocked()
     {
         var status = GetStatus();
         if (status == null) return false;
-        return status == MissionStatus.Complete;
+        return status == MissionStatus.Locked;
     }
 
     /// <summary>
-    /// Check if mission has failed.
+    /// Check if mission has been played.
     /// </summary>
-    public static bool IsFailed()
+    public static bool IsPlayed()
     {
         var status = GetStatus();
         if (status == null) return false;
-        return status == MissionStatus.Failed;
+        return status == MissionStatus.Played;
+    }
+
+    /// <summary>
+    /// Check if the mission is unplayable.
+    /// </summary>
+    public static bool IsUnplayable()
+    {
+        var status = GetStatus();
+        if (status == null) return false;
+        return status == MissionStatus.Unplayable;
     }
 
     /// <summary>
@@ -422,11 +517,11 @@ public static class Mission
             if (info == null)
                 return "No active mission";
 
-            return $"Mission: {info.TemplateName}\n" +
+            return $"Mission: {info.TemplateId}\n" +
                    $"Status: {info.Status}, Layer: {info.Layer}\n" +
                    $"Seed: {info.Seed}\n" +
-                   $"Biome: {info.BiomeName ?? "N/A"}, Weather: {info.WeatherName ?? "N/A"}\n" +
-                   $"Light: {info.LightCondition}, Difficulty: {info.DifficultyName ?? "N/A"}\n" +
+                   $"Biome: {info.BiomeId ?? "N/A"}, Weather: {info.WeatherId ?? "N/A"}\n" +
+                   $"Light: {info.LightCondition}, Difficulty: {info.DifficultyId ?? "N/A"}\n" +
                    $"Enemy Army Points: {info.EnemyArmyPoints}";
         });
 

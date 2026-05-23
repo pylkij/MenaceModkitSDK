@@ -24,7 +24,7 @@ public static class Templates
     internal static StringFieldHandle<Il2CppMenace.Tools.DataTemplate> _hDataTemplateId;
     private static readonly HashSet<Type> _loadedTypes = new();
 
-    internal static void OnInitialize()
+    internal static void Initialize()
     {
         GameState.SceneLoaded += _ => ResolveHandles();
     }
