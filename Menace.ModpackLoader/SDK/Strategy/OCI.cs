@@ -24,76 +24,79 @@ namespace Menace.SDK;
 /// </summary>
 public static class OCI
 {
-    // Cached types
-    private static readonly GameType _shipUpgradesType = GameType.Of<Il2CppMenace.Strategy.ShipUpgrades>();
-    private static readonly GameType _shipUpgradeTemplateType = GameType.Of<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
-    private static readonly GameType _shipUpgradeSlotTemplateType = GameType.Of<Il2CppMenace.Strategy.ShipUpgradeSlotTemplate>();
-    private static readonly GameType _strategyStateType = GameType.Of<Il2CppMenace.States.StrategyState>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Ship upgrade type enum values (from schema)
-    public const int TYPE_ARMAMENT = 0;
-    public const int TYPE_ELECTRONICS = 1;
-    public const int TYPE_HULL = 2;
-    public const int TYPE_HIDDEN = 3;
+    // ShipUpgrades fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ShipUpgrades, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppMenace.Strategy.ShipUpgradeTemplate>> _hEquippedUpgrades;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ShipUpgrades, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppMenace.Strategy.ShipUpgradeSlotTemplate>> _hSlotTypes;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ShipUpgrades, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int>> _hSpentOciComponentsBySlot;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ShipUpgrades, Il2CppSystem.Collections.Generic.Dictionary<Il2CppMenace.Strategy.ShipUpgradeTemplate, int>> _hUnlockedByGameEffects;
 
-    // Ship upgrade unlock type enum values
-    public const int UNLOCK_ALWAYS = 0;
-    public const int UNLOCK_FACTION = 1;
-    public const int UNLOCK_EVENT_ONLY = 2;
+    // ShipUpgradeTemplate fields
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeTemplate, Il2CppMenace.Strategy.ShipUpgradeType> _hUpgradeType;
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeTemplate, int> _hOciPointsCosts;
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeTemplate, Il2CppMenace.Strategy.ShipUpgradeUnlockType> _hUnlockType;
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeTemplate, Il2CppMenace.Strategy.StoryFactionType> _hUnlockedByFaction;
 
-    /// <summary>
-    /// Ship upgrade information structure.
-    /// </summary>
+    // ShipUpgradeSlotTemplate fields
+    private static FieldHandle<Il2CppMenace.Strategy.ShipUpgradeSlotTemplate, Il2CppMenace.Strategy.ShipUpgradeType> _hSlotUpgradeType;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hEquippedUpgrades = GameObj<Il2CppMenace.Strategy.ShipUpgrades>.ResolveObjField(x => x.m_EquippedUpgrades);
+            _hSlotTypes = GameObj<Il2CppMenace.Strategy.ShipUpgrades>.ResolveObjField(x => x.m_SlotTypes);
+            _hSpentOciComponentsBySlot = GameObj<Il2CppMenace.Strategy.ShipUpgrades>.ResolveObjField(x => x.m_SpentOciComponentsBySlot);
+            _hUnlockedByGameEffects = GameObj<Il2CppMenace.Strategy.ShipUpgrades>.ResolveObjField(x => x.m_UnlockedByGameEffects);
+
+            _hUpgradeType = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.ResolveField(x => x.UpgradeType);
+            _hOciPointsCosts = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.ResolveField(x => x.OciPointsCosts);
+            _hUnlockType = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.ResolveField(x => x.UnlockType);
+            _hUnlockedByFaction = GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.ResolveField(x => x.UnlockedByFaction);
+
+            _hSlotUpgradeType = GameObj<Il2CppMenace.Strategy.ShipUpgradeSlotTemplate>.ResolveField(x => x.UpgradeType);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("OCI.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
+
     public class UpgradeInfo
     {
-        /// <summary>Template name identifier.</summary>
-        public string TemplateName { get; set; }
-        /// <summary>Localized display name.</summary>
-        public string DisplayName { get; set; }
-        /// <summary>Localized short name.</summary>
-        public string ShortName { get; set; }
-        /// <summary>Upgrade type (Armament, Electronics, Hull, Hidden).</summary>
-        public int UpgradeType { get; set; }
-        /// <summary>Human-readable upgrade type name.</summary>
-        public string UpgradeTypeName { get; set; }
-        /// <summary>OCI points cost to install.</summary>
+        public string TemplateId { get; set; }
+        public ShipUpgradeType UpgradeType { get; set; }
+        public ShipUpgradeUnlockType UnlockType { get; set; }
+        public StoryFactionType UnlockedByFaction { get; set; }
         public int OciPointsCost { get; set; }
-        /// <summary>Unlock type (Always, Faction, EventOnly).</summary>
-        public int UnlockType { get; set; }
-        /// <summary>Human-readable unlock type name.</summary>
-        public string UnlockTypeName { get; set; }
-        /// <summary>Faction type required if UnlockType is Faction.</summary>
-        public int UnlockedByFaction { get; set; }
-        /// <summary>Human-readable faction name.</summary>
-        public string UnlockedByFactionName { get; set; }
-        /// <summary>Whether this upgrade is installed.</summary>
         public bool IsInstalled { get; set; }
-        /// <summary>Amount installed (for stackable upgrades).</summary>
-        public int InstalledAmount { get; set; }
-        /// <summary>Whether this upgrade is available to install.</summary>
-        public bool IsAvailable { get; set; }
-        /// <summary>Pointer to ShipUpgradeTemplate.</summary>
+        public bool IsNew { get; set; }
         public IntPtr Pointer { get; set; }
     }
 
-    /// <summary>
-    /// Ship upgrade slot information.
-    /// </summary>
     public class SlotInfo
     {
-        /// <summary>Slot template name.</summary>
-        public string TemplateName { get; set; }
-        /// <summary>Localized display name.</summary>
-        public string DisplayName { get; set; }
-        /// <summary>Slot type (Armament, Electronics, Hull).</summary>
-        public int SlotType { get; set; }
-        /// <summary>Human-readable slot type name.</summary>
-        public string SlotTypeName { get; set; }
-        /// <summary>Current slot level.</summary>
-        public int Level { get; set; }
-        /// <summary>Upgrade currently in this slot (if any).</summary>
-        public UpgradeInfo CurrentUpgrade { get; set; }
-        /// <summary>Pointer to slot template.</summary>
+        public string TemplateId { get; set; }
+        public ShipUpgradeType SlotType { get; set; }
+        public UpgradeInfo EquippedUpgrade { get; set; }
         public IntPtr Pointer { get; set; }
     }
 
@@ -108,39 +111,19 @@ public static class OCI
     {
         try
         {
-            var ssType = _strategyStateType?.ManagedType;
-            if (ssType == null) return GameObj.Null;
-
-            var getMethod = ssType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var ss = getMethod?.Invoke(null, null);
+            var ss = Il2CppMenace.States.StrategyState.Get();
             if (ss == null) return GameObj.Null;
 
-            // Try ShipUpgrades property
-            var upgProp = ssType.GetProperty("ShipUpgrades", BindingFlags.Public | BindingFlags.Instance);
-            if (upgProp != null)
-            {
-                var shipUpg = upgProp.GetValue(ss);
-                if (shipUpg != null)
-                    return new GameObj(((Il2CppObjectBase)shipUpg).Pointer);
-            }
-
-            // Fallback: direct field access
-            // ShipUpgrades is early in save order, try common offsets
             var ssObj = new GameObj(((Il2CppObjectBase)ss).Pointer);
-            var candidates = new uint[] { 0x78, 0x80, 0x88, 0x48 };
-            foreach (var offset in candidates)
-            {
-                var ptr = ssObj.ReadPtr(offset);
-                if (ptr != IntPtr.Zero)
-                {
-                    var obj = new GameObj(ptr);
-                    var gameType = obj.GetGameType();
-                    if (gameType?.FullName?.Contains("ShipUpgrade") == true)
-                        return obj;
-                }
-            }
+            if (ssObj.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
 
-            return GameObj.Null;
+            var suPtr = ssObj.ReadPtr(0xA0);
+            if (suPtr == IntPtr.Zero) return GameObj.Null;
+
+            var su = new GameObj(suPtr);
+            if (su.CheckAlive() != AliveStatus.Alive) return GameObj.Null;
+
+            return su;
         }
         catch (Exception ex)
         {
@@ -152,60 +135,18 @@ public static class OCI
     /// <summary>
     /// Get current OCI points available.
     /// </summary>
-    public static int GetOciPoints()
+    public static int GetOciComponents()
     {
         try
         {
-            var su = GetShipUpgrades();
-            if (su.IsNull) return 0;
+            var ss = Il2CppMenace.States.StrategyState.Get();
+            if (ss == null) return 0;
 
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return 0;
-
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return 0;
-
-            var method = suType.GetMethod("GetOciPoints", BindingFlags.Public | BindingFlags.Instance);
-            if (method != null)
-                return (int)method.Invoke(proxy, null);
-
-            // Try property
-            var prop = suType.GetProperty("OciPoints", BindingFlags.Public | BindingFlags.Instance);
-            if (prop != null)
-                return (int)(prop.GetValue(proxy) ?? 0);
-
-            return 0;
+            return GameMethod.CallInt<Il2CppMenace.States.StrategyState>(ss, x => x.GetVar(StrategyVars.OciComponents));
         }
-        catch
+        catch (Exception ex)
         {
-            return 0;
-        }
-    }
-
-    /// <summary>
-    /// Get max OCI points.
-    /// </summary>
-    public static int GetMaxOciPoints()
-    {
-        try
-        {
-            var su = GetShipUpgrades();
-            if (su.IsNull) return 0;
-
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return 0;
-
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return 0;
-
-            var method = suType.GetMethod("GetMaxOciPoints", BindingFlags.Public | BindingFlags.Instance);
-            if (method != null)
-                return (int)method.Invoke(proxy, null);
-
-            return 0;
-        }
-        catch
-        {
+            ModError.ReportInternal("OCI.GetOciComponents", "Failed", ex);
             return 0;
         }
     }
@@ -223,7 +164,7 @@ public static class OCI
 
         try
         {
-            var templates = GameQuery.FindAll<ShipUpgradeTemplate>();
+            var templates = Templates.FindAll<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
             foreach (var t in templates)
             {
                 var info = GetUpgradeInfo(new GameObj(t.Pointer));
@@ -249,42 +190,24 @@ public static class OCI
         try
         {
             var su = GetShipUpgrades();
-            if (su.IsNull) return result;
+            if (su.CheckAlive() != AliveStatus.Alive) return result;
 
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return result;
+            if (!GameObj<Il2CppMenace.Strategy.ShipUpgrades>.TryWrap(su, out var suTyped)) return result;
+            if (!_hEquippedUpgrades.TryRead(suTyped, out var equippedObj)) return result;
 
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return result;
+            var arr = equippedObj.AsManaged();
+            if (arr == null) return result;
 
-            // Get permanent upgrades
-            var getPermanentMethod = suType.GetMethod("GetPermanentUpgrades",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getPermanentMethod != null)
+            for (int i = 0; i < arr.Length; i++)
             {
-                var permanent = getPermanentMethod.Invoke(proxy, null);
-                if (permanent != null)
-                {
-                    var listType = permanent.GetType();
-                    var countProp = listType.GetProperty("Count");
-                    var indexer = listType.GetMethod("get_Item");
+                var t = arr[i];
+                if (t == null) continue;
 
-                    int count = (int)(countProp?.GetValue(permanent) ?? 0);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var upgrade = indexer?.Invoke(permanent, new object[] { i });
-                        if (upgrade != null)
-                        {
-                            var upgradeObj = new GameObj(((Il2CppObjectBase)upgrade).Pointer);
-                            var info = GetUpgradeInfo(upgradeObj);
-                            if (info != null)
-                            {
-                                info.IsInstalled = true;
-                                info.InstalledAmount = GetUpgradeAmount(su, upgradeObj);
-                                result.Add(info);
-                            }
-                        }
-                    }
+                var info = GetUpgradeInfo(new GameObj(t.Pointer));
+                if (info != null)
+                {
+                    info.IsInstalled = true;
+                    result.Add(info);
                 }
             }
 
@@ -306,43 +229,14 @@ public static class OCI
 
         try
         {
-            var su = GetShipUpgrades();
-            if (su.IsNull) return result;
-
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return result;
-
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return result;
-
-            // Get available upgrades method
-            var getAvailableMethod = suType.GetMethod("GetAvailableUpgrades",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getAvailableMethod != null)
+            var templates = Templates.FindAll<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
+            foreach (var t in templates)
             {
-                var available = getAvailableMethod.Invoke(proxy, null);
-                if (available != null)
-                {
-                    var listType = available.GetType();
-                    var countProp = listType.GetProperty("Count");
-                    var indexer = listType.GetMethod("get_Item");
+                if (!t.IsUnlocked()) continue;
 
-                    int count = (int)(countProp?.GetValue(available) ?? 0);
-                    for (int i = 0; i < count; i++)
-                    {
-                        var upgrade = indexer?.Invoke(available, new object[] { i });
-                        if (upgrade != null)
-                        {
-                            var upgradeObj = new GameObj(((Il2CppObjectBase)upgrade).Pointer);
-                            var info = GetUpgradeInfo(upgradeObj);
-                            if (info != null)
-                            {
-                                info.IsAvailable = true;
-                                result.Add(info);
-                            }
-                        }
-                    }
-                }
+                var info = GetUpgradeInfo(new GameObj(t.Pointer));
+                if (info != null)
+                    result.Add(info);
             }
 
             return result;
@@ -359,48 +253,29 @@ public static class OCI
     /// </summary>
     public static UpgradeInfo GetUpgradeInfo(GameObj template)
     {
-        if (template.IsNull) return null;
+        if (template.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var templateType = _shipUpgradeTemplateType?.ManagedType;
-            if (templateType == null) return null;
+            if (!GameObj<Il2CppMenace.Strategy.ShipUpgradeTemplate>.TryWrap(template, out var typed)) return null;
 
-            var proxy = GetManagedProxy(template, templateType);
-            if (proxy == null) return null;
+            var info = new UpgradeInfo { Pointer = template.Pointer };
 
-            var info = new UpgradeInfo
-            {
-                Pointer = template.Pointer,
-                TemplateName = template.GetName()
-            };
+            var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(template.Pointer);
+            if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                info.TemplateId = id;
 
-            // Get display name
-            var getNameMethod = templateType.GetMethod("GetName",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getNameMethod != null)
-                info.DisplayName = Il2CppUtils.ToManagedString(getNameMethod.Invoke(proxy, null));
+            if (_hUpgradeType.TryRead(typed, out var upgradeType))
+                info.UpgradeType = upgradeType;
 
-            // Get short name
-            var getShortMethod = templateType.GetMethod("GetShortName",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getShortMethod != null)
-                info.ShortName = Il2CppUtils.ToManagedString(getShortMethod.Invoke(proxy, null));
+            if (_hOciPointsCosts.TryRead(typed, out var cost))
+                info.OciPointsCost = cost;
 
-            // Get upgrade type - read from offset 0x98
-            info.UpgradeType = template.ReadInt(0x98);
-            info.UpgradeTypeName = GetUpgradeTypeName(info.UpgradeType);
+            if (_hUnlockType.TryRead(typed, out var unlockType))
+                info.UnlockType = unlockType;
 
-            // Get OCI points cost - offset 0xB0
-            info.OciPointsCost = template.ReadInt(0xB0);
-
-            // Get unlock type - offset 0xB4
-            info.UnlockType = template.ReadInt(0xB4);
-            info.UnlockTypeName = GetUnlockTypeName(info.UnlockType);
-
-            // Get unlocked by faction - offset 0xB8
-            info.UnlockedByFaction = template.ReadInt(0xB8);
-            info.UnlockedByFactionName = Faction.GetFactionTypeName(info.UnlockedByFaction);
+            if (_hUnlockedByFaction.TryRead(typed, out var faction))
+                info.UnlockedByFaction = faction;
 
             return info;
         }
@@ -425,42 +300,27 @@ public static class OCI
         try
         {
             var su = GetShipUpgrades();
-            if (su.IsNull) return result;
+            if (su.CheckAlive() != AliveStatus.Alive) return result;
 
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return result;
+            if (!GameObj<Il2CppMenace.Strategy.ShipUpgrades>.TryWrap(su, out var suTyped)) return result;
 
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return result;
+            if (!_hSlotTypes.TryRead(suTyped, out var slotTypesObj)) return result;
+            if (!_hEquippedUpgrades.TryRead(suTyped, out var equippedObj)) return result;
 
-            // Get slots
-            var getSlotsMethod = suType.GetMethod("GetSlots",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getSlotsMethod != null)
+            var slotArr = slotTypesObj.AsManaged();
+            var equippedArr = equippedObj.AsManaged();
+
+            if (slotArr == null) return result;
+
+            for (int i = 0; i < slotArr.Length; i++)
             {
-                var slots = getSlotsMethod.Invoke(proxy, null);
-                if (slots != null)
-                {
-                    var arrayType = slots.GetType();
-                    var lengthProp = arrayType.GetProperty("Length");
-                    int length = (int)(lengthProp?.GetValue(slots) ?? 0);
+                var slotTemplate = slotArr[i];
+                if (slotTemplate == null) continue;
 
-                    var getMethod = arrayType.GetMethod("Get") ?? arrayType.GetMethod("get_Item");
-                    if (getMethod != null)
-                    {
-                        for (int i = 0; i < length; i++)
-                        {
-                            var slot = getMethod.Invoke(slots, new object[] { i });
-                            if (slot != null)
-                            {
-                                var slotObj = new GameObj(((Il2CppObjectBase)slot).Pointer);
-                                var info = GetSlotInfo(slotObj, i, su);
-                                if (info != null)
-                                    result.Add(info);
-                            }
-                        }
-                    }
-                }
+                var slotObj = new GameObj(slotTemplate.Pointer);
+                var info = GetSlotInfo(slotObj, i, equippedArr);
+                if (info != null)
+                    result.Add(info);
             }
 
             return result;
@@ -475,51 +335,34 @@ public static class OCI
     /// <summary>
     /// Get slot info.
     /// </summary>
-    public static SlotInfo GetSlotInfo(GameObj slot, int slotIndex, GameObj shipUpgrades)
+    public static SlotInfo GetSlotInfo(GameObj slot, int slotIndex, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppMenace.Strategy.ShipUpgradeTemplate> equippedArr)
     {
-        if (slot.IsNull) return null;
+        if (slot.CheckAlive() != AliveStatus.Alive) return null;
 
         try
         {
-            var slotType = _shipUpgradeSlotTemplateType?.ManagedType;
-            if (slotType == null) return null;
+            if (!GameObj<Il2CppMenace.Strategy.ShipUpgradeSlotTemplate>.TryWrap(slot, out var typed)) return null;
 
-            var proxy = GetManagedProxy(slot, slotType);
-            if (proxy == null) return null;
+            var info = new SlotInfo { Pointer = slot.Pointer };
 
-            var info = new SlotInfo
+            var dataTemplateObj = GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(slot.Pointer);
+            if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var id))
+                info.TemplateId = id;
+
+            if (_hSlotUpgradeType.TryRead(typed, out var slotType))
+                info.SlotType = slotType;
+
+            if (equippedArr != null && slotIndex < equippedArr.Length)
             {
-                Pointer = slot.Pointer,
-                TemplateName = slot.GetName()
-            };
-
-            // Get display name
-            var getNameMethod = slotType.GetMethod("GetName",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (getNameMethod != null)
-                info.DisplayName = Il2CppUtils.ToManagedString(getNameMethod.Invoke(proxy, null));
-
-            // Get slot type
-            var typeProp = slotType.GetProperty("UpgradeType",
-                BindingFlags.Public | BindingFlags.Instance);
-            if (typeProp != null)
-            {
-                info.SlotType = Convert.ToInt32(typeProp.GetValue(proxy));
-                info.SlotTypeName = GetUpgradeTypeName(info.SlotType);
-            }
-
-            // Get slot level from ShipUpgrades
-            if (!shipUpgrades.IsNull)
-            {
-                info.Level = GetSlotLevel(shipUpgrades, slotIndex);
-
-                // Get current upgrade in slot
-                var overrideUpgrade = GetSlotOverride(shipUpgrades, slotIndex);
-                if (!overrideUpgrade.IsNull)
+                var equipped = equippedArr[slotIndex];
+                if (equipped != null)
                 {
-                    info.CurrentUpgrade = GetUpgradeInfo(overrideUpgrade);
-                    if (info.CurrentUpgrade != null)
-                        info.CurrentUpgrade.IsInstalled = true;
+                    var upgradeInfo = GetUpgradeInfo(new GameObj(equipped.Pointer));
+                    if (upgradeInfo != null)
+                    {
+                        upgradeInfo.IsInstalled = true;
+                        info.EquippedUpgrade = upgradeInfo;
+                    }
                 }
             }
 
@@ -532,82 +375,6 @@ public static class OCI
         }
     }
 
-    private static int GetSlotLevel(GameObj shipUpgrades, int slotIndex)
-    {
-        try
-        {
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return 0;
-
-            var proxy = GetManagedProxy(shipUpgrades, suType);
-            if (proxy == null) return 0;
-
-            var method = suType.GetMethod("GetSlotLevel", BindingFlags.Public | BindingFlags.Instance);
-            if (method != null)
-                return (int)method.Invoke(proxy, new object[] { slotIndex });
-
-            return 0;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    private static GameObj GetSlotOverride(GameObj shipUpgrades, int slotIndex)
-    {
-        try
-        {
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return GameObj.Null;
-
-            var proxy = GetManagedProxy(shipUpgrades, suType);
-            if (proxy == null) return GameObj.Null;
-
-            var method = suType.GetMethod("GetSlotOverride", BindingFlags.Public | BindingFlags.Instance);
-            if (method != null)
-            {
-                var result = method.Invoke(proxy, new object[] { slotIndex });
-                if (result != null)
-                    return new GameObj(((Il2CppObjectBase)result).Pointer);
-            }
-
-            return GameObj.Null;
-        }
-        catch
-        {
-            return GameObj.Null;
-        }
-    }
-
-    private static int GetUpgradeAmount(GameObj shipUpgrades, GameObj upgrade)
-    {
-        try
-        {
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return 0;
-
-            var proxy = GetManagedProxy(shipUpgrades, suType);
-            if (proxy == null) return 0;
-
-            var templateType = _shipUpgradeTemplateType?.ManagedType;
-            if (templateType == null) return 0;
-
-            var upgradeProxy = GetManagedProxy(upgrade, templateType);
-            if (upgradeProxy == null) return 0;
-
-            var method = suType.GetMethod("GetUpgradeAmount", BindingFlags.Public | BindingFlags.Instance);
-            if (method != null)
-                return (int)method.Invoke(proxy, new[] { upgradeProxy });
-
-            return 0;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
     // ═══════════════════════════════════════════════════════════════════
     //  Upgrade Installation
     // ═══════════════════════════════════════════════════════════════════
@@ -615,36 +382,26 @@ public static class OCI
     /// <summary>
     /// Install an upgrade.
     /// </summary>
-    public static bool InstallUpgrade(GameObj upgrade)
+    public static bool TryEquipUpgrade(GameObj upgrade, int paidOciComponents, int slotIdx, bool checkUnlocked = true)
     {
-        if (upgrade.IsNull) return false;
+        if (upgrade.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
             var su = GetShipUpgrades();
-            if (su.IsNull) return false;
+            if (su.CheckAlive() != AliveStatus.Alive) return false;
 
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return false;
+            var suManaged = su.As<Il2CppMenace.Strategy.ShipUpgrades>();
+            if (suManaged == null) return false;
 
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return false;
+            var upgradeManaged = upgrade.As<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
+            if (upgradeManaged == null) return false;
 
-            var templateType = _shipUpgradeTemplateType?.ManagedType;
-            if (templateType == null) return false;
-
-            var upgradeProxy = GetManagedProxy(upgrade, templateType);
-            if (upgradeProxy == null) return false;
-
-            var method = suType.GetMethod("InstallUpgrade", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            method.Invoke(proxy, new[] { upgradeProxy });
-            return true;
+            return suManaged.TryEquipUpgrade(upgradeManaged, paidOciComponents, slotIdx, checkUnlocked);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.InstallUpgrade", "Failed", ex);
+            ModError.ReportInternal("OCI.TryEquipUpgrade", "Failed", ex);
             return false;
         }
     }
@@ -652,80 +409,28 @@ public static class OCI
     /// <summary>
     /// Uninstall an upgrade.
     /// </summary>
-    public static bool UninstallUpgrade(GameObj upgrade)
+    public static bool TryUnequipUpgrade(GameObj upgrade)
     {
-        if (upgrade.IsNull) return false;
+        if (upgrade.CheckAlive() != AliveStatus.Alive) return false;
 
         try
         {
             var su = GetShipUpgrades();
-            if (su.IsNull) return false;
+            if (su.CheckAlive() != AliveStatus.Alive) return false;
 
-            var suType = _shipUpgradesType?.ManagedType;
-            if (suType == null) return false;
+            var suManaged = su.As<Il2CppMenace.Strategy.ShipUpgrades>();
+            if (suManaged == null) return false;
 
-            var proxy = GetManagedProxy(su, suType);
-            if (proxy == null) return false;
+            var upgradeManaged = upgrade.As<Il2CppMenace.Strategy.ShipUpgradeTemplate>();
+            if (upgradeManaged == null) return false;
 
-            var templateType = _shipUpgradeTemplateType?.ManagedType;
-            if (templateType == null) return false;
-
-            var upgradeProxy = GetManagedProxy(upgrade, templateType);
-            if (upgradeProxy == null) return false;
-
-            var method = suType.GetMethod("UninstallUpgrade", BindingFlags.Public | BindingFlags.Instance);
-            if (method == null) return false;
-
-            method.Invoke(proxy, new[] { upgradeProxy });
-            return true;
+            return suManaged.TryUnequipUpgrade(upgradeManaged);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.UninstallUpgrade", "Failed", ex);
+            ModError.ReportInternal("OCI.TryUnequipUpgrade", "Failed", ex);
             return false;
         }
-    }
-
-    /// <summary>
-    /// Find upgrade template by name.
-    /// </summary>
-    public static ShipUpgradeTemplate FindUpgrade(string name)
-    {
-        if (string.IsNullOrEmpty(name)) return null;
-        return GameQuery.FindByName<ShipUpgradeTemplate>(name);
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Name Helpers
-    // ═══════════════════════════════════════════════════════════════════
-
-    /// <summary>
-    /// Get upgrade type name from enum value.
-    /// </summary>
-    public static string GetUpgradeTypeName(int upgradeType)
-    {
-        return upgradeType switch
-        {
-            TYPE_ARMAMENT => "Armament",
-            TYPE_ELECTRONICS => "Electronics",
-            TYPE_HULL => "Hull",
-            TYPE_HIDDEN => "Hidden",
-            _ => $"Type{upgradeType}"
-        };
-    }
-
-    /// <summary>
-    /// Get unlock type name from enum value.
-    /// </summary>
-    public static string GetUnlockTypeName(int unlockType)
-    {
-        return unlockType switch
-        {
-            UNLOCK_ALWAYS => "Always",
-            UNLOCK_FACTION => "Faction",
-            UNLOCK_EVENT_ONLY => "EventOnly",
-            _ => $"Unlock{unlockType}"
-        };
     }
 
     // ═══════════════════════════════════════════════════════════════════
@@ -740,30 +445,22 @@ public static class OCI
         // oci - Show OCI status
         DevConsole.RegisterCommand("oci", "", "Show OCI (ship upgrades) status", args =>
         {
-            var points = GetOciPoints();
-            var maxPoints = GetMaxOciPoints();
+            var components = GetOciComponents();
             var installed = GetInstalledUpgrades();
             var available = GetAvailableUpgrades();
 
             var lines = new List<string>
-            {
-                $"OCI Points: {points}/{maxPoints}",
-                $"Installed Upgrades ({installed.Count}):"
-            };
+        {
+            $"OCI Components: {components}",
+            $"Installed Upgrades ({installed.Count}):"
+        };
 
             foreach (var u in installed)
-            {
-                var name = !string.IsNullOrEmpty(u.DisplayName) ? u.DisplayName : u.TemplateName;
-                var amount = u.InstalledAmount > 1 ? $" x{u.InstalledAmount}" : "";
-                lines.Add($"  [{u.UpgradeTypeName}] {name}{amount}");
-            }
+                lines.Add($"  [{u.UpgradeType}] {u.TemplateId} ({u.OciPointsCost} pts)");
 
             lines.Add($"Available Upgrades ({available.Count}):");
             foreach (var u in available)
-            {
-                var name = !string.IsNullOrEmpty(u.DisplayName) ? u.DisplayName : u.TemplateName;
-                lines.Add($"  [{u.UpgradeTypeName}] {name} ({u.OciPointsCost} pts)");
-            }
+                lines.Add($"  [{u.UpgradeType}] {u.TemplateId} ({u.OciPointsCost} pts)");
 
             return string.Join("\n", lines);
         });
@@ -778,11 +475,10 @@ public static class OCI
             var lines = new List<string> { $"OCI Slots ({slots.Count}):" };
             foreach (var s in slots)
             {
-                var name = !string.IsNullOrEmpty(s.DisplayName) ? s.DisplayName : s.TemplateName;
-                var upgrade = s.CurrentUpgrade != null
-                    ? $" → {s.CurrentUpgrade.DisplayName ?? s.CurrentUpgrade.TemplateName}"
+                var upgrade = s.EquippedUpgrade != null
+                    ? $" → {s.EquippedUpgrade.TemplateId}"
                     : " (empty)";
-                lines.Add($"  [{s.SlotTypeName}] {name} Lv{s.Level}{upgrade}");
+                lines.Add($"  [{s.SlotType}] {s.TemplateId}{upgrade}");
             }
             return string.Join("\n", lines);
         });
@@ -794,51 +490,45 @@ public static class OCI
             if (upgrades.Count == 0)
                 return "No upgrade templates found";
 
-            // Filter by type if specified
             if (args.Length > 0)
             {
                 var typeFilter = args[0].ToLowerInvariant();
                 upgrades = upgrades.FindAll(u =>
-                    u.UpgradeTypeName.ToLowerInvariant().Contains(typeFilter));
+                    u.UpgradeType.ToString().ToLowerInvariant().Contains(typeFilter));
             }
 
             var lines = new List<string> { $"OCI Upgrades ({upgrades.Count}):" };
             foreach (var u in upgrades)
             {
-                var name = !string.IsNullOrEmpty(u.DisplayName) ? u.DisplayName : u.TemplateName;
-                var unlock = u.UnlockType == UNLOCK_FACTION
-                    ? $" [req: {u.UnlockedByFactionName}]"
-                    : u.UnlockType == UNLOCK_EVENT_ONLY
+                var unlock = u.UnlockType == ShipUpgradeUnlockType.Faction
+                    ? $" [req: {u.UnlockedByFaction}]"
+                    : u.UnlockType == ShipUpgradeUnlockType.EventOnly
                         ? " [event only]"
                         : "";
-                lines.Add($"  [{u.UpgradeTypeName}] {name} ({u.OciPointsCost} pts){unlock}");
+                lines.Add($"  [{u.UpgradeType}] {u.TemplateId} ({u.OciPointsCost} pts){unlock}");
             }
             return string.Join("\n", lines);
         });
 
-        // installoci <name> - Install an upgrade
-        DevConsole.RegisterCommand("installoci", "<name>", "Install an OCI upgrade", args =>
+        // equipoci <id> <slot> <cost> - Equip an upgrade
+        DevConsole.RegisterCommand("equipoci", "<id> <slot> <cost>", "Equip an OCI upgrade", args =>
         {
-            if (args.Length == 0)
-                return "Usage: installoci <upgrade_name>";
+            if (args.Length < 3)
+                return "Usage: equipoci <template_id> <slot_index> <paid_oci_components>";
 
-            var name = string.Join(" ", args);
-            var upgrade = FindUpgrade(name);
-            if (upgrade == null)
-                return $"Upgrade '{name}' not found";
+            if (!int.TryParse(args[1], out var slotIdx))
+                return "Invalid slot index";
 
-            var upgradeObj = new GameObj(upgrade.Pointer);
-            var info = GetUpgradeInfo(upgradeObj);
-            if (InstallUpgrade(upgradeObj))
-                return $"Installed: {info?.DisplayName ?? name}";
-            return "Failed to install upgrade";
+            if (!int.TryParse(args[2], out var cost))
+                return "Invalid OCI component cost";
+
+            var template = Templates.FindByID<Il2CppMenace.Strategy.ShipUpgradeTemplate>(args[0]);
+            if (template == null)
+                return $"Upgrade '{args[0]}' not found";
+
+            if (TryEquipUpgrade(new GameObj(template.Pointer), cost, slotIdx))
+                return $"Equipped: {args[0]} in slot {slotIdx}";
+            return "Failed to equip upgrade";
         });
     }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  Internal Helpers
-    // ═══════════════════════════════════════════════════════════════════
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }

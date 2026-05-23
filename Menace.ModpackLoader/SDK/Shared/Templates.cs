@@ -72,4 +72,13 @@ public static class Templates
             $"{typeof(T).Name} '{id}' not found");
         return false;
     }
+
+    /// <summary>
+    /// Returns all loaded templates of type <typeparamref name="T"/>.
+    /// </summary>
+    public static IReadOnlyCollection<T> FindAll<T>() where T : DataTemplate
+    {
+        EnsureLoaded<T>();
+        return (IReadOnlyCollection<T>)DataTemplateLoader.GetAll<T>();
+    }
 }
