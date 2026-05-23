@@ -141,6 +141,8 @@ public partial class ModpackLoaderMod : MelonMod
         Perks.Initialize();
         OCI.Initialize();
         BlackMarket.Initialize();
+        Faction.Initialize();
+        Emotions.Initialize();
 
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
