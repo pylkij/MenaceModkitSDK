@@ -586,7 +586,7 @@ public static class TacticalController
     /// <returns>Number successfully spawned</returns>
     public static int SpawnWave(string templateName, List<(int x, int y)> positions, FactionType faction = FactionType.EnemyLocalForces)
     {
-        var results = EntitySpawner.SpawnGroup(templateName, positions, (int)faction);
+        var results = EntitySpawner.SpawnGroup(templateName, positions, (Il2CppMenace.Tactical.FactionType)faction);
         return results.FindAll(r => r.Success).Count;
     }
 

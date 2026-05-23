@@ -327,8 +327,9 @@ public static class GameMcpServer
 
     private static object HandleActors(HttpListenerRequest request)
     {
-        int.TryParse(request.QueryString["faction"], out int faction);
-        var factionFilter = request.QueryString["faction"] != null ? faction : -1;
+        var factionFilter = request.QueryString["faction"] != null && int.TryParse(request.QueryString["faction"], out int f)
+            ? (Il2CppMenace.Tactical.FactionType?)((Il2CppMenace.Tactical.FactionType)f)
+            : null;
 
         var actors = EntitySpawner.ListEntities(factionFilter);
         var result = new List<object>();
@@ -343,7 +344,7 @@ public static class GameMcpServer
                 {
                     name = info.Name,
                     typeName = info.TypeName,
-                    faction = info.FactionIndex,
+                    faction = info.FactionId,
                     x = position?.x,
                     y = position?.y,
                     isAlive = info.IsAlive,
@@ -390,7 +391,7 @@ public static class GameMcpServer
         {
             name = info?.Name,
             typeName = info?.TypeName,
-            faction = info?.FactionIndex,
+            faction = info?.FactionId,
             position = movement?.Position != null ? new { x = movement.Position.Value.x, y = movement.Position.Value.y } : null,
             isAlive = info?.IsAlive,
             combat = combat != null ? new
@@ -969,7 +970,7 @@ public static class GameMcpServer
         {
             var otherInfo = EntitySpawner.GetEntityInfo(other);
             if (otherInfo == null || !otherInfo.IsAlive) continue;
-            if (otherInfo.FactionIndex == actorInfo?.FactionIndex) continue; // Same faction
+            if (otherInfo.FactionId == actorInfo?.FactionId) continue; // Same faction
 
             var otherPos = EntityMovement.GetPosition(other);
             if (!otherPos.HasValue) continue;
@@ -983,7 +984,7 @@ public static class GameMcpServer
             threats.Add(new
             {
                 name = otherInfo.Name,
-                faction = otherInfo.FactionIndex,
+                faction = otherInfo.FactionId,
                 position = new { x = otherPos.Value.x, y = otherPos.Value.y },
                 distance = distance,
                 canSeeTarget = canSee,
@@ -1018,7 +1019,7 @@ public static class GameMcpServer
             {
                 var info = EntitySpawner.GetEntityInfo(actor);
                 if (info == null || !info.IsAlive) continue;
-                if (info.FactionIndex == 0) continue; // Skip player faction
+                if (info.FactionId == 0) continue; // Skip player faction
 
                 var agentInfo = AI.GetAgentInfo(actor);
                 if (!agentInfo.HasAgent) continue;
@@ -1026,7 +1027,7 @@ public static class GameMcpServer
                 results.Add(new
                 {
                     actor = info.Name,
-                    faction = info.FactionIndex,
+                    faction = info.FactionId,
                     state = agentInfo.StateName,
                     behavior = agentInfo.ActiveBehavior,
                     score = agentInfo.BehaviorScore,

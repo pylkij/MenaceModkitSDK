@@ -75,7 +75,7 @@ public static class StructureSpawner
                 if (entityType == (int)EntityType.Actor)
                 {
                     SdkLogger.Msg($"[StructureSpawner] Template '{templateName}' is an actor, delegating to EntitySpawner");
-                    var actorResult = EntitySpawner.SpawnUnit(templateName, tileX, tileY, faction);
+                    var actorResult = EntitySpawner.SpawnUnit(templateName, tileX, tileY, (Il2CppMenace.Tactical.FactionType)faction);
                     return new SpawnResult
                     {
                         Success = actorResult.Success,
@@ -154,7 +154,7 @@ public static class StructureSpawner
             }
             else if (entityType == (int)EntityType.Actor)
             {
-                var result = EntitySpawner.SpawnUnit(templateName, tileX, tileY, faction);
+                var result = EntitySpawner.SpawnUnit(templateName, tileX, tileY, (Il2CppMenace.Tactical.FactionType)faction);
                 return new SpawnResult
                 {
                     Success = result.Success,

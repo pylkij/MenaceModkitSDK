@@ -23,18 +23,23 @@ public static class EntitySpawner
     private static readonly GameType _entityTemplateType = GameType.Of<Il2CppMenace.Tactical.EntityTemplate>();
     private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
     private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
-    private static readonly GameType _transientActorType = GameType.Of<Il2CppMenace.Tactical.TransientActor>();
+    private static readonly GameType _baseFactionType = GameType.Of<Il2CppMenace.Tactical.AI.BaseFaction>();
 
-    // Field offsets from actor-system.md
-    private const uint OFFSET_ENTITY_ID = 0x10;
-    private const uint OFFSET_ENTITY_FACTION_INDEX = 0x4C;
-    private const uint OFFSET_ENTITY_IS_ALIVE = 0x48;
-    private const uint OFFSET_ENTITY_NAME = 0x88;
-    private const uint OFFSET_ACTOR_CURRENT_TILE = 0xA8;
+    // Entity field offsets — confirmed from IL2CPP dump (Entity.cs)
+    private const uint OFFSET_ENTITY_ID = 0x10;                 // <ID>k__BackingField        int
+    private const uint OFFSET_ENTITY_IS_ALIVE = 0x48;           // m_IsAlive                  bool
+    private const uint OFFSET_ENTITY_FACTION_ID = 0x4C;         // m_FactionID                int
+    private const uint OFFSET_ENTITY_DEBUG_NAME = 0x88;         // <DebugName>k__BackingField string
 
-    // TacticalManager offsets from turn-action-system.md
-    private const uint OFFSET_TM_ALL_ACTORS = 0x58;
-    private const uint OFFSET_TM_MAP = 0x28;
+    public class EntityInfo
+    {
+        public int EntityId { get; set; }
+        public string Name { get; set; }
+        public string TypeName { get; set; }
+        public int FactionId { get; set; }
+        public bool IsAlive { get; set; }
+        public IntPtr Pointer { get; set; }
+    }
 
     /// <summary>
     /// Spawn result containing the spawned entity or error info.
@@ -49,90 +54,38 @@ public static class EntitySpawner
         public static SpawnResult Ok(GameObj entity) => new() { Success = true, Entity = entity };
     }
 
-    /// <summary>
-    /// Spawn a transient actor (AI enemy or temporary unit) at the specified tile.
-    /// Uses TacticalManager.TrySpawnUnit() which handles actor registration internally.
-    /// </summary>
-    /// <param name="templateName">EntityTemplate name (e.g., "Grunt", "HeavyTrooper")</param>
-    /// <param name="tileX">Tile X coordinate</param>
-    /// <param name="tileY">Tile Y coordinate</param>
-    /// <param name="factionIndex">Faction index (0=Player, 1=Enemy, 2+=Others)</param>
-    /// <returns>SpawnResult with the spawned entity or error</returns>
-    public static SpawnResult SpawnUnit(string templateName, int tileX, int tileY, int factionIndex = 1)
+    public static SpawnResult SpawnUnit(string templateId, int tileX, int tileZ, Il2CppMenace.Tactical.FactionType faction = Il2CppMenace.Tactical.FactionType.Neutral)
     {
         try
         {
-            var template = GameQuery.FindByName<EntityTemplate>(templateName);
-            if (template == null)
-            {
-                return SpawnResult.Failed($"Template '{templateName}' not found");
-            }
+            if (!Templates.TryGet<Il2CppMenace.Tactical.EntityTemplate>(templateId, out var template))
+                return SpawnResult.Failed($"Template '{templateId}' not found");
 
-            var tile = GetTileAt(tileX, tileY);
+            var tile = GetTileAt(tileX, tileZ);
             if (tile.IsNull)
-            {
-                return SpawnResult.Failed($"Tile at ({tileX}, {tileY}) not found");
-            }
+                return SpawnResult.Failed($"Tile at ({tileX}, {tileZ}) not found");
 
-            if (IsTileOccupied(tile))
-            {
-                return SpawnResult.Failed($"Tile at ({tileX}, {tileY}) is occupied");
-            }
+            if (GameMethod.CallBool<Il2CppMenace.Tactical.Tile>(tile.As<Il2CppMenace.Tactical.Tile>(), x => x.HasActor()))
+                return SpawnResult.Failed($"Tile at ({tileX}, {tileZ}) is occupied");
 
-            var transientActorType = _transientActorType.ManagedType;
-            if (transientActorType == null)
-            {
-                return SpawnResult.Failed("TransientActor type not found");
-            }
+            var tm = Il2CppMenace.Tactical.TacticalManager.Get();
+            if (tm == null)
+                return SpawnResult.Failed("TacticalManager not available");
 
-            var ctor = transientActorType.GetConstructor(Type.EmptyTypes);
-            if (ctor == null)
-            {
-                return SpawnResult.Failed("TransientActor constructor not found");
-            }
+            // TrySpawnUnit uses an out parameter — AsManaged() is required here;
+            // expression-tree method invocation cannot represent out arguments.
+            var success = tm.TrySpawnUnit(faction, template, tile.As<Il2CppMenace.Tactical.Tile>(), out var actor);
 
-            var actor = ctor.Invoke(null);
-            if (actor == null)
-            {
-                return SpawnResult.Failed("Failed to create TransientActor instance");
-            }
+            if (!success)
+                return SpawnResult.Failed($"TrySpawnUnit returned false for '{templateId}'");
 
-            var createMethod = transientActorType.GetMethod("Create", BindingFlags.Public | BindingFlags.Instance,
-                null, new[] { _entityTemplateType.ManagedType, _tileType.ManagedType, typeof(int), typeof(int) }, null);
-            if (createMethod == null)
-            {
-                return SpawnResult.Failed("TransientActor.Create method not found");
-            }
-
-            createMethod.Invoke(actor, new object[] { template, tile, factionIndex, 0 });
-
-            var finishCreateMethod = transientActorType.GetMethod("FinishCreate", BindingFlags.Public | BindingFlags.Instance);
-            finishCreateMethod?.Invoke(actor, null);
-
-            var tmType = _tacticalManagerType?.ManagedType;
-            var getMethod = tmType?.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var tm = getMethod?.Invoke(null, null);
-
-            if (tm != null)
-            {
-                var onRoundStart = transientActorType.GetMethod("OnRoundStart", BindingFlags.Public | BindingFlags.Instance);
-                onRoundStart?.Invoke(actor, null);
-
-                var onTurnStart = transientActorType.GetMethod("OnTurnStart", BindingFlags.Public | BindingFlags.Instance);
-                onTurnStart?.Invoke(actor, null);
-
-                var invokeSpawnedMethod = tmType.GetMethod("InvokeOnEntitySpawned", BindingFlags.Public | BindingFlags.Instance);
-                invokeSpawnedMethod?.Invoke(tm, new object[] { actor });
-            }
-
-            var actorObj = new GameObj(((Il2CppObjectBase)actor).Pointer);
-
-            ModError.Info("Il2Cpp.SDK", $"Spawned {templateName} at ({tileX}, {tileY}) faction {factionIndex}");
+            var actorObj = new GameObj(actor.Pointer);
+            ModError.Info("EntitySpawner", $"Spawned '{templateId}' at ({tileX}, {tileZ}) faction {faction}");
             return SpawnResult.Ok(actorObj);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.SpawnUnit", $"Failed to spawn {templateName}", ex);
+            ModError.ReportInternal("EntitySpawner.SpawnUnit", $"Failed to spawn '{templateId}'", ex);
             return SpawnResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -140,105 +93,49 @@ public static class EntitySpawner
     /// <summary>
     /// Spawn multiple units at once.
     /// </summary>
-    /// <param name="templateName">EntityTemplate name</param>
-    /// <param name="positions">List of (x, y) tile coordinates</param>
-    /// <param name="factionIndex">Faction index for all spawned units</param>
+    /// <param name="templateId">EntityTemplate m_ID</param>
+    /// <param name="positions">List of (x, z) tile coordinates</param>
+    /// <param name="faction">Faction for all spawned units (default: Neutral)</param>
     /// <returns>List of spawn results</returns>
-    public static List<SpawnResult> SpawnGroup(string templateName, List<(int x, int y)> positions, int factionIndex = 1)
+    public static List<SpawnResult> SpawnGroup(string templateId, List<(int x, int z)> positions, Il2CppMenace.Tactical.FactionType faction = Il2CppMenace.Tactical.FactionType.Neutral)
     {
         var results = new List<SpawnResult>();
-
-        foreach (var (x, y) in positions)
-        {
-            results.Add(SpawnUnit(templateName, x, y, factionIndex));
-        }
-
+        foreach (var (x, z) in positions)
+            results.Add(SpawnUnit(templateId, x, z, faction));
         return results;
     }
 
     /// <summary>
     /// Get all actors currently on the tactical map.
     /// </summary>
-    /// <param name="factionFilter">Optional faction index to filter by (-1 for all)</param>
+    /// <param name="factionFilter">Optional faction to filter by, or null for all factions</param>
     /// <returns>Array of actor GameObjs</returns>
-    public static GameObj[] ListEntities(int factionFilter = -1)
+    public static GameObj[] ListEntities(Il2CppMenace.Tactical.FactionType? factionFilter = null)
     {
         try
         {
-            // Actors are stored in TacticalManager.m_Factions[].m_Actors, not as Unity Resources
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return Array.Empty<GameObj>();
-
-            var getMethod = tmType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            var tm = getMethod?.Invoke(null, null);
+            var tm = Il2CppMenace.Tactical.TacticalManager.Get();
             if (tm == null) return Array.Empty<GameObj>();
 
-            // Get m_Factions property
-            var factionsProperty = tmType.GetProperty("m_Factions", BindingFlags.Public | BindingFlags.Instance);
-            if (factionsProperty == null) return Array.Empty<GameObj>();
-
-            var factions = factionsProperty.GetValue(tm);
+            var factions = tm.GetFactions();
             if (factions == null) return Array.Empty<GameObj>();
 
             var result = new List<GameObj>();
-            var factionList = (System.Collections.IEnumerable)factions;
-
-            int factionIdx = 0;
-            foreach (var faction in factionList)
+            foreach (var faction in factions)
             {
-                if (faction == null)
-                {
-                    factionIdx++;
-                    continue;
-                }
+                if (faction == null) continue;
+                if (factionFilter.HasValue && faction.GetFactionType() != factionFilter.Value) continue;
 
-                // Skip if filtering by faction
-                if (factionFilter >= 0 && factionIdx != factionFilter)
-                {
-                    factionIdx++;
-                    continue;
-                }
+                var actors = faction.GetActors();
+                if (actors == null) continue;
 
-                // Get m_Actors from this faction
-                var factionType = faction.GetType();
-                var actorsProp = factionType.GetProperty("m_Actors", BindingFlags.Public | BindingFlags.Instance);
-                if (actorsProp == null)
+                foreach (var actor in actors)
                 {
-                    factionIdx++;
-                    continue;
+                    if (actor == null) continue;
+                    var ptr = actor.Pointer;
+                    if (ptr != IntPtr.Zero)
+                        result.Add(new GameObj(ptr));
                 }
-
-                var actors = actorsProp.GetValue(faction);
-                if (actors == null)
-                {
-                    factionIdx++;
-                    continue;
-                }
-
-                // Il2CppSystem.Collections.Generic.List cannot be cast to System.Collections.IEnumerable
-                // Use Count property and indexer via reflection instead
-                var actorsType = actors.GetType();
-                var countProp = actorsType.GetProperty("Count");
-                var itemProp = actorsType.GetProperty("Item");
-                if (countProp == null || itemProp == null)
-                {
-                    factionIdx++;
-                    continue;
-                }
-
-                var count = (int)countProp.GetValue(actors);
-                for (int i = 0; i < count; i++)
-                {
-                    var actor = itemProp.GetValue(actors, new object[] { i });
-                    if (actor != null)
-                    {
-                        var ptr = ((Il2CppObjectBase)actor).Pointer;
-                        if (ptr != IntPtr.Zero)
-                            result.Add(new GameObj(ptr));
-                    }
-                }
-
-                factionIdx++;
             }
 
             return result.ToArray();
@@ -263,25 +160,7 @@ public static class EntitySpawner
 
         try
         {
-            var managedType = _actorType?.ManagedType;
-            if (managedType == null)
-            {
-                ModError.WarnInternal("EntitySpawner.DestroyEntity", "Actor managed type not available");
-                return false;
-            }
-
-            var dieMethod = managedType.GetMethod("Die", BindingFlags.Public | BindingFlags.Instance);
-            if (dieMethod == null)
-            {
-                ModError.WarnInternal("EntitySpawner.DestroyEntity", "Die method not found");
-                return false;
-            }
-
-            var proxy = GetManagedProxy(entity, managedType);
-            if (proxy == null)
-                return false;
-
-            dieMethod.Invoke(proxy, new object[] { immediate });
+            GameMethod.Call<Il2CppMenace.Tactical.Actor>(entity.As<Il2CppMenace.Tactical.Actor>(), x => x.Die(immediate));
             return true;
         }
         catch (Exception ex)
@@ -292,13 +171,14 @@ public static class EntitySpawner
     }
 
     /// <summary>
-    /// Clear all enemies from the map.
+    /// Clear all actors of a given faction from the map.
     /// </summary>
     /// <param name="immediate">If true, skip death animations</param>
-    /// <returns>Number of enemies cleared</returns>
-    public static int ClearEnemies(bool immediate = true)
+    /// <param name="faction">Faction to clear (default: EnemyLocalForces)</param>
+    /// <returns>Number of actors cleared</returns>
+    public static int ClearEnemies(bool immediate = true, Il2CppMenace.Tactical.FactionType faction = Il2CppMenace.Tactical.FactionType.EnemyLocalForces)
     {
-        var enemies = ListEntities(factionFilter: 1);
+        var enemies = ListEntities(faction);
         int count = 0;
 
         foreach (var enemy in enemies)
@@ -309,12 +189,6 @@ public static class EntitySpawner
 
         return count;
     }
-
-    /// <summary>
-    /// Get entity information as a summary object.
-    /// </summary>
-    // Cached offset — add alongside your other OFFSET_ constants
-    private const uint OFFSET_ENTITY_DEBUG_NAME = 0x88;
 
     public static EntityInfo GetEntityInfo(GameObj entity)
     {
@@ -328,8 +202,8 @@ public static class EntitySpawner
                 EntityId = entity.ReadInt(OFFSET_ENTITY_ID),
                 Name = entity.GetName() ?? entity.ReadString(OFFSET_ENTITY_DEBUG_NAME),
                 TypeName = entity.GetTypeName(),
-                FactionIndex = entity.ReadInt(OFFSET_ENTITY_FACTION_INDEX),
-                IsAlive = ReadBoolAtOffset(entity, OFFSET_ENTITY_IS_ALIVE),
+                FactionId = entity.ReadInt(OFFSET_ENTITY_FACTION_ID),
+                IsAlive = entity.ReadBool(OFFSET_ENTITY_IS_ALIVE),
                 Pointer = entity.Pointer
             };
         }
@@ -340,98 +214,27 @@ public static class EntitySpawner
         }
     }
 
-    public class EntityInfo
-    {
-        public int EntityId { get; set; }
-        public string Name { get; set; }
-        public string TypeName { get; set; }
-        public int FactionIndex { get; set; }
-        public bool IsAlive { get; set; }
-        public IntPtr Pointer { get; set; }
-    }
-
     // --- Internal helpers ---
 
-    private static GameObj GetTileAt(int x, int y)
+    private static GameObj GetTileAt(int x, int z)
     {
         try
         {
-            // Get TacticalManager singleton via Get() method
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return GameObj.Null;
-
-            var getMethod = tmType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            if (getMethod == null) return GameObj.Null;
-
-            var tm = getMethod.Invoke(null, null);
+            var tm = Il2CppMenace.Tactical.TacticalManager.Get();
             if (tm == null) return GameObj.Null;
 
-            // Get Map from TacticalManager via GetMap() method
-            var getMapMethod = tmType.GetMethod("GetMap", BindingFlags.Public | BindingFlags.Instance);
-            if (getMapMethod == null) return GameObj.Null;
-
-            var map = getMapMethod.Invoke(tm, null);
+            var map = tm.GetMap();
             if (map == null) return GameObj.Null;
 
-            // Call Map.GetTile(x, y)
-            var getTileMethod = map.GetType().GetMethod("GetTile",
-                BindingFlags.Public | BindingFlags.Instance,
-                null, new[] { typeof(int), typeof(int) }, null);
-
-            if (getTileMethod == null) return GameObj.Null;
-
-            var tile = getTileMethod.Invoke(map, new object[] { x, y });
+            var tile = map.GetBaseTile(x, z);
             if (tile == null) return GameObj.Null;
 
-            return new GameObj(((Il2CppObjectBase)tile).Pointer);
+            return new GameObj(tile.Pointer);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.GetTileAt", $"Failed for ({x}, {y})", ex);
+            ModError.ReportInternal("EntitySpawner.GetTileAt", $"Failed for ({x}, {z})", ex);
             return GameObj.Null;
-        }
-    }
-
-    private static bool IsTileOccupied(GameObj tile)
-    {
-        if (tile.IsNull) return true;
-
-        try
-        {
-            var tileType = _tileType?.ManagedType;
-            if (tileType == null) return false;
-
-            var proxy = GetManagedProxy(tile, tileType);
-            if (proxy == null) return false;
-
-            var hasActorMethod = tileType.GetMethod("HasActor", BindingFlags.Public | BindingFlags.Instance);
-            if (hasActorMethod != null)
-            {
-                return (bool)hasActorMethod.Invoke(proxy, null);
-            }
-
-            return false;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
-
-    private static bool ReadBoolAtOffset(GameObj obj, uint offset)
-    {
-        if (obj.IsNull || offset == 0) return false;
-
-        try
-        {
-            return Marshal.ReadByte(obj.Pointer + (int)offset) != 0;
-        }
-        catch
-        {
-            return false;
         }
     }
 }
