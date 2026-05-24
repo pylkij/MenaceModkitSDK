@@ -73,7 +73,7 @@ public partial class ModpackLoaderMod : MelonMod
         DllLoader.InitializeAllPlugins();
 
         _devMode = new DevModePlugin();
-        _devMode.Initialize(HarmonyInstance);
+        _devMode.Initialize(HarmonyInstance, LoggerInstance);
 
         EarlyTemplateInjection.Initialize(this, HarmonyInstance);
 
