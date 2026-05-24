@@ -1,8 +1,9 @@
-using System;
-using System.Collections.Generic;
-using Il2CppMenace.Tools;
+using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppMenace.Strategy.Missions;
 using Il2CppMenace.Tactical;
+using Il2CppMenace.Tools;
+using System;
+using System.Collections.Generic;
 
 namespace Menace.SDK;
 
@@ -79,6 +80,24 @@ public static class Templates
     public static IReadOnlyCollection<T> FindAll<T>() where T : DataTemplate
     {
         EnsureLoaded<T>();
-        return (IReadOnlyCollection<T>)DataTemplateLoader.GetAll<T>();
+        var raw = DataTemplateLoader.GetAll<T>();
+        var result = new List<T>();
+
+        if (raw is Il2CppObjectBase il2cppObj)
+        {
+            var enumerable = il2cppObj.TryCast<Il2CppSystem.Collections.IEnumerable>();
+            if (enumerable != null)
+            {
+                var enumerator = enumerable.GetEnumerator();
+                while (enumerator.MoveNext())
+                {
+                    var item = enumerator.Current?.TryCast<T>();
+                    if (item != null)
+                        result.Add(item);
+                }
+            }
+        }
+
+        return result;
     }
 }

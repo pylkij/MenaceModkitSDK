@@ -380,9 +380,9 @@ public static class Pathfinding
     /// <summary>
     /// Get all tiles reachable within a given AP cost.
     /// </summary>
-    public static List<(int x, int y, int cost)> GetReachableTiles(GameObj mover, int maxAP)
+    public static List<(int x, int z, int cost)> GetReachableTiles(GameObj mover, int maxAP)
     {
-        var result = new List<(int x, int y, int cost)>();
+        var result = new List<(int x, int z, int cost)>();
 
         if (mover.IsNull) return result;
 
@@ -393,42 +393,35 @@ public static class Pathfinding
         if (mapInfo == null) return result;
 
         int startX = pos.Value.x;
-        int startY = pos.Value.y;
+        int startZ = pos.Value.y;
 
-        // Simple flood fill with cost tracking
         var visited = new Dictionary<(int, int), int>();
-        var queue = new Queue<(int x, int y, int cost)>();
-        queue.Enqueue((startX, startY, 0));
-        visited[(startX, startY)] = 0;
+        var queue = new Queue<(int x, int z, int cost)>();
+        queue.Enqueue((startX, startZ, 0));
+        visited[(startX, startZ)] = 0;
 
         while (queue.Count > 0)
         {
-            var (x, y, cost) = queue.Dequeue();
+            var (x, z, cost) = queue.Dequeue();
 
-            // Check all 8 directions
-            for (int dir = 0; dir < 8; dir++)
+            for (int dir = 0; dir < TileMap.Dir.Count; dir++)
             {
-                var (dx, dy) = GetDirectionOffset(dir);
+                var (dx, dz) = GetDirectionOffset(dir);
                 int nx = x + dx;
-                int ny = y + dy;
+                int nz = z + dz;
 
-                // Bounds check
-                if (nx < 0 || ny < 0 || nx >= mapInfo.Width || ny >= mapInfo.Height)
+                if (nx < 0 || nz < 0 || nx >= mapInfo.SizeX || nz >= mapInfo.SizeZ)
                     continue;
 
-                // Already visited with lower cost
-                if (visited.TryGetValue((nx, ny), out int prevCost) && prevCost <= cost)
+                if (visited.TryGetValue((nx, nz), out int prevCost) && prevCost <= cost)
                     continue;
 
-                // Can we enter this tile?
-                if (!CanEnter(mover, nx, ny, (dir + 4) % 8))
+                if (!CanEnter(mover, nx, nz, (dir + 4) % TileMap.Dir.Count))
                     continue;
 
-                // Calculate movement cost
-                var moveCost = GetMovementCost(mover, nx, ny);
+                var moveCost = GetMovementCost(mover, nx, nz);
                 int tileCost = moveCost.TotalCost;
 
-                // Diagonal movement costs more
                 if (dir % 2 == 1)
                     tileCost = (int)(tileCost * DIAGONAL_COST_MULT);
 
@@ -436,9 +429,9 @@ public static class Pathfinding
                 if (newCost > maxAP)
                     continue;
 
-                visited[(nx, ny)] = newCost;
-                result.Add((nx, ny, newCost));
-                queue.Enqueue((nx, ny, newCost));
+                visited[(nx, nz)] = newCost;
+                result.Add((nx, nz, newCost));
+                queue.Enqueue((nx, nz, newCost));
             }
         }
 

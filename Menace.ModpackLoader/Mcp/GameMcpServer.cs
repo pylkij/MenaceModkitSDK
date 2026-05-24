@@ -510,12 +510,18 @@ public static class GameMcpServer
 
     private static object HandleInventory(HttpListenerRequest request)
     {
-        var actor = TacticalController.GetActiveActor();
-        if (actor.IsNull)
+        var actorUntyped = TacticalController.GetActiveActor();
+        if (actorUntyped.IsNull)
             return new { error = "No active actor" };
 
+        if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+            return new { error = "Actor could not be wrapped as Entity" };
+
+        if (actor.Untyped.CheckAlive() != AliveStatus.Alive)
+            return new { error = "Actor is no longer alive" };
+
         var container = Inventory.GetContainer(actor);
-        if (container.IsNull)
+        if (container.Untyped.CheckAlive() != AliveStatus.Alive)
             return new { error = "No inventory container" };
 
         var items = Inventory.GetAllItems(container);
@@ -523,15 +529,15 @@ public static class GameMcpServer
 
         return new
         {
-            actorName = actor.GetName(),
+            actorName = actorUntyped.GetName(),
             totalItems = items.Count,
             totalValue = Inventory.GetTotalTradeValue(container),
             items = items.Select(i => new
             {
                 name = i.TemplateName,
-                slot = i.SlotTypeName,
+                slot = i.SlotType.ToString(),
                 value = i.TradeValue,
-                rarity = i.RarityTier   // was: i.Rarity
+                rarity = i.RarityTier
             }).ToList(),
             equippedWeapons = weapons.Select(w => w.TemplateName).ToList()
         };
@@ -611,9 +617,9 @@ public static class GameMcpServer
         return new
         {
             available = true,
-            width = info.Width,
-            height = info.Height,
-            fogOfWar = info.UseFogOfWar
+            width = info.SizeX,
+            height = info.SizeZ,
+            fogOfWar = info.IsUsingFogOfWar
         };
     }
 
@@ -665,7 +671,7 @@ public static class GameMcpServer
             if (!int.TryParse(toX, out int tx) || !int.TryParse(toY, out int ty))
                 return new { error = "Invalid to_x or to_y" };
 
-            var hasLos = LineOfSight.HasLOS(actorPos.Value.x, actorPos.Value.y, tx, ty);
+            var hasLos = LineOfSight.HasLineOfSight(actorPos.Value.x, actorPos.Value.y, tx, ty);
             var distance = TileMap.GetDistance(actorPos.Value.x, actorPos.Value.y, tx, ty);
 
             return new
@@ -685,7 +691,7 @@ public static class GameMcpServer
                 !int.TryParse(toX, out int tx) || !int.TryParse(toY, out int ty))
                 return new { error = "Invalid coordinates" };
 
-            var hasLos = LineOfSight.HasLOS(fx, fy, tx, ty);
+            var hasLos = LineOfSight.HasLineOfSight(fx, fy, tx, ty);
             var distance = TileMap.GetDistance(fx, fy, tx, ty);
 
             return new
@@ -770,30 +776,30 @@ public static class GameMcpServer
     private static object HandleTile(HttpListenerRequest request)
     {
         var xStr = request.QueryString["x"];
-        var yStr = request.QueryString["y"];
+        var zStr = request.QueryString["z"];
 
-        if (string.IsNullOrEmpty(xStr) || string.IsNullOrEmpty(yStr))
-            return new { error = "Provide x and y coordinates" };
+        if (string.IsNullOrEmpty(xStr) || string.IsNullOrEmpty(zStr))
+            return new { error = "Provide x and z coordinates" };
 
-        if (!int.TryParse(xStr, out int x) || !int.TryParse(yStr, out int y))
-            return new { error = "Invalid x or y" };
+        if (!int.TryParse(xStr, out int x) || !int.TryParse(zStr, out int z))
+            return new { error = "Invalid x or z" };
 
-        var info = TileMap.GetTileInfo(x, y);
+        var info = TileMap.GetTileInfo(x, z);
         if (info == null)
-            return new { error = $"Tile at ({x}, {y}) not found" };
+            return new { error = $"Tile at ({x}, {z}) not found" };
 
-        var allCover = TileMap.GetAllCover(x, y);
+        var allCover = TileMap.GetAllCover(x, z);
 
         return new
         {
             x = info.X,
-            y = info.Z,
+            z = info.Z,
             elevation = info.Elevation,
             isBlocked = info.IsBlocked,
             hasActor = info.HasActor,
             actorName = info.ActorName,
             isVisibleToPlayer = info.IsVisibleToPlayer,
-            blocksLOS = info.BlocksLOS,
+            blocksLOS = info.IsLOSBlockedByHalfcover,
             hasEffects = info.HasEffects,
             cover = new
             {
@@ -901,7 +907,7 @@ public static class GameMcpServer
             actor = actor.GetName(),
             maxAP = maxAP,
             tileCount = reachable.Count,
-            tiles = reachable.Select(t => new { x = t.x, y = t.y, cost = t.cost }).ToList()
+            tiles = reachable.Select(t => new { x = t.x, z = t.z, cost = t.cost }).ToList()
         };
     }
 
@@ -932,9 +938,8 @@ public static class GameMcpServer
             actor = actor.GetName(),
             position = pos.HasValue ? new { x = pos.Value.x, y = pos.Value.y } : null,
             state = visInfo.State,
-            stateName = visInfo.StateName,
             isVisible = visInfo.IsVisible,
-            isMarked = visInfo.IsMarked,
+            isRevealed = visInfo.IsRevealed,
             vision = visInfo.Vision,
             detection = visInfo.Detection,
             concealment = visInfo.Concealment

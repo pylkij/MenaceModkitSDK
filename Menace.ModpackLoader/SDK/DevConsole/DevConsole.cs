@@ -2304,12 +2304,13 @@ public static class DevConsole
 
         try
         {
-            var names = Inventory.GetItemTemplates();
             _itemTemplateNameCache.Clear();
-            _itemTemplateNameCache.AddRange(names
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase));
+            _itemTemplateNameCache.AddRange(
+                Templates.FindAll<Il2CppMenace.Items.ItemTemplate>()
+                    .Select(t => t.GetID())
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
         }
         catch
         {

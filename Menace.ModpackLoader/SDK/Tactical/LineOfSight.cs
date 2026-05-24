@@ -1,10 +1,11 @@
+using Il2CppInterop.Runtime.InteropTypes;
+using Il2CppMenace.Tactical;
+using Il2CppTactical;
+using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
-
-using Il2CppMenace.Tactical;
-using Menace.SDK.Internal;
 
 namespace Menace.SDK;
 
@@ -21,79 +22,79 @@ namespace Menace.SDK;
 /// </summary>
 public static class LineOfSight
 {
-    // Cached types
-    private static readonly GameType _tileType = GameType.Of<Il2CppMenace.Tactical.Tile>();
-    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
-    private static readonly GameType _entityPropertiesType = GameType.Of<Il2CppMenace.Tactical.EntityProperties>();
-    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Visibility states
-    public const int VISIBILITY_UNKNOWN = 0;
-    public const int VISIBILITY_VISIBLE = 1;
-    public const int VISIBILITY_HIDDEN = 2;
-    public const int VISIBILITY_DETECTED = 3;
+    // Entity fields
+    private static FieldHandle<Il2CppMenace.Tactical.Entity, Il2CppMenace.Tactical.Visibility> _hVisibilityToPlayer;
 
-    // LOS flags - matches LineOfSightFlags enum: Default=0, IgnoreLastTile=1, IgnoreHalfCover=4
-    public const byte LOS_FLAG_DEFAULT = 0;
-    public const byte LOS_FLAG_IGNORE_LAST_TILE = 1;
-    public const byte LOS_FLAG_IGNORE_HALF_COVER = 4;
+    // Actor fields
+    private static FieldHandle<Il2CppMenace.Tactical.Actor, bool> _hRevealed;
 
-    // EntityProperties offsets
-    private const uint OFFSET_BASE_VISION = 0xC4;
-    private const uint OFFSET_VISION_MULT = 0xC8;
-    private const uint OFFSET_BASE_DETECTION = 0xCC;
-    private const uint OFFSET_DETECTION_MULT = 0xD0;
-    private const uint OFFSET_BASE_CONCEALMENT = 0xD4;
-    private const uint OFFSET_CONCEALMENT_MULT = 0xD8;
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Actor visibility offset
-    private const uint OFFSET_ACTOR_VISIBILITY_STATE = 0x90;
-    private const uint OFFSET_ACTOR_FIRST_TIME_VISIBLE = 0x16D;
-    private const uint OFFSET_ACTOR_IS_MARKED = 0x1AC;
+    private static bool _handlesResolved = false;
 
-    /// <summary>
-    /// Check if there is clear line of sight between two tiles.
-    /// </summary>
-    public static bool HasLOS(int fromX, int fromY, int toX, int toY)
+    internal static void Initialize()
     {
-        var fromTile = TileMap.GetTile(fromX, fromY);
-        var toTile = TileMap.GetTile(toX, toY);
-        return HasLOS(fromTile, toTile);
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hVisibilityToPlayer = GameObj<Il2CppMenace.Tactical.Entity>.ResolveField(x => x.VisibilityToPlayer);
+            _hRevealed = GameObj<Il2CppMenace.Tactical.Actor>.ResolveField(x => x.Revealed);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("LineOfSight.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
+
+    public class VisibilityInfo
+    {
+        public Visibility State { get; set; }
+        public bool IsVisible { get; set; }
+        public bool IsRevealed { get; set; }
+        public int Vision { get; set; }
+        public int Detection { get; set; }
+        public int Concealment { get; set; }
     }
 
     /// <summary>
     /// Check if there is clear line of sight between two tiles.
     /// </summary>
-    public static bool HasLOS(GameObj fromTile, GameObj toTile, byte flags = 0)
+    public static bool HasLineOfSight(int fromX, int fromY, int toX, int toY)
+    {
+        var fromTile = TileMap.GetTile(fromX, fromY);
+        var toTile = TileMap.GetTile(toX, toY);
+        return HasLineOfSight(fromTile, toTile);
+    }
+
+    /// <summary>
+    /// Check if there is clear line of sight between two tiles.
+    /// </summary>
+    public static bool HasLineOfSight(GameObj fromTile, GameObj toTile, LineOfSightFlags flags = LineOfSightFlags.Default)
     {
         if (fromTile.IsNull || toTile.IsNull) return false;
-
-        // Same tile always has LOS
         if (fromTile.Pointer == toTile.Pointer) return true;
 
         try
         {
-            var tileType = _tileType?.ManagedType;
-            if (tileType == null) return false;
-
-            var fromProxy = GetManagedProxy(fromTile, tileType);
-            if (fromProxy == null) return false;
-
-            var toProxy = GetManagedProxy(toTile, tileType);
-            if (toProxy == null) return false;
-
-            var hasLosMethod = tileType.GetMethod("HasLineOfSightTo", BindingFlags.Public | BindingFlags.Instance);
-            if (hasLosMethod != null)
-            {
-                var result = hasLosMethod.Invoke(fromProxy, new object[] { toProxy, flags });
-                return (bool)result;
-            }
-
-            return false;
+            return (bool)GameMethod.Call<Tile>(fromTile, x => x.HasLineOfSightTo(default, default), new object[] { toTile.As<Tile>(), flags });
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.HasLOS", "Failed", ex);
+            ModError.ReportInternal("LineOfSight.HasLineOfSight", "Failed", ex);
             return false;
         }
     }
@@ -107,25 +108,7 @@ public static class LineOfSight
 
         try
         {
-            var actorType = _actorType?.ManagedType;
-            if (actorType == null) return false;
-
-            var actorProxy = GetManagedProxy(actor, actorType);
-            if (actorProxy == null) return false;
-
-            var targetProxy = GetManagedProxy(target, actorType);
-            if (targetProxy == null) return false;
-
-            var hasLosMethod = actorType.GetMethod("HasLineOfSightTo",
-                BindingFlags.Public | BindingFlags.Instance);
-
-            if (hasLosMethod != null)
-            {
-                var result = hasLosMethod.Invoke(actorProxy, new object[] { targetProxy, false, null, null });
-                return (bool)result;
-            }
-
-            return false;
+            return (bool)GameMethod.Call<Actor>(actor, x => x.HasLineOfSightTo(default, default, default, default), new object[] { target.As<Entity>(), false, null, null });
         }
         catch (Exception ex)
         {
@@ -135,63 +118,38 @@ public static class LineOfSight
     }
 
     /// <summary>
-    /// Get the visibility state of an actor (Unknown, Visible, Hidden, Detected).
+    /// Get the visibility state of an entity.
     /// </summary>
-    public static int GetVisibilityState(GameObj actor)
+    public static Visibility GetVisibilityState(GameObj entity)
     {
-        if (actor.IsNull) return VISIBILITY_UNKNOWN;
+        if (entity.IsNull) return Visibility.Unset;
 
-        try
-        {
-            return actor.ReadInt(OFFSET_ACTOR_VISIBILITY_STATE);
-        }
-        catch
-        {
-            return VISIBILITY_UNKNOWN;
-        }
+        _hVisibilityToPlayer.TryRead(GameObj<Entity>.Wrap(entity), out var state);
+        return state;
     }
 
     /// <summary>
-    /// Get visibility state name.
+    /// Check if an entity is currently visible to the player.
     /// </summary>
-    public static string GetVisibilityStateName(int state)
+    public static bool IsVisibleToPlayer(GameObj entity)
     {
-        return state switch
-        {
-            0 => "Unknown",
-            1 => "Visible",
-            2 => "Hidden",
-            3 => "Detected",
-            _ => $"State {state}"
-        };
+        return GetVisibilityState(entity) == Visibility.Visible;
     }
 
     /// <summary>
-    /// Check if an actor is currently visible to the player.
+    /// Check if an actor is revealed (always visible when in range).
     /// </summary>
-    public static bool IsVisibleToPlayer(GameObj actor)
-    {
-        var state = GetVisibilityState(actor);
-        return state == VISIBILITY_VISIBLE;
-    }
-
-    /// <summary>
-    /// Check if an actor is marked/painted (always visible when in range).
-    /// </summary>
-    public static bool IsMarked(GameObj actor)
+    public static bool IsRevealed(GameObj actor)
     {
         if (actor.IsNull) return false;
 
-        try
-        {
-            return Marshal.ReadByte(actor.Pointer + (int)OFFSET_ACTOR_IS_MARKED) != 0;
-        }
-        catch
-        {
-            return false;
-        }
+        _hRevealed.TryRead(GameObj<Actor>.Wrap(actor), out var revealed);
+        return revealed;
     }
 
+    /// <summary>
+    /// Get vision range for an entity.
+    /// </summary>
     /// <summary>
     /// Get vision range for an entity.
     /// </summary>
@@ -201,25 +159,11 @@ public static class LineOfSight
 
         try
         {
-            var actorType = _actorType?.ManagedType;
-            if (actorType == null) return 0;
-
-            var proxy = GetManagedProxy(entity, actorType);
-            if (proxy == null) return 0;
-
-            // Get EntityProperties
-            var getPropsMethod = actorType.GetMethod("GetCurrentProperties", BindingFlags.Public | BindingFlags.Instance);
-            var props = getPropsMethod?.Invoke(proxy, null);
+            var props = GameMethod.Call<Entity>(entity, x => x.GetCurrentProperties());
             if (props == null) return 0;
 
-            // Call GetVision
-            var getVisionMethod = props.GetType().GetMethod("GetVision", BindingFlags.Public | BindingFlags.Instance);
-            if (getVisionMethod != null)
-            {
-                return (int)getVisionMethod.Invoke(props, null);
-            }
-
-            return 0;
+            var propsObj = GameObj.FromPointer(((Il2CppObjectBase)props).Pointer);
+            return GameMethod.CallInt<EntityProperties>(propsObj, x => x.GetVision());
         }
         catch (Exception ex)
         {
@@ -237,23 +181,11 @@ public static class LineOfSight
 
         try
         {
-            var actorType = _actorType?.ManagedType;
-            if (actorType == null) return 0;
-
-            var proxy = GetManagedProxy(entity, actorType);
-            if (proxy == null) return 0;
-
-            var getPropsMethod = actorType.GetMethod("GetCurrentProperties", BindingFlags.Public | BindingFlags.Instance);
-            var props = getPropsMethod?.Invoke(proxy, null);
+            var props = GameMethod.Call<Entity>(entity, x => x.GetCurrentProperties());
             if (props == null) return 0;
 
-            var getDetectionMethod = props.GetType().GetMethod("GetDetection", BindingFlags.Public | BindingFlags.Instance);
-            if (getDetectionMethod != null)
-            {
-                return (int)getDetectionMethod.Invoke(props, null);
-            }
-
-            return 0;
+            var propsObj = GameObj.FromPointer(((Il2CppObjectBase)props).Pointer);
+            return GameMethod.CallInt<EntityProperties>(propsObj, x => x.GetDetection());
         }
         catch (Exception ex)
         {
@@ -271,23 +203,11 @@ public static class LineOfSight
 
         try
         {
-            var actorType = _actorType?.ManagedType;
-            if (actorType == null) return 0;
-
-            var proxy = GetManagedProxy(entity, actorType);
-            if (proxy == null) return 0;
-
-            var getPropsMethod = actorType.GetMethod("GetCurrentProperties", BindingFlags.Public | BindingFlags.Instance);
-            var props = getPropsMethod?.Invoke(proxy, null);
+            var props = GameMethod.Call<Entity>(entity, x => x.GetCurrentProperties());
             if (props == null) return 0;
 
-            var getConcealMethod = props.GetType().GetMethod("GetConcealment", BindingFlags.Public | BindingFlags.Instance);
-            if (getConcealMethod != null)
-            {
-                return (int)getConcealMethod.Invoke(props, null);
-            }
-
-            return 0;
+            var propsObj = GameObj.FromPointer(((Il2CppObjectBase)props).Pointer);
+            return GameMethod.CallInt<EntityProperties>(propsObj, x => x.GetConcealment());
         }
         catch (Exception ex)
         {
@@ -297,69 +217,65 @@ public static class LineOfSight
     }
 
     /// <summary>
+    /// Get visibility info for an entity.
+    /// </summary>
+    public static VisibilityInfo GetVisibilityInfo(GameObj entity)
+    {
+        if (entity.IsNull) return null;
+
+        try
+        {
+            return new VisibilityInfo
+            {
+                State = GetVisibilityState(entity),
+                IsVisible = IsVisibleToPlayer(entity),
+                IsRevealed = IsRevealed(entity),
+                Vision = GetVision(entity),
+                Detection = GetDetection(entity),
+                Concealment = GetConcealment(entity)
+            };
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("LineOfSight.GetVisibilityInfo", "Failed", ex);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Get all tiles visible from a position within a given range.
     /// </summary>
-    public static List<(int x, int y)> GetVisibleTiles(int centerX, int centerY, int range)
+    public static List<(int x, int z)> GetVisibleTiles(int centerX, int centerZ, int range)
     {
-        var result = new List<(int x, int y)>();
-        var centerTile = TileMap.GetTile(centerX, centerY);
-        if (centerTile.IsNull) return result;
+        var result = new List<(int x, int z)>();
 
-        var mapInfo = TileMap.GetMapInfo();
-        if (mapInfo == null) return result;
-
-        // Check all tiles in range
-        for (int x = Math.Max(0, centerX - range); x <= Math.Min(mapInfo.Width - 1, centerX + range); x++)
+        try
         {
-            for (int y = Math.Max(0, centerY - range); y <= Math.Min(mapInfo.Height - 1, centerY + range); y++)
-            {
-                // Skip if too far (circular check)
-                int dx = x - centerX;
-                int dy = y - centerY;
-                if (dx * dx + dy * dy > range * range) continue;
+            var centerTile = TileMap.GetTile(centerX, centerZ);
+            if (centerTile.IsNull) return result;
 
-                // Check LOS
-                if (HasLOS(centerX, centerY, x, y))
+            var mapInfo = TileMap.GetMapInfo();
+            if (mapInfo == null) return result;
+
+            for (int x = Math.Max(0, centerX - range); x <= Math.Min(mapInfo.SizeX - 1, centerX + range); x++)
+            {
+                for (int z = Math.Max(0, centerZ - range); z <= Math.Min(mapInfo.SizeZ - 1, centerZ + range); z++)
                 {
-                    result.Add((x, y));
+                    int dx = x - centerX;
+                    int dz = z - centerZ;
+                    if (dx * dx + dz * dz > range * range) continue;
+
+                    if (HasLineOfSight(centerX, centerZ, x, z))
+                        result.Add((x, z));
                 }
             }
         }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("LineOfSight.GetVisibleTiles", "Failed", ex);
+        }
 
         return result;
-    }
-
-    /// <summary>
-    /// Get visibility info for an actor.
-    /// </summary>
-    public static VisibilityInfo GetVisibilityInfo(GameObj actor)
-    {
-        if (actor.IsNull) return null;
-
-        return new VisibilityInfo
-        {
-            State = GetVisibilityState(actor),
-            StateName = GetVisibilityStateName(GetVisibilityState(actor)),
-            IsVisible = IsVisibleToPlayer(actor),
-            IsMarked = IsMarked(actor),
-            Vision = GetVision(actor),
-            Detection = GetDetection(actor),
-            Concealment = GetConcealment(actor)
-        };
-    }
-
-    /// <summary>
-    /// Visibility information structure.
-    /// </summary>
-    public class VisibilityInfo
-    {
-        public int State { get; set; }
-        public string StateName { get; set; }
-        public bool IsVisible { get; set; }
-        public bool IsMarked { get; set; }
-        public int Vision { get; set; }
-        public int Detection { get; set; }
-        public int Concealment { get; set; }
     }
 
     /// <summary>
@@ -367,7 +283,6 @@ public static class LineOfSight
     /// </summary>
     public static void RegisterConsoleCommands()
     {
-        // los <x1> <y1> <x2> <y2> - Check LOS between tiles
         DevConsole.RegisterCommand("los", "<x1> <y1> <x2> <y2>", "Check line of sight between tiles", args =>
         {
             if (args.Length < 4)
@@ -376,14 +291,13 @@ public static class LineOfSight
                 !int.TryParse(args[2], out int x2) || !int.TryParse(args[3], out int y2))
                 return "Invalid coordinates";
 
-            var hasLos = HasLOS(x1, y1, x2, y2);
+            var hasLos = HasLineOfSight(x1, y1, x2, y2);
             var dist = TileMap.GetDistance(x1, y1, x2, y2);
 
             return $"LOS from ({x1},{y1}) to ({x2},{y2}): {(hasLos ? "Clear" : "Blocked")}\n" +
                    $"Distance: {dist:F1}";
         });
 
-        // visibility - Show visibility info for selected actor
         DevConsole.RegisterCommand("visibility", "", "Show visibility info for selected actor", args =>
         {
             var actor = TacticalController.GetActiveActor();
@@ -392,13 +306,12 @@ public static class LineOfSight
             var info = GetVisibilityInfo(actor);
             if (info == null) return "Could not get visibility info";
 
-            return $"Visibility State: {info.StateName}\n" +
-                   $"Is Visible: {info.IsVisible}, Marked: {info.IsMarked}\n" +
+            return $"Visibility State: {info.State}\n" +
+                   $"Is Visible: {info.IsVisible}, Revealed: {info.IsRevealed}\n" +
                    $"Vision: {info.Vision}, Detection: {info.Detection}\n" +
                    $"Concealment: {info.Concealment}";
         });
 
-        // vision [actor] - Get vision range
         DevConsole.RegisterCommand("vision", "", "Get vision range for selected actor", args =>
         {
             var actor = TacticalController.GetActiveActor();
@@ -407,7 +320,6 @@ public static class LineOfSight
             return $"Vision: {GetVision(actor)}, Detection: {GetDetection(actor)}, Concealment: {GetConcealment(actor)}";
         });
 
-        // cansee <target_name> - Check if selected can see target
         DevConsole.RegisterCommand("cansee", "<target_name>", "Check if selected actor can see target", args =>
         {
             if (args.Length == 0)
@@ -425,7 +337,6 @@ public static class LineOfSight
             return $"Can see '{targetName}': {canSee}";
         });
 
-        // visibletiles <range> - List visible tiles from selected actor
         DevConsole.RegisterCommand("visibletiles", "<range>", "Count visible tiles from selected actor", args =>
         {
             var actor = TacticalController.GetActiveActor();
@@ -443,9 +354,4 @@ public static class LineOfSight
             return $"Visible tiles within range {range}: {visibleTiles.Count}";
         });
     }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }

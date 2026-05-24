@@ -497,63 +497,62 @@ public class LuaSkill
 [MoonSharpUserData]
 public class LuaTile
 {
-    private readonly Tile _tile;
+    private readonly GameObj _tile;
 
     public LuaTile(long ptr)
     {
-        // Note: Tile needs coordinates, try to look up from pointer
-        _tile = new Tile(new IntPtr(ptr));
+        _tile = GameObj.FromPointer(new IntPtr(ptr));
     }
 
     public LuaTile(IntPtr ptr)
     {
-        _tile = new Tile(ptr);
+        _tile = GameObj.FromPointer(ptr);
     }
 
-    public LuaTile(Tile tile)
+    public LuaTile(GameObj gameObj)
     {
-        _tile = tile;
+        _tile = gameObj;
     }
 
-    private LuaTile(int x, int y)
+    private LuaTile(int x, int z)
     {
-        _tile = Tile.At(x, y);
+        _tile = TileMap.GetTile(x, z);
     }
 
     /// <summary>
     /// Create a tile at coordinates.
     /// </summary>
-    public static LuaTile At(int x, int y)
+    public static LuaTile At(int x, int z)
     {
-        var tile = Tile.At(x, y);
-        return tile != null ? new LuaTile(tile) : null;
+        var tile = TileMap.GetTile(x, z);
+        return !tile.IsNull ? new LuaTile(tile) : null;
     }
 
     // ═══════════════════════════════════════════════════════════════════
     //  Properties
     // ═══════════════════════════════════════════════════════════════════
 
-    public long ptr => _tile?.Pointer.ToInt64() ?? 0;
-    public bool is_valid => _tile?.IsValid ?? false;
-    public int x => _tile?.X ?? -1;
-    public int y => _tile?.Y ?? -1;
+    public long ptr => _tile.IsNull ? 0 : _tile.Pointer.ToInt64();
+    public bool is_valid => !_tile.IsNull;
+    public int x => _tile.IsNull ? -1 : TileMap.GetTileInfo(_tile)?.X ?? -1;
+    public int z => _tile.IsNull ? -1 : TileMap.GetTileInfo(_tile)?.Z ?? -1;
 
     /// <summary>
     /// Whether this tile is blocked (impassable).
     /// if not tile.is_blocked then ...
     /// </summary>
-    public bool is_blocked => _tile?.IsBlocked ?? true;
+    public bool is_blocked => _tile.IsNull || TileMap.IsBlocked(_tile);
 
     /// <summary>
     /// Whether this tile has an actor on it.
     /// if tile.has_actor then ...
     /// </summary>
-    public bool has_actor => _tile?.HasActor ?? false;
+    public bool has_actor => !_tile.IsNull && TileMap.HasActor(_tile);
 
     /// <summary>
     /// Whether this tile is visible to the player.
     /// </summary>
-    public bool is_visible => _tile?.IsVisibleToPlayer ?? false;
+    public bool is_visible => !_tile.IsNull && TileMap.IsVisibleToPlayer(_tile);
 
     // ═══════════════════════════════════════════════════════════════════
     //  Methods
@@ -565,7 +564,7 @@ public class LuaTile
     /// </summary>
     public int get_cover(int direction)
     {
-        return _tile?.GetCover(direction) ?? 0;
+        return _tile.IsNull ? 0 : TileMap.GetCover(_tile, direction);
     }
 
     /// <summary>
@@ -574,7 +573,7 @@ public class LuaTile
     /// </summary>
     public int[] get_all_cover()
     {
-        return _tile?.GetAllCover() ?? Array.Empty<int>();
+        return _tile.IsNull ? Array.Empty<int>() : TileMap.GetAllCover(_tile);
     }
 
     /// <summary>
@@ -583,8 +582,9 @@ public class LuaTile
     /// </summary>
     public LuaActor get_occupant()
     {
-        var actor = _tile?.GetOccupant();
-        return actor != null ? new LuaActor(actor) : null;
+        if (_tile.IsNull) return null;
+        var actor = TileMap.GetActorOnTile(_tile);
+        return actor.IsNull ? null : new LuaActor(actor.Pointer.ToInt64());
     }
 
     /// <summary>
@@ -593,8 +593,9 @@ public class LuaTile
     /// </summary>
     public LuaTile get_neighbor(int direction)
     {
-        var neighbor = _tile?.GetNeighbor(direction);
-        return neighbor != null ? new LuaTile(neighbor) : null;
+        if (_tile.IsNull) return null;
+        var neighbor = TileMap.GetNeighbor(_tile, direction);
+        return neighbor.IsNull ? null : new LuaTile(neighbor);
     }
 
     /// <summary>
@@ -603,12 +604,12 @@ public class LuaTile
     /// </summary>
     public int distance_to(LuaTile other)
     {
-        if (other == null || other._tile == null) return int.MaxValue;
-        return _tile?.DistanceTo(other._tile) ?? int.MaxValue;
+        if (_tile.IsNull || other == null || other._tile.IsNull) return int.MaxValue;
+        return TileMap.GetDistance(_tile, other._tile);
     }
 
     public override string ToString()
     {
-        return $"Tile({x}, {y}, Blocked={is_blocked}, HasActor={has_actor})";
+        return $"Tile({x}, {z}, Blocked={is_blocked}, HasActor={has_actor})";
     }
 }
