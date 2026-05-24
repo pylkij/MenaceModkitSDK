@@ -59,19 +59,36 @@ public class DevModePlugin
     private Assembly _gameAssembly;
     private List<UnityEngine.Object> _allEntityObjects = new();
 
-    // Declared at class level — resolved once
-    static readonly FieldHandle<WeaponTemplate, float> _hWeaponDamage =
-        GameObj<WeaponTemplate>.ResolveField(x => x.Damage);
-    static readonly FieldHandle<WeaponTemplate, float> _hWeaponAccuracy =
-        GameObj<WeaponTemplate>.ResolveField(x => x.AccuracyBonus);
-    static readonly ObjFieldHandle<EntityTemplate, EntityProperties> _hEntityProps =
-        GameObj<EntityTemplate>.ResolveObjField(x => x.Properties);
+    // Declare only
+    private static FieldHandle<WeaponTemplate, float> _hWeaponDamage;
+    private static FieldHandle<WeaponTemplate, float> _hWeaponAccuracy;
+    private static ObjFieldHandle<EntityTemplate, EntityProperties> _hEntityProps;
+    private static FieldHandle<EntityProperties, int> _hEntityHp;
 
-    static readonly FieldHandle<EntityProperties, int> _hEntityHp =
-        GameObj<EntityProperties>.ResolveField(x => x.HitpointsPerElement);
+    private static bool _handlesResolved = false;
 
-    public void Initialize(HarmonyLib.Harmony harmony)
+    private static void ResolveHandles()
     {
+        if (_handlesResolved) return;
+        try
+        {
+            _hWeaponDamage = GameObj<WeaponTemplate>.ResolveField(x => x.Damage);
+            _hWeaponAccuracy = GameObj<WeaponTemplate>.ResolveField(x => x.AccuracyBonus);
+            _hEntityProps = GameObj<EntityTemplate>.ResolveObjField(x => x.Properties);
+            _hEntityHp = GameObj<EntityProperties>.ResolveField(x => x.HitpointsPerElement);
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            ModError.ReportInternal("DevMode.ResolveHandles", "Field handle resolution failed", ex);
+        }
+    }
+
+    public void Initialize(HarmonyLib.Harmony harmony, MelonLogger.Instance logger)
+    {
+        SdkLogger = logger;
+        GameState.SceneLoaded += _ => ResolveHandles();
+
         SdkLogger.Msg("Menace Dev Mode v1.1.1");
         DevConsole.RegisterPanel("Dev Mode", DrawDevModePanel);
 
