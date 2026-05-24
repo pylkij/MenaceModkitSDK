@@ -299,30 +299,25 @@ public static class LineOfSight
     /// <summary>
     /// Get all tiles visible from a position within a given range.
     /// </summary>
-    public static List<(int x, int y)> GetVisibleTiles(int centerX, int centerY, int range)
+    public static List<(int x, int z)> GetVisibleTiles(int centerX, int centerZ, int range)
     {
-        var result = new List<(int x, int y)>();
-        var centerTile = TileMap.GetTile(centerX, centerY);
+        var result = new List<(int x, int z)>();
+        var centerTile = TileMap.GetTile(centerX, centerZ);
         if (centerTile.IsNull) return result;
 
         var mapInfo = TileMap.GetMapInfo();
         if (mapInfo == null) return result;
 
-        // Check all tiles in range
-        for (int x = Math.Max(0, centerX - range); x <= Math.Min(mapInfo.Width - 1, centerX + range); x++)
+        for (int x = Math.Max(0, centerX - range); x <= Math.Min(mapInfo.SizeX - 1, centerX + range); x++)
         {
-            for (int y = Math.Max(0, centerY - range); y <= Math.Min(mapInfo.Height - 1, centerY + range); y++)
+            for (int z = Math.Max(0, centerZ - range); z <= Math.Min(mapInfo.SizeZ - 1, centerZ + range); z++)
             {
-                // Skip if too far (circular check)
                 int dx = x - centerX;
-                int dy = y - centerY;
-                if (dx * dx + dy * dy > range * range) continue;
+                int dz = z - centerZ;
+                if (dx * dx + dz * dz > range * range) continue;
 
-                // Check LOS
-                if (HasLOS(centerX, centerY, x, y))
-                {
-                    result.Add((x, y));
-                }
+                if (HasLOS(centerX, centerZ, x, z))
+                    result.Add((x, z));
             }
         }
 

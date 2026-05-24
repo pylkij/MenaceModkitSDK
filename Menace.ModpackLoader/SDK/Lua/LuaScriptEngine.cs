@@ -1583,7 +1583,7 @@ public class LuaScriptEngine
         table["has_actor"] = info.HasActor;
         table["actor_name"] = info.ActorName ?? "";
         table["visible"] = info.IsVisibleToPlayer;
-        table["blocks_los"] = info.BlocksLOS;
+        table["blocks_los"] = info.IsLOSBlockedByHalfcover;
         table["has_effects"] = info.HasEffects;
         return DynValue.NewTable(table);
     }
@@ -1614,9 +1614,9 @@ public class LuaScriptEngine
         if (info == null) return DynValue.Nil;
 
         var table = new Table(_lua);
-        table["width"] = info.Width;
-        table["height"] = info.Height;
-        table["fog_of_war"] = info.UseFogOfWar;
+        table["width"] = info.SizeX;
+        table["height"] = info.SizeZ;
+        table["fog_of_war"] = info.IsUsingFogOfWar;
         return DynValue.NewTable(table);
     }
 

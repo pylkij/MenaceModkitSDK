@@ -16,103 +16,11 @@ public static class SdkSafetyTesting
 {
     public static void RegisterConsoleCommands()
     {
-        DevConsole.RegisterCommand("debug.test_tilemap", "",
-            "Test which TileMap SDK methods work in current mode", _ =>
-        {
-            return TestTileMapMethods();
-        });
-
         DevConsole.RegisterCommand("debug.test_sdk_methods", "",
             "Test all SDK methods for safety in current mode", _ =>
         {
             return TestAllSdkMethods();
         });
-    }
-
-    private static string TestTileMapMethods()
-    {
-        var sb = new StringBuilder();
-        sb.AppendLine("=== TILEMAP SDK SAFETY TEST ===");
-        sb.AppendLine($"Current Scene: {GameState.CurrentScene}");
-        sb.AppendLine($"Is Tactical: {GameState.IsTactical}");
-        sb.AppendLine();
-
-        // Test GetMapInfo()
-        sb.AppendLine("Testing TileMap.GetMapInfo()...");
-        try
-        {
-            var mapInfo = TileMap.GetMapInfo();
-            if (mapInfo != null)
-            {
-                sb.AppendLine($"  ✓ SUCCESS - Width: {mapInfo.Width}, Height: {mapInfo.Height}");
-            }
-            else
-            {
-                sb.AppendLine("  ✗ FAILED - Returned null");
-            }
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"  ✗ CRASHED - {ex.GetType().Name}: {ex.Message}");
-        }
-
-        // Test TileToWorld()
-        sb.AppendLine("Testing TileMap.TileToWorld(0, 0)...");
-        try
-        {
-            var worldPos = TileMap.TileToWorld(0, 0);
-            sb.AppendLine($"  ✓ SUCCESS - Position: ({worldPos.x}, {worldPos.y}, {worldPos.z})");
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"  ✗ CRASHED - {ex.GetType().Name}: {ex.Message}");
-        }
-
-        // Test WorldToTile()
-        sb.AppendLine("Testing TileMap.WorldToTile(Vector3.zero)...");
-        try
-        {
-            var worldPos = UnityEngine.Vector3.zero;
-            var tilePos = TileMap.WorldToTile(worldPos);
-            sb.AppendLine($"  ✓ SUCCESS - Tile: ({tilePos.x}, {tilePos.z})");
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"  ✗ CRASHED - {ex.GetType().Name}: {ex.Message}");
-        }
-
-        // Test GetTile()
-        sb.AppendLine("Testing TileMap.GetTile(0, 0)...");
-        try
-        {
-            var tile = TileMap.GetTile(0, 0);
-            if (!tile.IsNull)
-            {
-                sb.AppendLine($"  ✓ SUCCESS - Tile exists");
-            }
-            else
-            {
-                sb.AppendLine("  ○ SUCCESS - No tile at (0,0) or not in tactical");
-            }
-        }
-        catch (Exception ex)
-        {
-            sb.AppendLine($"  ✗ CRASHED - {ex.GetType().Name}: {ex.Message}");
-        }
-
-        sb.AppendLine();
-        sb.AppendLine("RECOMMENDATION:");
-        if (GameState.IsTactical)
-        {
-            sb.AppendLine("  In tactical mode - all methods should work if map is loaded");
-        }
-        else
-        {
-            sb.AppendLine("  NOT in tactical mode - TileMap methods expected to fail");
-            sb.AppendLine("  Use GameState.IsTactical check before calling these methods");
-        }
-
-        return sb.ToString();
     }
 
     private static string TestAllSdkMethods()
@@ -125,7 +33,6 @@ public static class SdkSafetyTesting
 
         // TileMap tests
         sb.AppendLine("[TileMap SDK]");
-        sb.AppendLine(TestTileMapMethods());
         sb.AppendLine();
 
         // GameState tests

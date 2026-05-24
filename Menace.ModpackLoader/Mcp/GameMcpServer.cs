@@ -611,9 +611,9 @@ public static class GameMcpServer
         return new
         {
             available = true,
-            width = info.Width,
-            height = info.Height,
-            fogOfWar = info.UseFogOfWar
+            width = info.SizeX,
+            height = info.SizeZ,
+            fogOfWar = info.IsUsingFogOfWar
         };
     }
 
@@ -770,30 +770,30 @@ public static class GameMcpServer
     private static object HandleTile(HttpListenerRequest request)
     {
         var xStr = request.QueryString["x"];
-        var yStr = request.QueryString["y"];
+        var zStr = request.QueryString["z"];
 
-        if (string.IsNullOrEmpty(xStr) || string.IsNullOrEmpty(yStr))
-            return new { error = "Provide x and y coordinates" };
+        if (string.IsNullOrEmpty(xStr) || string.IsNullOrEmpty(zStr))
+            return new { error = "Provide x and z coordinates" };
 
-        if (!int.TryParse(xStr, out int x) || !int.TryParse(yStr, out int y))
-            return new { error = "Invalid x or y" };
+        if (!int.TryParse(xStr, out int x) || !int.TryParse(zStr, out int z))
+            return new { error = "Invalid x or z" };
 
-        var info = TileMap.GetTileInfo(x, y);
+        var info = TileMap.GetTileInfo(x, z);
         if (info == null)
-            return new { error = $"Tile at ({x}, {y}) not found" };
+            return new { error = $"Tile at ({x}, {z}) not found" };
 
-        var allCover = TileMap.GetAllCover(x, y);
+        var allCover = TileMap.GetAllCover(x, z);
 
         return new
         {
             x = info.X,
-            y = info.Z,
+            z = info.Z,
             elevation = info.Elevation,
             isBlocked = info.IsBlocked,
             hasActor = info.HasActor,
             actorName = info.ActorName,
             isVisibleToPlayer = info.IsVisibleToPlayer,
-            blocksLOS = info.BlocksLOS,
+            blocksLOS = info.IsLOSBlockedByHalfcover,
             hasEffects = info.HasEffects,
             cover = new
             {
@@ -901,7 +901,7 @@ public static class GameMcpServer
             actor = actor.GetName(),
             maxAP = maxAP,
             tileCount = reachable.Count,
-            tiles = reachable.Select(t => new { x = t.x, y = t.y, cost = t.cost }).ToList()
+            tiles = reachable.Select(t => new { x = t.x, z = t.z, cost = t.cost }).ToList()
         };
     }
 
