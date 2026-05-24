@@ -973,12 +973,8 @@ public class DevModePlugin
 
     private void LoadEntityTemplates(UnityEngine.Object[] allObjects)
     {
-        int totalCount = 0;
         int nullPtrCount = 0;
-        int nonActorCount = 0;
-        int noNameCount = 0;
         int errorCount = 0;
-        var seenEntityTypes = new HashSet<string>();
         var entries = new List<(string name, string actorType, UnityEngine.Object obj)>();
 
         bool showAllTypes = ModSettings.Get<bool>("Dev Mode", "ShowAllEntityTypes");
@@ -986,7 +982,6 @@ public class DevModePlugin
         foreach (var obj in allObjects)
         {
             if (obj == null) continue;
-            totalCount++;
 
             try
             {
@@ -998,10 +993,7 @@ public class DevModePlugin
                 var typed = Activator.CreateInstance(_entityTemplateType, new object[] { ptr });
 
                 var entityTypeVal = _entityTypeProperty.GetValue(typed);
-                var entityTypeName = entityTypeVal?.ToString() ?? "null";
-                seenEntityTypes.Add(entityTypeName);
-
-                if (!showAllTypes && !Equals(entityTypeVal, _entityTypeActorValue)) { nonActorCount++; continue; }
+                if (!showAllTypes && !Equals(entityTypeVal, _entityTypeActorValue)) continue;
 
                 string actorTypeName = "Unit";
                 if (_actorTypeProperty != null)
@@ -1013,7 +1005,7 @@ public class DevModePlugin
 
                 string name = "(unknown)";
                 try { name = obj.name; } catch { }
-                if (string.IsNullOrEmpty(name) || name == "(unknown)") { noNameCount++; continue; }
+                if (string.IsNullOrEmpty(name) || name == "(unknown)") continue;
 
                 entries.Add((name, actorTypeName, obj));
             }
@@ -1025,8 +1017,10 @@ public class DevModePlugin
             }
         }
 
-        SdkLogger.Msg($"Entity scan: {totalCount} total, {entries.Count} actors, {nonActorCount} non-actor, {nullPtrCount} null ptr, {noNameCount} unnamed, {errorCount} errors");
-        SdkLogger.Msg($"EntityType values seen: {string.Join(", ", seenEntityTypes)}");
+        if (nullPtrCount > 0)
+            SdkLogger.Warning($"LoadEntityTemplates: {nullPtrCount} null pointers skipped");
+        if (errorCount > 0)
+            SdkLogger.Warning($"LoadEntityTemplates: {errorCount} errors during iteration");
 
         entries.Sort((a, b) => string.Compare(a.name, b.name, StringComparison.Ordinal));
 
@@ -1037,10 +1031,7 @@ public class DevModePlugin
             _entityActorTypes.Add(actorType);
         }
 
-        SdkLogger.Msg($"Entity templates: {_entityTemplates.Count} actors (filtered from {totalCount} total)");
-
-        var sample = entries.Take(20).Select(e => $"{e.name} ({e.actorType})");
-        SdkLogger.Msg($"First entities: {string.Join(", ", sample)}");
+        SdkLogger.Msg($"Loaded {_entityTemplates.Count} entity templates");
     }
 
     private void CacheActionCtor(Assembly gameAssembly, string typeName, out ConstructorInfo ctor)
