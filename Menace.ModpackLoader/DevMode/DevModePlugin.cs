@@ -244,8 +244,8 @@ public class DevModePlugin
 
             // Get all UnitLeaderTemplates via SDK Templates.FindAllManaged
             // Use full namespace for reliable type resolution
-            var allLeaders = Templates.FindAll<UnitLeaderTemplate>();
-            SdkLogger.Msg($"Found {allLeaders.Count} UnitLeaderTemplates");
+            var allLeaders = Templates.FindAll<UnitLeaderTemplate>().ToArray();
+            SdkLogger.Msg($"Found {allLeaders.Length} UnitLeaderTemplates");
 
             // Get the Add and Contains methods on the hirable list
             var addMethod = listType.GetMethod("Add");
@@ -342,8 +342,8 @@ public class DevModePlugin
 
         SdkLogger.Msg($"Applying gameplay tweaks: damage={damageMult}x, accuracy+={accuracyBonus}, health={healthMult}x");
 
-        var weapons = Templates.FindAll<WeaponTemplate>();
-        if (weapons.Count > 0)
+        var weapons = Templates.FindAll<WeaponTemplate>().ToArray();
+        if (weapons.Length > 0)
         {
             int modified = 0;
             foreach (var weapon in weapons)
@@ -397,8 +397,8 @@ public class DevModePlugin
                 SdkLogger.Msg($"  Modified {modified} player weapons (accuracy +{accuracyBonus})");
         }
 
-        var entities = Templates.FindAll<EntityTemplate>();
-        if (entities.Count > 0)
+        var entities = Templates.FindAll<EntityTemplate>().ToArray();
+        if (entities.Length > 0)
         {
             int modified = 0;
             foreach (var entity in entities)
