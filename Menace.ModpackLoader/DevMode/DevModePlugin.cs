@@ -16,7 +16,7 @@ using UnityEngine.Playables;
 
 namespace Menace.ModpackLoader;
 
-public class DevModePlugin : IModpackPlugin
+public class DevModePlugin
 {
     private MelonLogger.Instance _log;
     private HarmonyLib.Harmony _harmony;
@@ -70,10 +70,8 @@ public class DevModePlugin : IModpackPlugin
     static readonly FieldHandle<EntityProperties, int> _hEntityHp =
         GameObj<EntityProperties>.ResolveField(x => x.HitpointsPerElement);
 
-    public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
+    public void Initialize(HarmonyLib.Harmony harmony)
     {
-        _log = logger;
-        _harmony = harmony;
         _log.Msg("Menace Dev Mode v1.1.1");
         DevConsole.RegisterPanel("Dev Mode", DrawDevModePanel);
 
