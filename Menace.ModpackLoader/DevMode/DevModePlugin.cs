@@ -537,26 +537,14 @@ public class DevModePlugin
     {
         try
         {
-            SdkLogger.Msg("Loading entity templates via DataTemplateLoader...");
-
             var loaderType = gameAssembly.GetTypes()
                 .FirstOrDefault(t => t.Name == "DataTemplateLoader");
 
             if (loaderType == null)
             {
-                var loaderCandidates = gameAssembly.GetTypes()
-                    .Where(t => t.Name.Contains("Loader") || t.Name.Contains("Template") || t.Name.Contains("Data"))
-                    .Where(t => t.GetMethods(BindingFlags.Public | BindingFlags.Static).Any(m => m.Name.Contains("Get")))
-                    .Select(t => t.Name)
-                    .Take(20);
-                SdkLogger.Warning($"DataTemplateLoader not found. Static getter types: {string.Join(", ", loaderCandidates)}");
+                SdkLogger.Warning("DataTemplateLoader type not found — spawn menu unavailable");
                 return;
             }
-
-            var loaderMethods = loaderType.GetMethods(BindingFlags.Public | BindingFlags.Static)
-                .Select(m => $"{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))}){(m.IsGenericMethodDefinition ? "<T>" : "")}")
-                .ToList();
-            SdkLogger.Msg($"DataTemplateLoader methods: {string.Join(", ", loaderMethods)}");
 
             var getAllMethod = loaderType.GetMethods(BindingFlags.Public | BindingFlags.Static)
                 .FirstOrDefault(m => m.Name == "GetAll" && m.IsGenericMethodDefinition);
@@ -575,8 +563,6 @@ public class DevModePlugin
                 SdkLogger.Warning("DataTemplateLoader.GetAll<EntityTemplate>() returned null");
                 return;
             }
-
-            SdkLogger.Msg($"GetAll returned type: {collection.GetType().FullName}");
 
             var entityObjects = EnumerateIl2CppCollection(collection);
 
@@ -858,18 +844,9 @@ public class DevModePlugin
                 .FirstOrDefault(t => t.Name == "DevSettings");
             if (devSettingsType == null)
             {
-                var settingsCandidates = gameAssembly.GetTypes()
-                    .Where(t => t.Name.Contains("Setting") || t.Name.Contains("Dev") || t.Name.Contains("Cheat"))
-                    .Select(t => t.Name)
-                    .Take(20);
-                SdkLogger.Warning($"DevSettings type not found. Candidates: {string.Join(", ", settingsCandidates)}");
+                SdkLogger.Warning("DevSettings type not found");
                 return;
             }
-
-            var allFields = devSettingsType.GetFields(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
-                .Select(f => f.Name)
-                .ToList();
-            SdkLogger.Msg($"DevSettings fields ({allFields.Count}): {string.Join(", ", allFields.Take(30))}");
 
             var nativeFieldInfo = devSettingsType.GetField("NativeFieldInfoPtr_VALUES",
                 BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
@@ -880,7 +857,6 @@ public class DevModePlugin
             }
 
             IntPtr fieldInfoPtr = (IntPtr)nativeFieldInfo.GetValue(null);
-            SdkLogger.Msg($"DevSettings fieldInfoPtr = 0x{fieldInfoPtr.ToInt64():X}");
             if (fieldInfoPtr == IntPtr.Zero) return;
 
             IntPtr arrayPtr;
@@ -891,18 +867,16 @@ public class DevModePlugin
                 arrayPtr = temp;
             }
 
-            SdkLogger.Msg($"DevSettings arrayPtr = 0x{arrayPtr.ToInt64():X}");
             if (arrayPtr == IntPtr.Zero) return;
 
             const int headerSize = 0x20;
             const int elemSize = 4;
 
             int arrayLength = Marshal.ReadInt32(arrayPtr + 0x18);
-            SdkLogger.Msg($"DevSettings VALUES array length = {arrayLength}, CheatsEnabled index = {_cheatsEnabledIndex}, ShowDevSettings index = {_showDevSettingsIndex}");
 
             if (_cheatsEnabledIndex >= arrayLength)
             {
-                SdkLogger.Warning($"CheatsEnabled index {_cheatsEnabledIndex} is out of bounds (array length {arrayLength})");
+                SdkLogger.Warning($"CheatsEnabled index {_cheatsEnabledIndex} out of bounds (length {arrayLength})");
                 return;
             }
 
@@ -912,7 +886,8 @@ public class DevModePlugin
                 Marshal.WriteInt32(arrayPtr + headerSize + (_showDevSettingsIndex * elemSize), 1);
 
             _cheatsEnabled = Marshal.ReadInt32(arrayPtr + headerSize + (_cheatsEnabledIndex * elemSize)) == 1;
-            SdkLogger.Msg($"CheatsEnabled = {_cheatsEnabled}");
+            if (!_cheatsEnabled)
+                SdkLogger.Warning("CheatsEnabled write succeeded but readback returned false");
         }
         catch (Exception ex)
         {
@@ -928,26 +903,19 @@ public class DevModePlugin
                 .FirstOrDefault(t => t.Name == "TacticalState");
             if (tacticalStateType != null)
             {
-                var methods = tacticalStateType.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.Instance)
-                    .Where(m => !m.IsSpecialName)
-                    .Select(m => $"{(m.IsStatic ? "static " : "")}{m.Name}({string.Join(", ", m.GetParameters().Select(p => p.ParameterType.Name))})")
-                    .ToList();
-                SdkLogger.Msg($"TacticalState methods ({methods.Count}): {string.Join(", ", methods.Take(25))}");
-
                 _tacticalStateGet = tacticalStateType.GetMethod("Get",
                     BindingFlags.Public | BindingFlags.Static);
                 _startDevModeAction = tacticalStateType.GetMethod("StartDevModeAction",
                     BindingFlags.Public | BindingFlags.Instance);
 
-                SdkLogger.Msg($"TacticalState.Get={_tacticalStateGet != null}, StartDevModeAction={_startDevModeAction != null}");
+                if (_tacticalStateGet == null)
+                    SdkLogger.Warning("TacticalState.Get not found");
+                if (_startDevModeAction == null)
+                    SdkLogger.Warning("TacticalState.StartDevModeAction not found");
             }
             else
             {
-                var stateCandidates = gameAssembly.GetTypes()
-                    .Where(t => t.Name.Contains("Tactical") || t.Name.Contains("State"))
-                    .Select(t => t.Name)
-                    .Take(20);
-                SdkLogger.Warning($"TacticalState not found. Candidates: {string.Join(", ", stateCandidates)}");
+                SdkLogger.Warning("TacticalState type not found");
             }
 
             var godModeType = gameAssembly.GetTypes().FirstOrDefault(t => t.Name == "GodModeAction");
@@ -967,7 +935,6 @@ public class DevModePlugin
                         {
                             var targetName = Enum.GetNames(targetEnum).FirstOrDefault(n => n == "Target") ?? Enum.GetNames(targetEnum).First();
                             _godModeTargetValue = Enum.Parse(targetEnum, targetName);
-                            SdkLogger.Msg($"GodModeAction: using 1-param ctor with GodModeTarget.{targetName}");
                         }
                         else
                         {
@@ -976,10 +943,10 @@ public class DevModePlugin
                         }
                     }
                 }
-                else
-                {
-                    SdkLogger.Msg("GodModeAction: using parameterless ctor (demo build)");
-                }
+            }
+            else
+            {
+                SdkLogger.Warning("GodModeAction type not found");
             }
 
             CacheActionCtor(gameAssembly, "DeleteEntityAction", out _deleteEntityActionCtor);
@@ -988,26 +955,15 @@ public class DevModePlugin
                 .FirstOrDefault(t => t.Name == "SpawnEntityAction");
             if (spawnType != null)
             {
-                var ctors = spawnType.GetConstructors()
-                    .Select(c => $"({string.Join(", ", c.GetParameters().Select(p => $"{p.ParameterType.Name} {p.Name}"))})")
-                    .ToList();
-                SdkLogger.Msg($"SpawnEntityAction constructors: {string.Join(", ", ctors)}");
-
                 _spawnEntityActionCtor = spawnType.GetConstructors()
                     .FirstOrDefault(c => c.GetParameters().Length == 2);
+                if (_spawnEntityActionCtor == null)
+                    SdkLogger.Warning("SpawnEntityAction: no 2-param constructor found");
             }
             else
             {
-                var actionCandidates = gameAssembly.GetTypes()
-                    .Where(t => t.Name.Contains("Spawn") || t.Name.Contains("Action"))
-                    .Select(t => t.Name)
-                    .Take(20);
-                SdkLogger.Warning($"SpawnEntityAction not found. Candidates: {string.Join(", ", actionCandidates)}");
+                SdkLogger.Warning("SpawnEntityAction type not found");
             }
-
-            SdkLogger.Msg($"Actions: GodMode={_godModeActionCtor != null}, " +
-                             $"Delete={_deleteEntityActionCtor != null}, " +
-                             $"SpawnCtor={_spawnEntityActionCtor != null}");
         }
         catch (Exception ex)
         {
