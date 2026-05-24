@@ -244,8 +244,8 @@ public class DevModePlugin
 
             // Get all UnitLeaderTemplates via SDK Templates.FindAllManaged
             // Use full namespace for reliable type resolution
-            var allLeaders = Templates.FindAll<UnitLeaderTemplate>().ToArray();
-            SdkLogger.Msg($"Found {allLeaders.Length} UnitLeaderTemplates");
+            var allLeaders = Templates.FindAll<UnitLeaderTemplate>();
+            SdkLogger.Msg($"Found {allLeaders.Count} UnitLeaderTemplates");
 
             // Get the Add and Contains methods on the hirable list
             var addMethod = listType.GetMethod("Add");
@@ -342,8 +342,8 @@ public class DevModePlugin
 
         SdkLogger.Msg($"Applying gameplay tweaks: damage={damageMult}x, accuracy+={accuracyBonus}, health={healthMult}x");
 
-        var weapons = Templates.FindAll<WeaponTemplate>().ToArray();
-        if (weapons.Length > 0)
+        var weapons = Templates.FindAll<WeaponTemplate>();
+        if (weapons.Count > 0)
         {
             int modified = 0;
             foreach (var weapon in weapons)
@@ -397,8 +397,8 @@ public class DevModePlugin
                 SdkLogger.Msg($"  Modified {modified} player weapons (accuracy +{accuracyBonus})");
         }
 
-        var entities = Templates.FindAll<EntityTemplate>().ToArray();
-        if (entities.Length > 0)
+        var entities = Templates.FindAll<EntityTemplate>();
+        if (entities.Count > 0)
         {
             int modified = 0;
             foreach (var entity in entities)
@@ -757,18 +757,11 @@ public class DevModePlugin
     {
         try
         {
-            var etProps = _entityTemplateType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Select(p => $"{p.Name}:{p.PropertyType.Name}")
-                .ToList();
-            SdkLogger.Msg($"EntityTemplate properties ({etProps.Count}): {string.Join(", ", etProps)}");
-
             var entityTypeEnum = gameAssembly.GetTypes()
                 .FirstOrDefault(t => t.Name == "EntityType" && t.IsEnum);
             if (entityTypeEnum != null)
             {
-                var allNames = Enum.GetNames(entityTypeEnum);
-                SdkLogger.Msg($"EntityType enum values: {string.Join(", ", allNames)}");
-                foreach (var name in allNames)
+                foreach (var name in Enum.GetNames(entityTypeEnum))
                 {
                     if (name == "Actor")
                     {
@@ -776,10 +769,6 @@ public class DevModePlugin
                         break;
                     }
                 }
-            }
-            else
-            {
-                SdkLogger.Warning("EntityType enum not found in assembly");
             }
 
             if (_entityTypeActorValue == null)
@@ -799,43 +788,28 @@ public class DevModePlugin
                 return false;
             }
 
-            SdkLogger.Msg($"Resolved EntityTemplate.Type -> {_entityTypeProperty.PropertyType.Name}");
-            if (_actorTypeProperty != null)
-                SdkLogger.Msg($"Resolved EntityTemplate.ActorType -> {_actorTypeProperty.PropertyType.Name}");
-
             var devSettingEnum = gameAssembly.GetTypes()
                 .FirstOrDefault(t => t.Name == "DeveloperSettingType" && t.IsEnum);
             if (devSettingEnum != null)
             {
                 var names = Enum.GetNames(devSettingEnum);
                 var values = Enum.GetValues(devSettingEnum);
-                var enumEntries = new List<string>();
                 for (int i = 0; i < names.Length; i++)
                 {
                     int val = Convert.ToInt32(values.GetValue(i));
-                    enumEntries.Add($"{names[i]}={val}");
                     if (names[i] == "CheatsEnabled") _cheatsEnabledIndex = val;
                     else if (names[i] == "ShowDeveloperSettings") _showDevSettingsIndex = val;
                 }
-                SdkLogger.Msg($"DeveloperSettingType values ({names.Length}): {string.Join(", ", enumEntries)}");
             }
             else
             {
-                var enumCandidates = gameAssembly.GetTypes()
-                    .Where(t => t.IsEnum && (t.Name.Contains("Developer") || t.Name.Contains("Setting") || t.Name.Contains("Cheat")))
-                    .Select(t => t.Name)
-                    .Take(15);
-                SdkLogger.Warning($"DeveloperSettingType enum not found. Candidates: {string.Join(", ", enumCandidates)}");
+                SdkLogger.Warning("DeveloperSettingType enum not found");
             }
 
-            if (_cheatsEnabledIndex >= 0)
-                SdkLogger.Msg($"DeveloperSettingType.CheatsEnabled = {_cheatsEnabledIndex}");
-            else
+            if (_cheatsEnabledIndex < 0)
+            {
                 SdkLogger.Warning("CheatsEnabled not found in DeveloperSettingType");
-            if (_showDevSettingsIndex >= 0)
-                SdkLogger.Msg($"DeveloperSettingType.ShowDeveloperSettings = {_showDevSettingsIndex}");
-            else
-                SdkLogger.Warning("ShowDeveloperSettings not found in DeveloperSettingType");
+            }
 
             _factionEnumType = gameAssembly.GetTypes()
                 .FirstOrDefault(t => t.Name == "FactionType" && t.IsEnum);
@@ -851,7 +825,6 @@ public class DevModePlugin
                 {
                     var name = names[i];
                     var val = values.GetValue(i);
-
                     if (name == "Player" || name == "PlayerAI" || name == "Neutral")
                         others.Add((name, val));
                     else
@@ -860,14 +833,7 @@ public class DevModePlugin
 
                 _factions.AddRange(enemies);
                 _factions.AddRange(others);
-
-                SdkLogger.Msg($"FactionType: {_factions.Count} factions ({string.Join(", ", _factions.Select(f => f.Name))})");
             }
-
-            var actorTypeEnum = gameAssembly.GetTypes()
-                .FirstOrDefault(t => t.Name == "ActorType" && t.IsEnum);
-            if (actorTypeEnum != null)
-                SdkLogger.Msg($"ActorType values: {string.Join(", ", Enum.GetNames(actorTypeEnum))}");
 
             return true;
         }
