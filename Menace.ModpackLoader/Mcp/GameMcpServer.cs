@@ -665,7 +665,7 @@ public static class GameMcpServer
             if (!int.TryParse(toX, out int tx) || !int.TryParse(toY, out int ty))
                 return new { error = "Invalid to_x or to_y" };
 
-            var hasLos = LineOfSight.HasLOS(actorPos.Value.x, actorPos.Value.y, tx, ty);
+            var hasLos = LineOfSight.HasLineOfSight(actorPos.Value.x, actorPos.Value.y, tx, ty);
             var distance = TileMap.GetDistance(actorPos.Value.x, actorPos.Value.y, tx, ty);
 
             return new
@@ -685,7 +685,7 @@ public static class GameMcpServer
                 !int.TryParse(toX, out int tx) || !int.TryParse(toY, out int ty))
                 return new { error = "Invalid coordinates" };
 
-            var hasLos = LineOfSight.HasLOS(fx, fy, tx, ty);
+            var hasLos = LineOfSight.HasLineOfSight(fx, fy, tx, ty);
             var distance = TileMap.GetDistance(fx, fy, tx, ty);
 
             return new
@@ -932,9 +932,8 @@ public static class GameMcpServer
             actor = actor.GetName(),
             position = pos.HasValue ? new { x = pos.Value.x, y = pos.Value.y } : null,
             state = visInfo.State,
-            stateName = visInfo.StateName,
             isVisible = visInfo.IsVisible,
-            isMarked = visInfo.IsMarked,
+            isRevealed = visInfo.IsRevealed,
             vision = visInfo.Vision,
             detection = visInfo.Detection,
             concealment = visInfo.Concealment
