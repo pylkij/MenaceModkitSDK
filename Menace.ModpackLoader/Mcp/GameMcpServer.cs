@@ -510,12 +510,18 @@ public static class GameMcpServer
 
     private static object HandleInventory(HttpListenerRequest request)
     {
-        var actor = TacticalController.GetActiveActor();
-        if (actor.IsNull)
+        var actorUntyped = TacticalController.GetActiveActor();
+        if (actorUntyped.IsNull)
             return new { error = "No active actor" };
 
+        if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+            return new { error = "Actor could not be wrapped as Entity" };
+
+        if (actor.Untyped.CheckAlive() != AliveStatus.Alive)
+            return new { error = "Actor is no longer alive" };
+
         var container = Inventory.GetContainer(actor);
-        if (container.IsNull)
+        if (container.Untyped.CheckAlive() != AliveStatus.Alive)
             return new { error = "No inventory container" };
 
         var items = Inventory.GetAllItems(container);
@@ -523,15 +529,15 @@ public static class GameMcpServer
 
         return new
         {
-            actorName = actor.GetName(),
+            actorName = actorUntyped.GetName(),
             totalItems = items.Count,
             totalValue = Inventory.GetTotalTradeValue(container),
             items = items.Select(i => new
             {
                 name = i.TemplateName,
-                slot = i.SlotTypeName,
+                slot = i.SlotType.ToString(),
                 value = i.TradeValue,
-                rarity = i.RarityTier   // was: i.Rarity
+                rarity = i.RarityTier
             }).ToList(),
             equippedWeapons = weapons.Select(w => w.TemplateName).ToList()
         };

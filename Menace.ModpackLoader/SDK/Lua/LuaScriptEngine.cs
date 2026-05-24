@@ -1792,15 +1792,18 @@ public class LuaScriptEngine
     {
         try
         {
-            var actor = LuaToGameObj(actorVal);
-            if (actor.IsNull)
-            {
-                actor = TacticalController.GetActiveActor();
-            }
-            if (actor.IsNull) return DynValue.Nil;
+            var actorUntyped = LuaToGameObj(actorVal);
+            if (actorUntyped.IsNull)
+                actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return DynValue.Nil;
+
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return DynValue.Nil;
+
+            if (actor.Untyped.CheckAlive() != AliveStatus.Alive) return DynValue.Nil;
 
             var container = Inventory.GetContainer(actor);
-            if (container.IsNull) return DynValue.Nil;
+            if (container.Untyped.CheckAlive() != AliveStatus.Alive) return DynValue.Nil;
 
             var items = Inventory.GetAllItems(container);
             var table = new Table(_lua);
@@ -1809,8 +1812,8 @@ public class LuaScriptEngine
             {
                 var itemTable = new Table(_lua);
                 itemTable["name"] = item.TemplateName ?? "";
-                itemTable["slot"] = item.SlotTypeName ?? "";
-                itemTable["slot_id"] = item.SlotType;
+                itemTable["slot"] = item.SlotType.ToString();
+                itemTable["slot_id"] = (int)item.SlotType;
                 itemTable["value"] = item.TradeValue;
                 itemTable["rarity"] = item.RarityTier;
                 itemTable["skills"] = item.SkillCount;
@@ -1830,12 +1833,15 @@ public class LuaScriptEngine
     {
         try
         {
-            var actor = LuaToGameObj(actorVal);
-            if (actor.IsNull)
-            {
-                actor = TacticalController.GetActiveActor();
-            }
-            if (actor.IsNull) return DynValue.Nil;
+            var actorUntyped = LuaToGameObj(actorVal);
+            if (actorUntyped.IsNull)
+                actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return DynValue.Nil;
+
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return DynValue.Nil;
+
+            if (actor.Untyped.CheckAlive() != AliveStatus.Alive) return DynValue.Nil;
 
             var weapons = Inventory.GetEquippedWeapons(actor);
             var table = new Table(_lua);
@@ -1844,7 +1850,7 @@ public class LuaScriptEngine
             {
                 var weaponTable = new Table(_lua);
                 weaponTable["name"] = weapon.TemplateName ?? "";
-                weaponTable["slot"] = weapon.SlotTypeName ?? "";
+                weaponTable["slot"] = weapon.SlotType.ToString();
                 weaponTable["value"] = weapon.TradeValue;
                 weaponTable["rarity"] = weapon.RarityTier;
                 weaponTable["skills"] = weapon.SkillCount;
@@ -1863,12 +1869,15 @@ public class LuaScriptEngine
     {
         try
         {
-            var actor = LuaToGameObj(actorVal);
-            if (actor.IsNull)
-            {
-                actor = TacticalController.GetActiveActor();
-            }
-            if (actor.IsNull) return DynValue.Nil;
+            var actorUntyped = LuaToGameObj(actorVal);
+            if (actorUntyped.IsNull)
+                actorUntyped = TacticalController.GetActiveActor();
+            if (actorUntyped.IsNull) return DynValue.Nil;
+
+            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(actorUntyped, out var actor))
+                return DynValue.Nil;
+
+            if (actor.Untyped.CheckAlive() != AliveStatus.Alive) return DynValue.Nil;
 
             var armor = Inventory.GetEquippedArmor(actor);
             if (armor == null) return DynValue.Nil;
@@ -1891,13 +1900,17 @@ public class LuaScriptEngine
     {
         try
         {
-            var templates = Inventory.GetItemTemplates(filter);
+            var templates = Templates.FindAll<Il2CppMenace.Items.ItemTemplate>()
+                .Select(t => t.GetID())
+                .Where(id => !string.IsNullOrWhiteSpace(id) &&
+                             (filter == null || id.Contains(filter, StringComparison.OrdinalIgnoreCase)))
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase);
+
             var table = new Table(_lua);
             int i = 1;
-            foreach (var name in templates)
-            {
-                table[i++] = name;
-            }
+            foreach (var id in templates)
+                table[i++] = id;
+
             return DynValue.NewTable(table);
         }
         catch (Exception ex)

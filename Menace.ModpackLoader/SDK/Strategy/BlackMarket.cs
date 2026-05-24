@@ -547,28 +547,24 @@ public static class BlackMarket
     {
         try
         {
-            var bm = GetBlackMarket();
-            if (bm.IsNull)
+            var bmUntyped = GetBlackMarket();
+            if (bmUntyped.IsNull)
                 return "BlackMarket not available. Are you on the strategy map?";
 
-            var template = Inventory.FindItemTemplate(templateId);
-            if (template.IsNull)
+            if (!GameObj<Il2CppMenace.Strategy.BlackMarket>.TryWrap(bmUntyped, out var bm))
+                return "Failed to wrap BlackMarket";
+
+            if (bm.Untyped.CheckAlive() != AliveStatus.Alive)
+                return "BlackMarket is no longer alive";
+
+            if (!Templates.TryGet<Il2CppMenace.Items.ItemTemplate>(templateId, out var template))
                 return $"Template '{templateId}' not found";
 
-            var templateManaged = template.As<Il2CppMenace.Items.BaseItemTemplate>();
-            if (templateManaged == null)
-                return "Failed to get template proxy";
-
-            var guid = Il2CppMenace.Items.BaseItemTemplate.CreateGuid();
-            var item = templateManaged.CreateItem(guid);
+            var item = template.CreateItem(Il2CppMenace.Items.BaseItemTemplate.CreateGuid());
             if (item == null)
                 return "CreateItem returned null";
 
-            var bmManaged = GameObj<Il2CppMenace.Strategy.BlackMarket>.Wrap(bm.Pointer).AsManaged();
-            if (bmManaged == null)
-                return "Failed to get BlackMarket proxy";
-
-            bmManaged.AddItem(item, 99);
+            bm.AsManaged().AddItem(item, 99);
 
             return $"Stocked '{templateId}' in BlackMarket";
         }
