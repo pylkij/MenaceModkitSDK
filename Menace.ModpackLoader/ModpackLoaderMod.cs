@@ -38,6 +38,8 @@ public partial class ModpackLoaderMod : MelonMod
     private readonly HashSet<string> _registeredAssetPaths = new();
     private bool _templatesLoaded = false;
 
+    private DevModePlugin _devMode;
+
     private readonly HashSet<string> _appliedPatchKeys = new();
 
     public override void OnInitializeMelon()
@@ -69,6 +71,9 @@ public partial class ModpackLoaderMod : MelonMod
 
         LoadModpacks();
         DllLoader.InitializeAllPlugins();
+
+        _devMode = new DevModePlugin();
+        _devMode.Initialize(HarmonyInstance);
 
         EarlyTemplateInjection.Initialize(this, HarmonyInstance);
 
@@ -173,6 +178,7 @@ public partial class ModpackLoaderMod : MelonMod
         GameState.NotifySceneLoaded(sceneName);
         GameQuery.ClearCache();
         DllLoader.NotifySceneLoaded(buildIndex, sceneName);
+        _devMode.OnSceneLoaded(buildIndex, sceneName);
         MenuInjector.OnSceneLoaded(sceneName);
 
         // Retry template patches on every scene until all types are found.
@@ -196,6 +202,7 @@ public partial class ModpackLoaderMod : MelonMod
         DevConsole.Update();
         MenuInjector.Update();
         DllLoader.NotifyUpdate();
+        _devMode.OnUpdate();
     }
 
     public override void OnGUI()
@@ -204,6 +211,7 @@ public partial class ModpackLoaderMod : MelonMod
         ErrorNotification.Draw();
         MenuInjector.Draw();
         DllLoader.NotifyOnGUI();
+        _devMode.OnGUI();
     }
 
     public override void OnApplicationQuit()
