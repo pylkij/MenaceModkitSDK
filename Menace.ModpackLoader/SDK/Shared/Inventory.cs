@@ -1,13 +1,9 @@
-using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppMenace.Items;
 using Il2CppMenace.Tags;
-using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using UnityEngine;
 
 namespace Menace.SDK;
 
@@ -25,14 +21,8 @@ public static class Inventory
     //  Field Handles — resolved once in SceneLoaded, never at call site
     // ═══════════════════════════════════════════════════════════════════
 
-    // Item fields
-    private static ObjFieldHandle<Il2CppMenace.Items.Item, Il2CppMenace.Items.ItemContainer> _hItemContainer;
-
     // ItemContainer fields
     private static ObjFieldHandle<Il2CppMenace.Items.ItemContainer, Il2CppMenace.Strategy.ItemsModularVehicle> _hContainerModularVehicle;
-
-    // BaseItemTemplate fields
-    private static FieldHandle<Il2CppMenace.Items.BaseItemTemplate, int> _hTemplateRarity;
 
     // StrategyState fields
     private static ObjFieldHandle<Il2CppMenace.States.StrategyState, Il2CppMenace.Strategy.OwnedItems> _hStrategyStateOwnedItems;
@@ -54,9 +44,7 @@ public static class Inventory
 
         try
         {
-            _hItemContainer = GameObj<Il2CppMenace.Items.Item>.ResolveObjField(x => x.m_Container);
             _hContainerModularVehicle = GameObj<Il2CppMenace.Items.ItemContainer>.ResolveObjField(x => x.m_ModularVehicle);
-            _hTemplateRarity = GameObj<Il2CppMenace.Items.BaseItemTemplate>.ResolveField(x => x.Rarity);
             _hStrategyStateOwnedItems = GameObj<Il2CppMenace.States.StrategyState>.ResolveObjField(x => x.OwnedItems);
 
             _handlesResolved = true;
