@@ -4,6 +4,48 @@
 
 ---
 
+## Quick Reference
+
+| C# Event | Lua Event Name | Category |
+|---|---|---|
+| `OnActorKilled` | `actor_killed` | Combat |
+| `OnDamageReceived` | `damage_received` | Combat |
+| `OnAttackMissed` | `attack_missed` | Combat |
+| `OnAttackTileStart` | `attack_start` | Combat |
+| `OnBleedingOut` | `bleeding_out` | Combat |
+| `OnStabilized` | `stabilized` | Combat |
+| `OnSuppressed` | `suppressed` | Combat |
+| `OnSuppressionApplied` | `suppression_applied` | Combat |
+| `OnActorStateChanged` | `actor_state_changed` | Actor State |
+| `OnMoraleStateChanged` | `morale_changed` | Actor State |
+| `OnHitpointsChanged` | `hp_changed` | Actor State |
+| `OnArmorChanged` | `armor_changed` | Actor State |
+| `OnActionPointsChanged` | `ap_changed` | Actor State |
+| `OnDiscovered` | `discovered` | Visibility |
+| `OnVisibleToPlayer` | `visible_to_player` | Visibility |
+| `OnHiddenToPlayer` | `hidden_from_player` | Visibility |
+| `OnMovementStarted` | `movement_started` | Movement |
+| `OnMovementFinished` | `move_complete` | Movement |
+| `OnSkillUsed` | `skill_used` *(object args)* | Skill |
+| `OnSkillCompleted` | `skill_complete` | Skill |
+| `OnSkillAdded` | `skill_added` | Skill |
+| `OnOffmapAbilityUsed` | `offmap_ability_used` | Offmap |
+| `OnOffmapAbilityCanceled` | `offmap_ability_canceled` | Offmap |
+| `OnOffmapAbilityUpdateUsability` | *(none)* | Offmap |
+| `OnActiveActorChanged` | *(none)* | Turn/Round |
+| `OnTurnStart` | *(none)* | Turn/Round |
+| `OnPlayerTurn` | *(none)* | Turn/Round |
+| `OnAITurn` | *(none)* | Turn/Round |
+| `OnTurnEnd` | *(legacy path)* | Turn/Round |
+| `OnRoundStart` | `round_start` | Turn/Round |
+| `OnRoundEnd` | `round_end` | Turn/Round |
+| `OnObjectiveStateChanged` | `objective_changed` | Mission |
+| `OnEntitySpawned` | `entity_spawned` | Mission |
+| `OnElementDeath` | `element_destroyed` | Mission |
+| `OnElementMalfunction` | `element_malfunction` | Mission |
+
+---
+
 ## How to Subscribe (C#)
 
 All events are standard C# `Action` delegates on a static class, so subscription is straightforward:
@@ -32,6 +74,47 @@ end)
 The `data` table contains named fields — see each event below for the available keys. Most objects provide both a name string and a `_ptr` field (an `int64`) for cases where you need to pass the pointer back to SDK methods.
 
 > **Note:** `skill_used` is a special case — its Lua handler receives `actor` and `skill` objects directly rather than a data table. See the Skill Events section.
+
+---
+
+## Quick Start
+```csharp
+using System;
+
+using MelonLoader;
+using HarmonyLib;
+
+using Menace.SDK;
+
+namespace MyPlugin;
+
+public class MyPlugin: IModpackPlugin
+{
+    public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
+    {
+        TacticalEventHooks.OnActorKilled += OnActorKilled;
+    }
+
+    public void OnSceneLoaded(int buildIndex, string sceneName) { }
+
+    private void OnActorKilled(IntPtr actorPtr, IntPtr killerPtr, int killerFaction)
+    {
+        var actor = new GameObj(actorPtr);
+        var killer = new GameObj(killerPtr);
+
+        if (actor.IsNull || killer.IsNull) return;
+
+        SdkLogger.Msg($"{actor.GetName()} killed by {killer.GetName()}");
+    }
+
+    public void OnUpdate() { }
+    public void OnGUI() { }
+    public void OnUnload()
+    {
+        TacticalEventHooks.OnActorKilled -= OnActorKilled;
+    }
+}
+```
 
 ---
 
@@ -669,45 +752,3 @@ event Action<IntPtr, IntPtr> OnElementMalfunction
 | `skill_ptr` | int64 | Pointer to the skill |
 
 Lua event name: `"element_malfunction"`
-
----
-
-## Quick Reference
-
-| C# Event | Lua Event Name | Category |
-|---|---|---|
-| `OnActorKilled` | `actor_killed` | Combat |
-| `OnDamageReceived` | `damage_received` | Combat |
-| `OnAttackMissed` | `attack_missed` | Combat |
-| `OnAttackTileStart` | `attack_start` | Combat |
-| `OnBleedingOut` | `bleeding_out` | Combat |
-| `OnStabilized` | `stabilized` | Combat |
-| `OnSuppressed` | `suppressed` | Combat |
-| `OnSuppressionApplied` | `suppression_applied` | Combat |
-| `OnActorStateChanged` | `actor_state_changed` | Actor State |
-| `OnMoraleStateChanged` | `morale_changed` | Actor State |
-| `OnHitpointsChanged` | `hp_changed` | Actor State |
-| `OnArmorChanged` | `armor_changed` | Actor State |
-| `OnActionPointsChanged` | `ap_changed` | Actor State |
-| `OnDiscovered` | `discovered` | Visibility |
-| `OnVisibleToPlayer` | `visible_to_player` | Visibility |
-| `OnHiddenToPlayer` | `hidden_from_player` | Visibility |
-| `OnMovementStarted` | `movement_started` | Movement |
-| `OnMovementFinished` | `move_complete` | Movement |
-| `OnSkillUsed` | `skill_used` *(object args)* | Skill |
-| `OnSkillCompleted` | `skill_complete` | Skill |
-| `OnSkillAdded` | `skill_added` | Skill |
-| `OnOffmapAbilityUsed` | `offmap_ability_used` | Offmap |
-| `OnOffmapAbilityCanceled` | `offmap_ability_canceled` | Offmap |
-| `OnOffmapAbilityUpdateUsability` | *(none)* | Offmap |
-| `OnActiveActorChanged` | *(none)* | Turn/Round |
-| `OnTurnStart` | *(none)* | Turn/Round |
-| `OnPlayerTurn` | *(none)* | Turn/Round |
-| `OnAITurn` | *(none)* | Turn/Round |
-| `OnTurnEnd` | *(legacy path)* | Turn/Round |
-| `OnRoundStart` | `round_start` | Turn/Round |
-| `OnRoundEnd` | `round_end` | Turn/Round |
-| `OnObjectiveStateChanged` | `objective_changed` | Mission |
-| `OnEntitySpawned` | `entity_spawned` | Mission |
-| `OnElementDeath` | `element_destroyed` | Mission |
-| `OnElementMalfunction` | `element_malfunction` | Mission |
