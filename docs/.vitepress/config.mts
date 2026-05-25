@@ -5,6 +5,7 @@ export default defineConfig({
   title: 'Menace SDK',
   description: 'Modding API and tools for the Unity game Menace',
   lang: 'en-US',
+  base: '/MenaceModkitSDK/',
 
   // Appearance
   appearance: 'dark', // Game docs usually look better dark by default
@@ -117,7 +118,7 @@ export default defineConfig({
 
     // Edit link (if your docs are on GitHub)
     editLink: {
-      pattern: 'https://github.com/pylkij/MenaceModkitSDK/tree/master/docs',
+      pattern: 'https://github.com/pylkij/MenaceModkitSDK/tree/master/docs:path',
       text: 'Edit this page on GitHub'
     },
 
