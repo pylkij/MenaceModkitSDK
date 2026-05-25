@@ -52,10 +52,11 @@ export default defineConfig({
           ]
         },
         {
-          text: 'Core Concepts',
+          text: 'Basics',
           items: [
             { text: 'Your First Mod', link: '/guide/your-first-mod' },
             { text: 'Event Hooks', link: '/guide/event-hooks-guide' },
+            { text: 'Error Logging', link: '/guide/error-logging'},
             { text: 'Asset Loading', link: '/guide/loading-your-model' },
           ]
         },
@@ -74,7 +75,6 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/api/' },
             { text: 'Core Systems', link: '/api/core-systems' },
-            { text: 'Mod Error', link: '/api/mod-error'}
           ]
         },
         {
