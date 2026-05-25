@@ -7,3 +7,4 @@ bin/
 Menace.ModpackLoader.sln
 /Implementation Specs
 /node_modules
+/docs/.vitepress/cache

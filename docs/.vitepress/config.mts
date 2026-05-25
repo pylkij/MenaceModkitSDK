@@ -13,10 +13,10 @@ export default defineConfig({
 
     sidebar: [
       {
-        text: 'Examples',
+        text: 'API',
         items: [
-          { text: 'Markdown Examples', link: '/markdown-examples' },
-          { text: 'Runtime API Examples', link: '/api-examples' }
+          { text: 'TacticalEventHooks', link: '/api/tactical-event-hooks' },
+          { text: 'GameMethod', link: '/api/game-method' }
         ]
       }
     ],
