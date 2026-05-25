@@ -73,7 +73,7 @@ export default defineConfig({
         {
           text: 'Core',
           items: [
-            { text: 'Overview', link: '/api/overview' },
+            { text: 'Overview', link: '/api/' },
             { text: 'Core Systems', link: '/api/core-systems' },
           ]
         },

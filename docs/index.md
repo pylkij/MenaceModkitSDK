@@ -1,25 +1,19 @@
 ---
-# https://vitepress.dev/reference/default-theme-home-page
 layout: home
 
 hero:
-  name: "Menace SDK"
-  text: "A wiki for the Menace SDK"
-  tagline: My great project tagline
+  name: Menace SDK
+  text: Modding API for Menace
+  tagline: Build mods for the Unity game Menace
   actions:
     - theme: brand
-      text: Markdown Examples
-      link: /markdown-examples
+      text: Get Started
+      link: /guide/getting-started
     - theme: alt
-      text: API Examples
-      link: /api-examples
+      text: API Reference
+      link: /api/
 
 features:
-  - title: Feature A
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature B
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature C
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+  - title: Feature one
+    details: Description here
 ---
-
