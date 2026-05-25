@@ -4,23 +4,6 @@
 
 ---
 
-## Table of Contents
-
-1. [How It Works](#how-it-works)
-2. [Initialization & Setup Lifecycle](#initialization--setup-lifecycle)
-3. [Settings Reference](#settings-reference)
-4. [Dev Console Panel](#dev-console-panel)
-5. [Hotkeys](#hotkeys)
-6. [Gameplay Tweaks](#gameplay-tweaks)
-7. [Spawn Tool](#spawn-tool)
-8. [God Mode](#god-mode)
-9. [Delete Entity](#delete-entity)
-10. [Recruit All Leaders](#recruit-all-leaders)
-11. [Diagnostics & Logging](#diagnostics--logging)
-12. [Integration Notes](#integration-notes)
-
----
-
 ## How It Works
 
 DevModePlugin uses **reflection** against `Assembly-CSharp` at runtime — no hardcoded IL2CPP offsets. On startup it locates the types it needs (`TacticalState`, `SpawnEntityAction`, `GodModeAction`, `DeleteEntityAction`, `DevSettings`, etc.) by name and caches constructors, methods, and properties. Field reads and writes for gameplay tweaks go through the SDK's `FieldHandle<T, TField>` / `ObjFieldHandle<T, TField>` wrappers.
