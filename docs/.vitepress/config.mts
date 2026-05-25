@@ -54,7 +54,7 @@ export default defineConfig({
         {
           text: 'Core Concepts',
           items: [
-            { text: 'Mod Structure', link: '/guide/your-first-mod' },
+            { text: 'Your First Mod', link: '/guide/your-first-mod' },
             { text: 'Tactical Events', link: '/guide/tactical-event-hooks' },
             { text: 'Strategy Events', link: '/guide/strategy-event-hooks'},
             { text: 'Asset Loading', link: '/guide/loading-your-model' },
