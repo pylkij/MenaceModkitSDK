@@ -55,8 +55,7 @@ export default defineConfig({
           text: 'Core Concepts',
           items: [
             { text: 'Your First Mod', link: '/guide/your-first-mod' },
-            { text: 'Tactical Events', link: '/guide/tactical-event-hooks' },
-            { text: 'Strategy Events', link: '/guide/strategy-event-hooks'},
+            { text: 'Event Hooks', link: '/guide/event-hooks-guide' },
             { text: 'Asset Loading', link: '/guide/loading-your-model' },
           ]
         },
@@ -75,6 +74,14 @@ export default defineConfig({
           items: [
             { text: 'Overview', link: '/api/' },
             { text: 'Core Systems', link: '/api/core-systems' },
+            { text: 'Mod Error', link: '/api/mod-error'}
+          ]
+        },
+        {
+          text: 'Event Hooks',
+          items: [
+            { text: 'Strategy Event Hooks', link: '/api/events/strategy-event-hooks' },
+            { text: 'Tactical Event Hooks', link: '/api/events/tactical-event-hooks' },
           ]
         },
         {

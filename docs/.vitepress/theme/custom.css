@@ -17,6 +17,128 @@
   --vp-nav-height: 58px;
 }
 
+/* ─── Light Mode ─────────────────────────────────────────────────────────── */
+
+:root:not(.dark) {
+  /* Remap brand to dark tones so text is visible on light backgrounds */
+  --vp-c-brand-1: #1a1a1a;
+  --vp-c-brand-2: #333333;
+  --vp-c-brand-3: #555555;
+  --vp-c-brand-soft: rgba(26, 26, 26, 0.08);
+
+  --vp-c-bg:        #f8f8f6;
+  --vp-c-bg-soft:   #f2f2f0;
+  --vp-c-bg-mute:   #eaeae8;
+  --vp-c-bg-elv:    #ffffff;
+
+  --vp-c-border:        #d8d8d4;
+  --vp-c-divider:       #e0e0dc;
+  --vp-c-gutter:        #f0f0ee;
+
+  --vp-c-text-1: #1a1a1a;
+  --vp-c-text-2: #4a4a48;
+  --vp-c-text-3: #787874;
+}
+
+/* Light mode nav */
+:root:not(.dark) .VPNav {
+  border-bottom: 1px solid var(--vp-c-brand-3) !important;
+  background: rgba(248, 248, 246, 0.95) !important;
+}
+
+/* Light mode nav title + links */
+:root:not(.dark) .VPNavBar .title {
+  color: var(--vp-c-brand-1) !important;
+}
+
+/* Light mode code blocks */
+:root:not(.dark) .vp-doc div[class*='language-'] {
+  border-left-color: var(--vp-c-brand-1);
+  background: #f0f0ee !important;
+}
+
+:root:not(.dark) .vp-doc div[class*='language-']::before {
+  color: var(--vp-c-brand-1);
+}
+
+:root:not(.dark) .vp-doc :not(pre) > code {
+  background: rgba(26, 26, 26, 0.06);
+  color: #1a1a1a;
+  border: 1px solid rgba(26, 26, 26, 0.18);
+}
+
+/* Light mode h1 */
+:root:not(.dark) .vp-doc h1 {
+  color: var(--vp-c-brand-1);
+  border-bottom-color: var(--vp-c-brand-3);
+}
+
+/* Light mode h2 prefix */
+:root:not(.dark) .vp-doc h2::before {
+  color: var(--vp-c-brand-2);
+}
+
+/* Light mode h3 */
+:root:not(.dark) .vp-doc h3 {
+  color: var(--vp-c-brand-1);
+}
+
+/* Light mode sidebar */
+:root:not(.dark) .VPSidebarItem.level-0 > .item > .text {
+  color: var(--vp-c-brand-1) !important;
+}
+
+:root:not(.dark) .VPSidebarItem.is-active > .item > .link > .text {
+  color: var(--vp-c-brand-1) !important;
+}
+
+:root:not(.dark) .VPSidebarItem.is-active > .item {
+  border-left-color: var(--vp-c-brand-1);
+}
+
+/* Light mode feature cards */
+:root:not(.dark) .VPFeature .title {
+  color: var(--vp-c-brand-1) !important;
+}
+
+/* Light mode hero */
+:root:not(.dark) .VPHero .name {
+  background: linear-gradient(135deg, #111111, #333333, #666666) !important;
+}
+
+/* Light mode buttons */
+:root:not(.dark) .VPButton.medium.brand {
+  background: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+  color: #f8f8f6;
+}
+
+:root:not(.dark) .VPButton.medium.brand:hover {
+  background: #000000;
+  border-color: #000000;
+}
+
+:root:not(.dark) .VPButton.medium.alt {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
+}
+
+/* Light mode table hover */
+:root:not(.dark) .vp-doc tr:hover td {
+  background: rgba(26, 26, 26, 0.04);
+}
+
+/* Light mode scrollbar */
+:root:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #cccccc;
+}
+
+:root:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: var(--vp-c-brand-3);
+}
+
+/* ─── Dark Mode ──────────────────────────────────────────────────────────── */
+
 .dark {
   --vp-c-bg:        #0c0c0c;
   --vp-c-bg-soft:   #121212;
