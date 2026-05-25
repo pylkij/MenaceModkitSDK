@@ -4,6 +4,23 @@
 
 ---
 
+## Quick Reference: Which Type to Use
+
+| You want to… | Use |
+|---|---|
+| Hold a reference to any game object | `GameObj` |
+| Read/write fields on a known type | `GameObj<T>` + `FieldHandle` |
+| Check if an object is alive | `GameObj.CheckAlive()` |
+| Find all objects of a type in scene | `GameQuery.FindAll<T>()` |
+| Check what scene you're in | `GameState.IsTactical` / `IsScene()` |
+| Wait for the tactical scene to be ready | `GameState.TacticalReady` |
+| Defer work by N frames | `GameState.RunDelayed()` |
+| Wait for a condition to be true | `GameState.RunWhen()` |
+| Call a method on a game object | `GameMethod.Call<T>()` |
+| Load a DataTemplate by ID | `Templates.FindByID<T>()` |
+| Inspect an object's IL2CPP type | `GameObj.GetGameType()` / `GameType.Of<T>()` |
+
+---
 ## The Object Model: Why Nothing Is Just a Pointer
 
 IL2CPP objects exist in native (unmanaged) memory. The IL2CppInterop layer gives you *proxy* objects — managed C# wrappers that hold a `Pointer` (`IntPtr`) into that native memory. This has two important consequences:
@@ -334,21 +351,3 @@ public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony
     _hAP = GameObj<TacticalActor>.ResolveField(x => x.m_ActionPoints);
 }
 ```
-
----
-
-## Quick Reference: Which Type to Use
-
-| You want to… | Use |
-|---|---|
-| Hold a reference to any game object | `GameObj` |
-| Read/write fields on a known type | `GameObj<T>` + `FieldHandle` |
-| Check if an object is alive | `GameObj.CheckAlive()` |
-| Find all objects of a type in scene | `GameQuery.FindAll<T>()` |
-| Check what scene you're in | `GameState.IsTactical` / `IsScene()` |
-| Wait for the tactical scene to be ready | `GameState.TacticalReady` |
-| Defer work by N frames | `GameState.RunDelayed()` |
-| Wait for a condition to be true | `GameState.RunWhen()` |
-| Call a method on a game object | `GameMethod.Call<T>()` |
-| Load a DataTemplate by ID | `Templates.FindByID<T>()` |
-| Inspect an object's IL2CPP type | `GameObj.GetGameType()` / `GameType.Of<T>()` |
