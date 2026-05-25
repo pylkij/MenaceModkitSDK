@@ -1,0 +1,329 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700&display=swap');
+
+/* ─── Base & Dark Overrides ─────────────────────────────────────────────── */
+
+:root {
+  --vp-font-family-base: 'Rajdhani', sans-serif;
+  --vp-font-family-mono: 'Share Tech Mono', monospace;
+
+  /* Brand: amber hazard accent */
+  --vp-c-brand-1: #d4880a;
+  --vp-c-brand-2: #b8720a;
+  --vp-c-brand-3: #9a5e08;
+
+  --vp-c-brand-soft: rgba(212, 136, 10, 0.12);
+
+  /* Nav */
+  --vp-nav-height: 58px;
+}
+
+.dark {
+  --vp-c-bg:        #0c0c0c;
+  --vp-c-bg-soft:   #121212;
+  --vp-c-bg-mute:   #1a1a1a;
+  --vp-c-bg-elv:    #111111;
+
+  --vp-c-border:        #272727;
+  --vp-c-divider:       #222222;
+  --vp-c-gutter:        #0c0c0c;
+
+  --vp-c-text-1: #d8d4cc;
+  --vp-c-text-2: #9a9690;
+  --vp-c-text-3: #5a5750;
+}
+
+/* ─── Typography ─────────────────────────────────────────────────────────── */
+
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vp-doc h1 {
+  font-size: 2.4rem;
+  color: var(--vp-c-brand-1);
+  border-bottom: 1px solid var(--vp-c-brand-3);
+  padding-bottom: 0.4rem;
+}
+
+.vp-doc h2 {
+  font-size: 1.6rem;
+  border-top: 1px solid var(--vp-c-border);
+  border-bottom: none;
+  padding-top: 1.2rem;
+  margin-top: 2.4rem;
+  color: var(--vp-c-text-1);
+}
+
+.vp-doc h2::before {
+  content: '// ';
+  color: var(--vp-c-brand-1);
+  opacity: 0.7;
+}
+
+.vp-doc h3 {
+  font-size: 1.1rem;
+  color: var(--vp-c-brand-1);
+  opacity: 0.85;
+}
+
+.vp-doc p,
+.vp-doc li {
+  font-size: 1.05rem;
+  line-height: 1.75;
+  letter-spacing: 0.01em;
+}
+
+/* ─── Nav Bar ────────────────────────────────────────────────────────────── */
+
+.VPNav {
+  border-bottom: 1px solid var(--vp-c-brand-3) !important;
+  background: rgba(12, 12, 12, 0.95) !important;
+  backdrop-filter: blur(8px);
+}
+
+.VPNavBar .title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1) !important;
+}
+
+.VPNavBarMenu .VPNavBarMenuLink,
+.VPNavBarMenu .VPNavBarMenuGroup .button {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.VPNavBarMenuLink.active,
+.VPNavBarMenuLink:hover {
+  color: var(--vp-c-brand-1) !important;
+}
+
+/* ─── Sidebar ────────────────────────────────────────────────────────────── */
+
+.VPSidebar {
+  background: var(--vp-c-bg-soft) !important;
+  border-right: 1px solid var(--vp-c-border) !important;
+}
+
+.VPSidebarItem .text {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-size: 0.88rem;
+}
+
+.VPSidebarItem.level-0 > .item > .text {
+  color: var(--vp-c-brand-1) !important;
+  font-size: 0.78rem;
+  opacity: 0.8;
+  padding-top: 0.8rem;
+}
+
+.VPSidebarItem.is-active > .item > .link > .text {
+  color: var(--vp-c-brand-1) !important;
+}
+
+.VPSidebarItem.is-active > .item {
+  border-left: 2px solid var(--vp-c-brand-1);
+  padding-left: 10px;
+  background: var(--vp-c-brand-soft);
+}
+
+/* ─── Code Blocks ────────────────────────────────────────────────────────── */
+
+.vp-doc div[class*='language-'] {
+  border: 1px solid #2a2a2a;
+  border-left: 3px solid var(--vp-c-brand-1);
+  border-radius: 2px;
+  background: #0a0a0a !important;
+}
+
+.vp-doc div[class*='language-']::before {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1);
+  opacity: 0.7;
+}
+
+.vp-doc :not(pre) > code {
+  background: rgba(212, 136, 10, 0.08);
+  color: var(--vp-c-brand-1);
+  border: 1px solid rgba(212, 136, 10, 0.2);
+  border-radius: 2px;
+  font-size: 0.88em;
+  padding: 1px 5px;
+}
+
+/* ─── Hazard stripe divider (decorative) ─────────────────────────────────── */
+
+.vp-doc hr {
+  border: none;
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--vp-c-brand-1) 0px,
+    var(--vp-c-brand-1) 12px,
+    transparent 12px,
+    transparent 20px
+  );
+  opacity: 0.35;
+  margin: 2rem 0;
+}
+
+/* ─── Tables ─────────────────────────────────────────────────────────────── */
+
+.vp-doc table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.95rem;
+}
+
+.vp-doc th {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+  background: var(--vp-c-bg-mute);
+  color: var(--vp-c-brand-1);
+  border-bottom: 1px solid var(--vp-c-brand-3);
+}
+
+.vp-doc tr:hover td {
+  background: rgba(212, 136, 10, 0.04);
+}
+
+/* ─── Buttons / Badges ───────────────────────────────────────────────────── */
+
+.VPButton.medium.brand {
+  background: var(--vp-c-brand-1);
+  border-color: var(--vp-c-brand-1);
+  color: #0c0c0c;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
+.VPButton.medium.brand:hover {
+  background: #e8a020;
+  border-color: #e8a020;
+}
+
+.VPButton.medium.alt {
+  border-color: var(--vp-c-brand-3);
+  color: var(--vp-c-brand-1);
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  background: transparent;
+}
+
+.VPButton.medium.alt:hover {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-soft);
+}
+
+/* ─── Home Hero ──────────────────────────────────────────────────────────── */
+
+.VPHero .name {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #e8a020, #d4880a, #9a5e08) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+}
+
+.VPHero .tagline {
+  font-family: 'Share Tech Mono', monospace !important;
+  font-size: 0.95rem !important;
+  color: var(--vp-c-text-2) !important;
+  letter-spacing: 0.05em;
+}
+
+.VPHero .text {
+  font-family: 'Barlow Condensed', sans-serif !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ─── Feature Cards ──────────────────────────────────────────────────────── */
+
+.VPFeature {
+  border: 1px solid var(--vp-c-border) !important;
+  border-radius: 2px !important;
+  background: var(--vp-c-bg-soft) !important;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.VPFeature:hover {
+  border-color: var(--vp-c-brand-3) !important;
+  background: var(--vp-c-bg-mute) !important;
+}
+
+.VPFeature .title {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--vp-c-brand-1) !important;
+}
+
+/* ─── Outline / ToC ──────────────────────────────────────────────────────── */
+
+.VPDocOutlineItem a {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.VPDocOutlineItem a.active {
+  color: var(--vp-c-brand-1) !important;
+  border-left-color: var(--vp-c-brand-1) !important;
+}
+
+/* ─── Search ─────────────────────────────────────────────────────────────── */
+
+.VPLocalSearchBox {
+  --vp-local-search-highlight-bg: var(--vp-c-brand-1);
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--vp-c-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2a2a2a;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vp-c-brand-3);
+}
