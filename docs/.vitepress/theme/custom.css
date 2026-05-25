@@ -6,12 +6,12 @@
   --vp-font-family-base: 'Rajdhani', sans-serif;
   --vp-font-family-mono: 'Share Tech Mono', monospace;
 
-  /* Brand: amber hazard accent */
-  --vp-c-brand-1: #d4880a;
-  --vp-c-brand-2: #b8720a;
-  --vp-c-brand-3: #9a5e08;
+  /* Brand: white */
+  --vp-c-brand-1: #e8e8e8;
+  --vp-c-brand-2: #c0c0c0;
+  --vp-c-brand-3: #888888;
 
-  --vp-c-brand-soft: rgba(212, 136, 10, 0.12);
+  --vp-c-brand-soft: rgba(232, 232, 232, 0.08);
 
   /* Nav */
   --vp-nav-height: 58px;
@@ -74,9 +74,10 @@
 
 .vp-doc p,
 .vp-doc li {
-  font-size: 1.05rem;
-  line-height: 1.75;
-  letter-spacing: 0.01em;
+  font-size: 1.1rem;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+  font-weight: 500;
 }
 
 /* ─── Nav Bar ────────────────────────────────────────────────────────────── */
@@ -176,8 +177,8 @@
   height: 4px;
   background: repeating-linear-gradient(
     90deg,
-    var(--vp-c-brand-1) 0px,
-    var(--vp-c-brand-1) 12px,
+    #888 0px,
+    #888 12px,
     transparent 12px,
     transparent 20px
   );
@@ -222,8 +223,8 @@
 }
 
 .VPButton.medium.brand:hover {
-  background: #e8a020;
-  border-color: #e8a020;
+  background: #ffffff;
+  border-color: #ffffff;
 }
 
 .VPButton.medium.alt {
@@ -249,7 +250,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  background: linear-gradient(135deg, #e8a020, #d4880a, #9a5e08) !important;
+  background: linear-gradient(135deg, #ffffff, #c0c0c0, #888888) !important;
   -webkit-background-clip: text !important;
   -webkit-text-fill-color: transparent !important;
 }
