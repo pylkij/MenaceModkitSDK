@@ -54,7 +54,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetMap", "Failed", ex);
+            SdkLogger.Error("TileMap.GetMap: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -88,7 +88,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetMapInfo", "Failed", ex);
+            SdkLogger.Error("TileMap.GetMapInfo: Failed", ex);
             return null;
         }
     }
@@ -111,7 +111,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsValidTile", "Failed", ex);
+            SdkLogger.Error("TileMap.IsValidTile: Failed", ex);
             return false;
         }
     }
@@ -128,7 +128,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsInBounds", "Failed", ex);
+            SdkLogger.Error("TileMap.IsInBounds: Failed", ex);
             return false;
         }
     }
@@ -156,7 +156,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.ForEachTile", "Failed", ex);
+            SdkLogger.Error("TileMap.ForEachTile: Failed", ex);
         }
     }
 
@@ -193,7 +193,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.QueryTilesInside", "Failed", ex);
+            SdkLogger.Error("TileMap.QueryTilesInside: Failed", ex);
         }
 
         return result;

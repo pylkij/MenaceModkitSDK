@@ -99,7 +99,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("Operation.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -146,7 +146,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetCurrentOperation", "Failed", ex);
+            SdkLogger.Error("Operation.GetCurrentOperation: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -223,7 +223,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetOperationInfo", "Failed", ex);
+            SdkLogger.Error("Operation.GetOperationInfo: Failed", ex);
             return null;
         }
     }
@@ -245,7 +245,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetCurrentMission", "Failed", ex);
+            SdkLogger.Error("Operation.GetCurrentMission: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -279,7 +279,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetMissions", "Failed", ex);
+            SdkLogger.Error("Operation.GetMissions: Failed", ex);
             return result;
         }
     }
@@ -338,7 +338,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetOperationsManager", "Failed", ex);
+            SdkLogger.Error("Operation.GetOperationsManager: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -370,7 +370,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetAllOperations", "Failed", ex);
+            SdkLogger.Error("Operation.GetAllOperations: Failed", ex);
             return result;
         }
     }
@@ -471,7 +471,7 @@ public static class Operation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Operation.GetCompletedOperationTypes", "Failed", ex);
+            SdkLogger.Error("Operation.GetCompletedOperationTypes: Failed", ex);
             return result;
         }
     }

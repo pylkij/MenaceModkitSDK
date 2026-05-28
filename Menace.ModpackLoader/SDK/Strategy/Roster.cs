@@ -113,7 +113,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("Roster.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -193,7 +193,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetRoster", "Failed", ex);
+            SdkLogger.Error("Roster.GetRoster: Failed", ex);
             return default;
         }
     }
@@ -232,7 +232,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetHiredLeaders", "Failed", ex);
+            SdkLogger.Error("Roster.GetHiredLeaders: Failed", ex);
             return result;
         }
     }
@@ -279,7 +279,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetLeaderInfo", "Failed", ex);
+            SdkLogger.Error("Roster.GetLeaderInfo: Failed", ex);
             return null;
         }
     }
@@ -377,7 +377,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetPerks", "Failed", ex);
+            SdkLogger.Error("Roster.GetPerks: Failed", ex);
             return result;
         }
     }
@@ -432,7 +432,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetHirableLeaders", "Failed", ex);
+            SdkLogger.Error("Roster.GetHirableLeaders: Failed", ex);
             return result;
         }
     }
@@ -468,7 +468,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetTemplateInfo", "Failed", ex);
+            SdkLogger.Error("Roster.GetTemplateInfo: Failed", ex);
             return null;
         }
     }
@@ -505,7 +505,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.AddHirableLeader", "Failed", ex);
+            SdkLogger.Error("Roster.AddHirableLeader: Failed", ex);
             return false;
         }
     }
@@ -544,7 +544,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.HireLeader", "Failed", ex);
+            SdkLogger.Error("Roster.HireLeader: Failed", ex);
             return default;
         }
     }
@@ -576,7 +576,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.DismissLeader", "Failed", ex);
+            SdkLogger.Error("Roster.DismissLeader: Failed", ex);
             return false;
         }
     }
@@ -598,7 +598,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.FindHirableByTemplateId", "Failed", ex);
+            SdkLogger.Error("Roster.FindHirableByTemplateId: Failed", ex);
             return default;
         }
     }
@@ -624,7 +624,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.FindByTemplateId", "Failed", ex);
+            SdkLogger.Error("Roster.FindByTemplateId: Failed", ex);
             return default;
         }
     }
@@ -644,7 +644,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetLeaderTemplate", "Failed", ex);
+            SdkLogger.Error("Roster.GetLeaderTemplate: Failed", ex);
             return default;
         }
     }
@@ -689,7 +689,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetSquaddies", "Failed", ex);
+            SdkLogger.Error("Roster.GetSquaddies: Failed", ex);
             return result;
         }
     }
@@ -721,7 +721,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetSquaddieInfo", "Failed", ex);
+            SdkLogger.Error("Roster.GetSquaddieInfo: Failed", ex);
             return null;
         }
     }
@@ -746,7 +746,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.AddSquaddie", "Failed", ex);
+            SdkLogger.Error("Roster.AddSquaddie: Failed", ex);
             return false;
         }
     }
@@ -771,7 +771,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.RemoveSquaddie", "Failed", ex);
+            SdkLogger.Error("Roster.RemoveSquaddie: Failed", ex);
             return false;
         }
     }
@@ -789,7 +789,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.GetSquaddieCount", "Failed", ex);
+            SdkLogger.Error("Roster.GetSquaddieCount: Failed", ex);
             return 0;
         }
     }
@@ -815,7 +815,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.AddPerk", "Failed", ex);
+            SdkLogger.Error("Roster.AddPerk: Failed", ex);
             return false;
         }
     }
@@ -852,7 +852,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.RemovePerk", "Failed", ex);
+            SdkLogger.Error("Roster.RemovePerk: Failed", ex);
             return false;
         }
     }
@@ -883,7 +883,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.HealLeader", "Failed", ex);
+            SdkLogger.Error("Roster.HealLeader: Failed", ex);
             return false;
         }
     }
@@ -905,7 +905,7 @@ public static class Roster
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Roster.SetLeaderAvailable", "Failed", ex);
+            SdkLogger.Error("Roster.SetLeaderAvailable: Failed", ex);
             return false;
         }
     }

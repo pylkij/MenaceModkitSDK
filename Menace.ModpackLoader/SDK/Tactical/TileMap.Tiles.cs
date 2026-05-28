@@ -133,7 +133,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetCover", "Failed", ex);
+            SdkLogger.Error("TileMap.GetCover: Failed", ex);
             return 0;
         }
     }
@@ -195,7 +195,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsVisibleToFaction", "Failed", ex);
+            SdkLogger.Error("TileMap.IsVisibleToFaction: Failed", ex);
             return false;
         }
     }
@@ -230,7 +230,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsVisibleToPlayer", "Failed", ex);
+            SdkLogger.Error("TileMap.IsVisibleToPlayer: Failed", ex);
             return false;
         }
     }
@@ -263,7 +263,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsBlocked", "Failed", ex);
+            SdkLogger.Error("TileMap.IsBlocked: Failed", ex);
             return true;
         }
     }
@@ -290,7 +290,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsValidMovementDestination", "Failed", ex);
+            SdkLogger.Error("TileMap.IsValidMovementDestination: Failed", ex);
             return false;
         }
     }
@@ -317,7 +317,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.CanBeEntered", "Failed", ex);
+            SdkLogger.Error("TileMap.CanBeEntered: Failed", ex);
             return false;
         }
     }
@@ -350,7 +350,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.HasActor", "Failed", ex);
+            SdkLogger.Error("TileMap.HasActor: Failed", ex);
             return false;
         }
     }
@@ -377,7 +377,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsEmpty", "Failed", ex);
+            SdkLogger.Error("TileMap.IsEmpty: Failed", ex);
             return false;
         }
     }
@@ -413,7 +413,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetActorOnTile", "Failed", ex);
+            SdkLogger.Error("TileMap.GetActorOnTile: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -451,7 +451,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetNeighbor", "Failed", ex);
+            SdkLogger.Error("TileMap.GetNeighbor: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -519,7 +519,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.IsDirectNeighbor", "Failed", ex);
+            SdkLogger.Error("TileMap.IsDirectNeighbor: Failed", ex);
             return false;
         }
     }
@@ -559,7 +559,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetDirectionTo", "Failed", ex);
+            SdkLogger.Error("TileMap.GetDirectionTo: Failed", ex);
             return -1;
         }
     }
@@ -599,7 +599,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetDistance", "Failed", ex);
+            SdkLogger.Error("TileMap.GetDistance: Failed", ex);
             return -1;
         }
     }
@@ -629,7 +629,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetManhattanDistance", "Failed", ex);
+            SdkLogger.Error("TileMap.GetManhattanDistance: Failed", ex);
             return -1;
         }
     }

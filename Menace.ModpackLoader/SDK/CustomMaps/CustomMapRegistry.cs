@@ -34,15 +34,14 @@ public static class CustomMapRegistry
     {
         if (config == null)
         {
-            ModError.WarnInternal("CustomMapRegistry.Register", "Config is null");
+            SdkLogger.Warning("CustomMapRegistry.Register: Config is null");
             return false;
         }
 
         var errors = config.Validate();
         if (errors.Count > 0)
         {
-            ModError.WarnInternal("CustomMapRegistry.Register",
-                $"Invalid config '{config.Name}': {string.Join(", ", errors)}");
+            SdkLogger.Warning($"CustomMapRegistry.Register: Invalid config '{config.Name}': {string.Join(", ", errors)}");
             return false;
         }
 
@@ -138,8 +137,7 @@ public static class CustomMapRegistry
     {
         if (!Directory.Exists(directoryPath))
         {
-            ModError.WarnInternal("CustomMapRegistry.LoadFromDirectory",
-                $"Directory not found: {directoryPath}");
+            SdkLogger.Warning($"CustomMapRegistry.LoadFromDirectory: Directory not found: {directoryPath}");
             return 0;
         }
 
@@ -156,8 +154,7 @@ public static class CustomMapRegistry
             }
             catch (Exception ex)
             {
-                ModError.WarnInternal("CustomMapRegistry.LoadFromDirectory",
-                    $"Failed to load {file}: {ex.Message}");
+                SdkLogger.Warning($"CustomMapRegistry.LoadFromDirectory: Failed to load {file}: {ex.Message}");
             }
         }
 
@@ -173,8 +170,7 @@ public static class CustomMapRegistry
     {
         if (!File.Exists(filePath))
         {
-            ModError.WarnInternal("CustomMapRegistry.LoadFromFile",
-                $"File not found: {filePath}");
+            SdkLogger.Warning($"CustomMapRegistry.LoadFromFile: File not found: {filePath}");
             return null;
         }
 
@@ -198,8 +194,7 @@ public static class CustomMapRegistry
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapRegistry.LoadFromFile",
-                $"Failed to parse {filePath}", ex);
+            SdkLogger.Error($"CustomMapRegistry.LoadFromFile: Failed to parse {filePath}", ex);
             return null;
         }
     }
@@ -228,8 +223,7 @@ public static class CustomMapRegistry
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapRegistry.SaveToFile",
-                $"Failed to save to {filePath}", ex);
+            SdkLogger.Error($"CustomMapRegistry.SaveToFile: Failed to save to {filePath}", ex);
             return false;
         }
     }
@@ -259,8 +253,7 @@ public static class CustomMapRegistry
         var config = Get(id);
         if (config == null)
         {
-            ModError.WarnInternal("CustomMapRegistry.SetActiveOverride",
-                $"Map not found: {id}");
+            SdkLogger.Warning($"CustomMapRegistry.SetActiveOverride: Map not found: {id}");
             return false;
         }
 

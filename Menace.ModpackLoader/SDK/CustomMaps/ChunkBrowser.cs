@@ -219,8 +219,7 @@ public static class ChunkBrowser
                 }
                 catch (Exception ex)
                 {
-                    ModError.WarnInternal("ChunkBrowser.RefreshCache",
-                        $"Failed to read chunk info: {ex.Message}");
+                    SdkLogger.Error($"ChunkBrowser.RefreshCache. Failed to read chunk info: {ex.Message}");
                 }
             }
 
@@ -231,8 +230,7 @@ public static class ChunkBrowser
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("ChunkBrowser.RefreshCache",
-                "Failed to enumerate chunk templates", ex);
+            SdkLogger.Error("ChunkBrowser.RefreshCache. Failed to enumerate chunk templates", ex);
         }
     }
 
@@ -331,15 +329,13 @@ public static class ChunkBrowser
                 }
                 catch (Exception ex)
                 {
-                    ModError.WarnInternal("ChunkBrowser.GetPrefabEntries",
-                        $"Failed to read prefab entry {i}: {ex.Message}");
+                    SdkLogger.Error($"ChunkBrowser.GetPrefabEntries. Failed to read prefab entry {i}: {ex.Message}");
                 }
             }
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("ChunkBrowser.GetPrefabEntries",
-                $"Failed to read prefabs for {chunk.Name}: {ex.Message}");
+            SdkLogger.Error($"ChunkBrowser.GetPrefabEntries. Failed to read prefabs for {chunk.Name}: {ex.Message}");
         }
 
         return result;
@@ -378,8 +374,7 @@ public static class ChunkBrowser
             }
             catch (Exception ex)
             {
-                ModError.WarnInternal("ChunkBrowser.ExportChunkLayouts",
-                    $"Failed to export {chunk.Name}: {ex.Message}");
+                SdkLogger.Error("ChunkBrowser.ExportChunkLayouts. Failed to export {chunk.Name}: {ex.Message}");
             }
         }
 
@@ -399,8 +394,7 @@ public static class ChunkBrowser
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("ChunkBrowser.ExportChunkLayouts",
-                $"Failed to write export file", ex);
+            SdkLogger.Error($"ChunkBrowser.ExportChunkLayouts. Failed to write export file", ex);
             return 0;
         }
     }

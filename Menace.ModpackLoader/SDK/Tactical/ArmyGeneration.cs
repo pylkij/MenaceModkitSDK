@@ -124,7 +124,7 @@ public static class ArmyGeneration
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("ArmyGeneration.GetArmyInfo", "Failed", ex);
+            SdkLogger.Error("ArmyGeneration.GetArmyInfo: Failed", ex);
             return null;
         }
     }
@@ -171,7 +171,7 @@ public static class ArmyGeneration
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("ArmyGeneration.GetEntryInfo", "Failed", ex);
+            SdkLogger.Error("ArmyGeneration.GetEntryInfo: Failed", ex);
             return null;
         }
     }
@@ -464,7 +464,7 @@ public static class ArmyGeneration
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("ArmyGeneration.GetArmyTemplateEntries", "Failed", ex);
+            SdkLogger.Error("ArmyGeneration.GetArmyTemplateEntries: Failed", ex);
         }
 
         return result;
@@ -497,7 +497,7 @@ public static class ArmyGeneration
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("ArmyGeneration.FindTemplateInArmies", "Failed", ex);
+            SdkLogger.Error("ArmyGeneration.FindTemplateInArmies: Failed", ex);
         }
 
         return result;

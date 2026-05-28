@@ -56,7 +56,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("LineOfSight.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -94,7 +94,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.HasLineOfSight", "Failed", ex);
+            SdkLogger.Error("LineOfSight.HasLineOfSight: Failed", ex);
             return false;
         }
     }
@@ -112,7 +112,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.CanActorSee", "Failed", ex);
+            SdkLogger.Error("LineOfSight.CanActorSee: Failed", ex);
             return false;
         }
     }
@@ -167,7 +167,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.GetVision", "Failed", ex);
+            SdkLogger.Error("LineOfSight.GetVision: Failed", ex);
             return 0;
         }
     }
@@ -189,7 +189,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.GetDetection", "Failed", ex);
+            SdkLogger.Error("LineOfSight.GetDetection: Failed", ex);
             return 0;
         }
     }
@@ -211,7 +211,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.GetConcealment", "Failed", ex);
+            SdkLogger.Error("LineOfSight.GetConcealment: Failed", ex);
             return 0;
         }
     }
@@ -237,7 +237,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.GetVisibilityInfo", "Failed", ex);
+            SdkLogger.Error("LineOfSight.GetVisibilityInfo: Failed", ex);
             return null;
         }
     }
@@ -272,7 +272,7 @@ public static class LineOfSight
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("LineOfSight.GetVisibleTiles", "Failed", ex);
+            SdkLogger.Error("LineOfSight.GetVisibleTiles: Failed", ex);
         }
 
         return result;

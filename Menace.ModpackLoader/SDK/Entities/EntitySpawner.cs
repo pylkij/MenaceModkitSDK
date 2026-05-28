@@ -80,12 +80,12 @@ public static class EntitySpawner
                 return SpawnResult.Failed($"TrySpawnUnit returned false for '{templateId}'");
 
             var actorObj = new GameObj(actor.Pointer);
-            ModError.Info("EntitySpawner", $"Spawned '{templateId}' at ({tileX}, {tileZ}) faction {faction}");
+            SdkLogger.Msg($"[EntitySpawner] Spawned '{templateId}' at ({tileX}, {tileZ}) faction {faction}");
             return SpawnResult.Ok(actorObj);
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.SpawnUnit", $"Failed to spawn '{templateId}'", ex);
+            SdkLogger.Error($"[EntitySpawner.SpawnUnit] Failed to spawn '{templateId}'", ex);
             return SpawnResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -142,7 +142,7 @@ public static class EntitySpawner
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.ListEntities", "Failed to list entities", ex);
+            SdkLogger.Error("EntitySpawner.ListEntities: Failed to list entities", ex);
             return Array.Empty<GameObj>();
         }
     }
@@ -165,7 +165,7 @@ public static class EntitySpawner
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.DestroyEntity", "Failed to destroy entity", ex);
+            SdkLogger.Error("EntitySpawner.DestroyEntity: Failed to destroy entity", ex);
             return false;
         }
     }
@@ -209,7 +209,7 @@ public static class EntitySpawner
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.GetEntityInfo", "Failed", ex);
+            SdkLogger.Error("EntitySpawner.GetEntityInfo: Failed", ex);
             return null;
         }
     }
@@ -233,7 +233,7 @@ public static class EntitySpawner
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntitySpawner.GetTileAt", $"Failed for ({x}, {z})", ex);
+            SdkLogger.Error($"[EntitySpawner.GetTileAt] Failed for ({x}, {z})", ex);
             return GameObj.Null;
         }
     }

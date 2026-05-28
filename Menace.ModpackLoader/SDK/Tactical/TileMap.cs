@@ -102,7 +102,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("TileMap.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -142,7 +142,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetTile", $"Failed for ({x}, {z})", ex);
+            SdkLogger.Error($"[TileMap.GetTile] Failed for ({x}, {z})", ex);
             return GameObj.Null;
         }
     }
@@ -174,7 +174,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetTileAtWorldPos", "Failed", ex);
+            SdkLogger.Error("TileMap.GetTileAtWorldPos: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -246,7 +246,7 @@ public static partial class TileMap
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TileMap.GetTileInfo", "Failed", ex);
+            SdkLogger.Error("TileMap.GetTileInfo: Failed", ex);
             return null;
         }
     }

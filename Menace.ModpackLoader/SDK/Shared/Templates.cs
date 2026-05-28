@@ -40,8 +40,7 @@ public static class Templates
         if (!_loadedTypes.Add(typeof(T))) return;
         var result = DataTemplateLoader.GetAll<T>();
         if (result == null || result.Count == 0)
-            ModError.WarnInternal("Templates.EnsureLoaded",
-                $"No templates loaded for {typeof(T).Name}");
+            SdkLogger.Warning($"Templates.EnsureLoaded: No templates loaded for {typeof(T).Name}");
     }
     /// <summary>
     /// Returns the template with the given ID.
@@ -53,8 +52,7 @@ public static class Templates
         EnsureLoaded<T>();
         var result = DataTemplateLoader.Get<T>(id, false);
         if (result == null)
-            ModError.WarnInternal("Templates.FindByID",
-                $"{typeof(T).Name} '{id}' not found");
+            SdkLogger.Warning($"Templates.FindByID: {typeof(T).Name} '{id}' not found");
         return result;
     }
 
@@ -69,8 +67,7 @@ public static class Templates
         if (DataTemplateLoader.TryGet<T>(id, out template))
             return true;
 
-        ModError.WarnInternal("Templates.TryGet",
-            $"{typeof(T).Name} '{id}' not found");
+        SdkLogger.Warning($"Templates.TryGet: {typeof(T).Name} '{id}' not found");
         return false;
     }
 

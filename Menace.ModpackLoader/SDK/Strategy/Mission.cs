@@ -76,7 +76,7 @@ public static class Mission
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Mission.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("Mission.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -127,14 +127,14 @@ public static class Mission
             var tm = TacticalManager.Get();
             if (tm == null)
             {
-                ModError.WarnInternal("Mission.GetMission", "TacticalManager returned null");
+                SdkLogger.Warning("Mission.GetMission: TacticalManager returned null");
                 return null;
             }
             return tm.GetMission();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Mission.GetMission", "Failed", ex);
+            SdkLogger.Error("Mission.GetMission: Failed", ex);
             return null;
         }
     }
@@ -150,7 +150,7 @@ public static class Mission
     {
         if (mission == null)
         {
-            ModError.WarnInternal("Mission.GetMissionInfo", "Mission is null");
+            SdkLogger.Warning("Mission.GetMissionInfo: Mission is null");
             return null;
         }
 
@@ -158,55 +158,55 @@ public static class Mission
         var missionObj = GameObj<Il2CppMenace.Strategy.Mission>.Wrap(mission.Pointer);
 
         if (!_hTemplate.TryRead(missionObj, out var templateObj))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Template");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Template");
         else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(templateObj.Untyped.Pointer), out var templateId))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading TemplateId");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading TemplateId");
         else
             info.TemplateId = templateId;
 
         if (!_hStatus.TryRead(missionObj, out var status))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Status");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Status");
         else
             info.Status = (MissionStatus)(int)status;
 
         if (!_hLayer.TryRead(missionObj, out var layer))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Layer");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Layer");
         else
             info.Layer = (MissionLayer)(int)layer;
 
         if (!_hSeed.TryRead(missionObj, out var seed))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Seed");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Seed");
         else
             info.Seed = seed;
 
         if (!_hBiome.TryRead(missionObj, out var biomeObj))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Biome");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Biome");
         else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(biomeObj.Untyped.Pointer), out var biomeId))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading BiomeId");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading BiomeId");
         else
             info.BiomeId = biomeId;
 
         if (!_hWeather.TryRead(missionObj, out var weatherObj))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Weather");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Weather");
         else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(weatherObj.Untyped.Pointer), out var weatherId))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading WeatherId");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading WeatherId");
         else
             info.WeatherId = weatherId;
 
         if (!_hLightConditions.TryRead(missionObj, out var lightCondition))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading LightCondition");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading LightCondition");
         else
             info.LightCondition = (LightConditionType)(int)lightCondition;
 
         if (!_hDifficulty.TryRead(missionObj, out var difficultyObj))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading Difficulty");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading Difficulty");
         else if (!Templates._hDataTemplateId.TryRead(GameObj<Il2CppMenace.Tools.DataTemplate>.Wrap(difficultyObj.Untyped.Pointer), out var difficultyId))
-            ModError.WarnInternal("Mission.GetMissionInfo", "Failed reading DifficultyId");
+            SdkLogger.Warning("Mission.GetMissionInfo: Failed reading DifficultyId");
         else
             info.DifficultyId = difficultyId;
 
         try { info.EnemyArmyPoints = mission.GetEnemyArmyPoints(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.GetMissionInfo", "Failed reading EnemyArmyPoints", ex); }
+        catch (Exception ex) { SdkLogger.Error("Mission.GetMissionInfo: Failed reading EnemyArmyPoints", ex); }
 
         return info;
     }
@@ -224,14 +224,14 @@ public static class Mission
 
         if (mission == null)
         {
-            ModError.WarnInternal("Mission.GetObjectives", "Mission is null");
+            SdkLogger.Warning("Mission.GetObjectives: Mission is null");
             return result;
         }
 
         var objectiveManager = mission.Objectives;
         if (objectiveManager == null)
         {
-            ModError.WarnInternal("Mission.GetObjectives", "ObjectiveManager is null");
+            SdkLogger.Warning("Mission.GetObjectives: ObjectiveManager is null");
             return result;
         }
 
@@ -242,13 +242,13 @@ public static class Mission
         }
         catch (Exception ex) 
         { 
-            ModError.ReportInternal("Mission.GetObjectives", "Failed calling GetObjectives", ex); 
+            SdkLogger.Error("Mission.GetObjectives: Failed calling GetObjectives", ex); 
             return result; 
         }
 
         if (objectives == null)
         {
-            ModError.WarnInternal("Mission.GetObjectives", "GetObjectives returned null");
+            SdkLogger.Warning("Mission.GetObjectives: GetObjectives returned null");
             return result;
         }
 
@@ -258,26 +258,26 @@ public static class Mission
 
             if (obj == null)
             {
-                ModError.WarnInternal("Mission.GetObjectives", "Null entry in objectives list");
+                SdkLogger.Warning("Mission.GetObjectives: Null entry in objectives list");
                 continue;
             }
 
             var info = new ObjectiveInfo { Pointer = obj.Pointer };
 
             try { info.Name = obj.GetTitle(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Name", ex); }
+            catch (Exception ex) { SdkLogger.Error("Mission.GetObjectives: Failed reading Name", ex); }
 
             try { info.Description = obj.GetTranslatedObjectiveText(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Description", ex); }
+            catch (Exception ex) { SdkLogger.Error("Mission.GetObjectives: Failed reading Description", ex); }
 
             try { info.IsComplete = obj.IsCompleted(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading IsComplete", ex); }
+            catch (Exception ex) { SdkLogger.Error("Mission.GetObjectives: Failed reading IsComplete", ex); }
 
             try { info.IsFailed = obj.IsFailed(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading IsFailed", ex); }
+            catch (Exception ex) { SdkLogger.Error("Mission.GetObjectives: Failed reading IsFailed", ex); }
 
             try { info.Progress = obj.GetProgress(); }
-            catch (Exception ex) { ModError.ReportInternal("Mission.GetObjectives", "Failed reading Progress", ex); }
+            catch (Exception ex) { SdkLogger.Error("Mission.GetObjectives: Failed reading Progress", ex); }
 
             try 
             { 
@@ -285,7 +285,7 @@ public static class Mission
             }
             catch (Exception ex) 
             { 
-                ModError.ReportInternal("Mission.GetObjectives", "Failed reading TargetProgress", ex); 
+                SdkLogger.Error("Mission.GetObjectives: Failed reading TargetProgress", ex); 
             }
 
             result.Add(info);
@@ -305,14 +305,14 @@ public static class Mission
             var mission = TacticalManager.Get()?.GetMission();
             if (mission == null)
             {
-                ModError.WarnInternal("Mission.GetStatus", "No active mission");
+                SdkLogger.Warning("Mission.GetStatus: No active mission");
                 return null;
             }
             return (MissionStatus)(int)mission.GetStatus();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Mission.GetStatus", "Failed", ex);
+            SdkLogger.Error("Mission.GetStatus: Failed", ex);
             return null;
         }
     }
@@ -368,21 +368,21 @@ public static class Mission
         var tm = TacticalManager.Get();
         if (tm == null)
         {
-            ModError.WarnInternal("Mission.CompletePendingObjectives", "TacticalManager is null");
+            SdkLogger.Warning("Mission.CompletePendingObjectives: TacticalManager is null");
             return;
         }
 
         var mission = tm.GetMission();
         if (mission == null)
         {
-            ModError.WarnInternal("Mission.CompletePendingObjectives", "Mission is null");
+            SdkLogger.Warning("Mission.CompletePendingObjectives: Mission is null");
             return;
         }
 
         var objectiveManager = mission.Objectives;
         if (objectiveManager == null)
         {
-            ModError.WarnInternal("Mission.CompletePendingObjectives", "ObjectiveManager is null");
+            SdkLogger.Warning("Mission.CompletePendingObjectives: ObjectiveManager is null");
             return;
         }
 
@@ -393,12 +393,12 @@ public static class Mission
         }
         catch (Exception ex) 
         { 
-            ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling GetObjectives", ex); return; 
+            SdkLogger.Error("Mission.CompletePendingObjectives: Failed calling GetObjectives", ex); return; 
         }
 
         if (objectives == null)
         {
-            ModError.WarnInternal("Mission.CompletePendingObjectives", "GetObjectives returned null");
+            SdkLogger.Warning("Mission.CompletePendingObjectives: GetObjectives returned null");
             return;
         }
 
@@ -408,7 +408,7 @@ public static class Mission
 
             if (obj == null)
             {
-                ModError.WarnInternal("Mission.CompletePendingObjectives", "Null entry in objectives list");
+                SdkLogger.Warning("Mission.CompletePendingObjectives: Null entry in objectives list");
                 continue;
             }
 
@@ -420,7 +420,7 @@ public static class Mission
             }
             catch (Exception ex) 
             { 
-                ModError.ReportInternal("Mission.CompletePendingObjectives", "Failed calling ForceComplete", ex); 
+                SdkLogger.Error("Mission.CompletePendingObjectives: Failed calling ForceComplete", ex); 
             }
         }
     }
@@ -436,44 +436,44 @@ public static class Mission
         var tm = TacticalManager.Get();
         if (tm == null)
         {
-            ModError.WarnInternal("Mission.CompleteObjective", "TacticalManager is null");
+            SdkLogger.Warning("Mission.CompleteObjective: TacticalManager is null");
             return false;
         }
 
         var mission = tm.GetMission();
         if (mission == null)
         {
-            ModError.WarnInternal("Mission.CompleteObjective", "Mission is null");
+            SdkLogger.Warning("Mission.CompleteObjective: Mission is null");
             return false;
         }
 
         var objectiveManager = mission.Objectives;
         if (objectiveManager == null)
         {
-            ModError.WarnInternal("Mission.CompleteObjective", "ObjectiveManager is null");
+            SdkLogger.Warning("Mission.CompleteObjective: ObjectiveManager is null");
             return false;
         }
 
         IReadOnlyList<Objective> objectives = null;
         try { objectives = (IReadOnlyList<Objective>)objectiveManager.GetObjectives(); }
-        catch (Exception ex) { ModError.ReportInternal("Mission.CompleteObjective", "Failed calling GetObjectives", ex); return false; }
+        catch (Exception ex) { SdkLogger.Error("Mission.CompleteObjective: Failed calling GetObjectives", ex); return false; }
 
         if (objectives == null)
         {
-            ModError.WarnInternal("Mission.CompleteObjective", "GetObjectives returned null");
+            SdkLogger.Warning("Mission.CompleteObjective: GetObjectives returned null");
             return false;
         }
 
         if (index < 0 || index >= objectives.Count)
         {
-            ModError.WarnInternal("Mission.CompleteObjective", $"Index {index} out of range (count: {objectives.Count})");
+            SdkLogger.Warning($"Mission.CompleteObjective: Index {index} out of range (count: {objectives.Count})");
             return false;
         }
 
         var obj = objectives[index];
         if (obj == null)
         {
-            ModError.WarnInternal("Mission.CompleteObjective", $"Objective at index {index} is null");
+            SdkLogger.Warning($"Mission.CompleteObjective: Objective at index {index} is null");
             return false;
         }
 
@@ -486,7 +486,7 @@ public static class Mission
         }
         catch (Exception ex) 
         { 
-            ModError.ReportInternal("Mission.CompleteObjective", $"Failed calling ForceComplete on objective {index}", ex); 
+            SdkLogger.Error($"Mission.CompleteObjective: Failed calling ForceComplete on objective {index}", ex); 
             return false; 
         }
     }

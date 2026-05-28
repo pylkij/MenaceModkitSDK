@@ -211,7 +211,7 @@ public static class CombatSimulation
         }
         catch (Exception ex)
         {
-            ModError.Report("Menace.SDK", "CombatSimulation.GetHitChance failed", ex, ErrorSeverity.Error);
+            SdkLogger.Error("Menace.SDK: CombatSimulation.GetHitChance failed", ex);
             result.FinalValue = -1;
             return result;
         }

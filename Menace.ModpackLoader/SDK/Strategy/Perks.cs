@@ -84,7 +84,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("Perks.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -148,7 +148,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.GetLeaderPerks", "Failed", ex);
+            SdkLogger.Error("Perks.GetLeaderPerks: Failed", ex);
             return result;
         }
     }
@@ -181,7 +181,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.GetPerkInfo", "Failed", ex);
+            SdkLogger.Error("Perks.GetPerkInfo: Failed", ex);
             return null;
         }
     }
@@ -217,7 +217,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.GetPerkTrees", "Failed", ex);
+            SdkLogger.Error("Perks.GetPerkTrees: Failed", ex);
             return result;
         }
     }
@@ -264,7 +264,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.GetPerkTreeInfo", "Failed", ex);
+            SdkLogger.Error("Perks.GetPerkTreeInfo: Failed", ex);
             return null;
         }
     }
@@ -286,7 +286,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.CanBePromoted", "Failed", ex);
+            SdkLogger.Error("Perks.CanBePromoted: Failed", ex);
             return false;
         }
     }
@@ -304,7 +304,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.CanBeDemoted", "Failed", ex);
+            SdkLogger.Error("Perks.CanBeDemoted: Failed", ex);
             return false;
         }
     }
@@ -327,7 +327,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.AddPerk", "Failed", ex);
+            SdkLogger.Error("Perks.AddPerk: Failed", ex);
             return false;
         }
     }
@@ -345,7 +345,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.RemoveLastPerk", "Failed", ex);
+            SdkLogger.Error("Perks.RemoveLastPerk: Failed", ex);
             return false;
         }
     }
@@ -364,7 +364,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.HasPerk", "Failed", ex);
+            SdkLogger.Error("Perks.HasPerk: Failed", ex);
             return false;
         }
     }
@@ -385,7 +385,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.GetLastPerk", "Failed", ex);
+            SdkLogger.Error("Perks.GetLastPerk: Failed", ex);
             return default;
         }
     }
@@ -429,7 +429,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.FindPerkByName", "Failed", ex);
+            SdkLogger.Error("Perks.FindPerkByName: Failed", ex);
             return default;
         }
     }
@@ -463,7 +463,7 @@ public static class Perks
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Perks.GetAvailablePerks", "Failed", ex);
+            SdkLogger.Error("Perks.GetAvailablePerks: Failed", ex);
             return result;
         }
     }

@@ -76,7 +76,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("OCI.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -127,7 +127,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetShipUpgrades", "Failed", ex);
+            SdkLogger.Error("OCI.GetShipUpgrades: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -146,7 +146,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetOciComponents", "Failed", ex);
+            SdkLogger.Error("OCI.GetOciComponents: Failed", ex);
             return 0;
         }
     }
@@ -175,7 +175,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetAllUpgradeTemplates", "Failed", ex);
+            SdkLogger.Error("OCI.GetAllUpgradeTemplates: Failed", ex);
             return result;
         }
     }
@@ -215,7 +215,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetInstalledUpgrades", "Failed", ex);
+            SdkLogger.Error("OCI.GetInstalledUpgrades: Failed", ex);
             return result;
         }
     }
@@ -243,7 +243,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetAvailableUpgrades", "Failed", ex);
+            SdkLogger.Error("OCI.GetAvailableUpgrades: Failed", ex);
             return result;
         }
     }
@@ -281,7 +281,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetUpgradeInfo", "Failed", ex);
+            SdkLogger.Error("OCI.GetUpgradeInfo: Failed", ex);
             return null;
         }
     }
@@ -327,7 +327,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetSlots", "Failed", ex);
+            SdkLogger.Error("OCI.GetSlots: Failed", ex);
             return result;
         }
     }
@@ -370,7 +370,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.GetSlotInfo", "Failed", ex);
+            SdkLogger.Error("OCI.GetSlotInfo: Failed", ex);
             return null;
         }
     }
@@ -401,7 +401,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.TryEquipUpgrade", "Failed", ex);
+            SdkLogger.Error("OCI.TryEquipUpgrade: Failed", ex);
             return false;
         }
     }
@@ -428,7 +428,7 @@ public static class OCI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("OCI.TryUnequipUpgrade", "Failed", ex);
+            SdkLogger.Error("OCI.TryUnequipUpgrade: Failed", ex);
             return false;
         }
     }
