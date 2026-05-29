@@ -184,7 +184,7 @@ public static class Coroutine
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("Coroutine", $"Task {task.Key} failed: {ex.Message}");
+            SdkLogger.Error($"[Coroutine] Task {task.Key} failed: {ex.Message}");
         }
 
         // Handle repeat

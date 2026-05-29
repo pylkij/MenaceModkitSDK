@@ -1,19 +1,55 @@
 # Error Logging
 
-This guide covers how to log errors and exceptions in your mod using MelonLoader's built-in logger. If you followed *Your First Mod*, you already have everything you need — `_log` is your logger, and you have been using it since the beginning.
+This guide covers how to log errors and exceptions in your mod using `SdkLog`, the Menace SDK's unified logging surface. If you followed *Your First Mod*, you already have a `_log` set up — this guide will show you how it works and how to use it well.
+
+## Why SdkLogger Instead of the Raw MelonLogger
+
+When you initialize your mod, you receive a `MelonLogger.Instance` from MelonLoader. You could store it directly:
+
+```csharp
+_log = logger; // works, but you're giving up a lot
+```
+
+Using `SdkLogger` instead costs one line and gives you three things the raw logger does not:
+
+**Automatic mod ID tagging.** Every log line is tagged with your mod's name, read directly from the MelonLogger instance you pass in. If something goes wrong and a user pastes their `Latest.log`, you know immediately which mod produced which line — even when five mods are logging at once.
+
+**Severity screening.** `SdkLog` exposes `Info`, `Warning`, `Error`, and `Fatal` as distinct methods. Tools built on the SDK can filter or highlight by severity without parsing log strings.
+
+**DevConsole integration.** All paths — static and instanced — write to both MelonLogger and the in-game DevConsole automatically. You don't wire that up yourself.
+
+To get all of this, swap the assignment in `OnInitialize`:
+
+```csharp
+public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
+{
+    _log = new SdkLog(logger); // reads your mod name from logger automatically
+    _harmony = harmony;
+    _log.Msg("YourMod loaded.");
+    // ...
+}
+```
+
+Declare the field as `SdkLogger` rather than `MelonLogger.Instance`:
+
+```csharp
+private SdkLog _log;
+```
+
+Everything else in your mod stays the same. The four methods — `Msg`, `Warning`, `Error`, and `Fatal` — have the same signatures you are already used to.
 
 ## The Four Log Levels
 
-`MelonLogger.Instance` has four methods, each of which maps to a different severity:
+`SdkLog` exposes four methods that map directly to severity levels:
 
-| Method | When to use it |
-|---|---|
-| `_log.Msg` | Normal operation. Things going as expected. |
-| `_log.Warning` | Something is off, but your mod can continue. |
-| `_log.Error` | Something went wrong. Worth investigating. |
-| `_log.Error` (with exception) | Something threw. Always log these. |
+| Method | Severity | When to use it |
+|---|---|---|
+| `_log.Msg` | Info | Normal operation. Things going as expected. |
+| `_log.Warning` | Warning | Something is off, but your mod can continue. |
+| `_log.Error` | Error | Something went wrong. Worth investigating. |
+| `_log.Fatal` | Fatal | Unrecoverable failure. Mod cannot continue safely. |
 
-In `Latest.log`, each level is visually distinct, which makes scanning a log much faster when something goes wrong.
+In `Latest.log`, each level is visually distinct, which makes scanning much faster when something goes wrong. The severity is also carried through the `OnError` event, so any subscriber (such as a DevConsole overlay) can react to errors without parsing the log text.
 
 ## Logging an Exception
 
@@ -26,12 +62,11 @@ try
 }
 catch (Exception ex)
 {
-    _log.Error("Failed to call SomeSDKMethod:");
-    _log.Error(ex.ToString());
+    _log.Error("Failed to call SomeSDKMethod:", ex);
 }
 ```
 
-`ex.ToString()` gives you the exception type, message, and full stack trace — everything you need to pinpoint the problem. `ex.Message` alone is often not enough, since it strips the stack trace.
+Passing `ex` directly to `_log.Error` gives you the exception type, message, and full stack trace in one call, and ensures the exception is also carried through the `OnError` event where crash reporters can pick it up. Avoid logging only `ex.Message` — it strips the stack trace, which is usually what you actually need.
 
 In `Latest.log` this will look like:
 
@@ -56,8 +91,7 @@ try
 }
 catch (Exception ex)
 {
-    _log.Error("Failed to patch GetAccuracy — mod will not function correctly:");
-    _log.Error(ex.ToString());
+    _log.Error("Failed to patch GetAccuracy — mod will not function correctly:", ex);
 }
 ```
 
@@ -72,8 +106,7 @@ private void OnAttackTileStart(IntPtr attackerPtr, IntPtr skillPtr, IntPtr tileP
     }
     catch (Exception ex)
     {
-        _log.Error("Exception in OnAttackTileStart:");
-        _log.Error(ex.ToString());
+        _log.Error("Exception in OnAttackTileStart:", ex);
     }
 }
 ```
@@ -100,7 +133,7 @@ Include whatever context you have: what you were trying to do, what values were 
 
 ## Debug Logging
 
-As covered in *Your First Mod*, keeping debug log lines behind a flag is better than deleting them. They are invaluable when a user reports a bug or when a game update breaks something under you.
+Keeping debug log lines behind a flag is better than deleting them. They are invaluable when a user reports a bug or when a game update breaks something under you.
 
 ```csharp
 private static bool _debugLogging = false;
@@ -121,9 +154,12 @@ The rule for what stays ungated:
 A well-instrumented `OnInitialize` looks like this:
 
 ```csharp
+private SdkLog _log;
+private HarmonyLib.Harmony _harmony;
+
 public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
 {
-    _log = logger;
+    _log = new SdkLog(logger);
     _harmony = harmony;
     _log.Msg("YourMod loaded.");
 
@@ -132,11 +168,11 @@ public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony
     try
     {
         Patch_GetAccuracy();
+        _log.Msg("Patched GetAccuracy.");
     }
     catch (Exception ex)
     {
-        _log.Error("Failed to patch GetAccuracy — accuracy debuff will not apply:");
-        _log.Error(ex.ToString());
+        _log.Error("Failed to patch GetAccuracy — accuracy debuff will not apply:", ex);
     }
 }
 ```
@@ -162,10 +198,9 @@ private void OnAttackTileStart(IntPtr attackerPtr, IntPtr skillPtr, IntPtr tileP
     }
     catch (Exception ex)
     {
-        _log.Error("Exception in OnAttackTileStart:");
-        _log.Error(ex.ToString());
+        _log.Error("Exception in OnAttackTileStart:", ex);
     }
 }
 ```
 
-When something goes wrong, `Latest.log` will tell you exactly where, exactly what threw, and exactly what state the mod was in. That is the goal.
+When something goes wrong, `Latest.log` will tell you exactly where, exactly what threw, and exactly what state the mod was in — tagged with your mod's name on every line. That is the goal.

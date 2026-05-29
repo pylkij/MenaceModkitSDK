@@ -337,7 +337,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetConversationManager", "Failed", ex);
+            SdkLogger.Error("Conversation.GetConversationManager: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -369,7 +369,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetPresenter", "Failed", ex);
+            SdkLogger.Error("Conversation.GetPresenter: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -390,7 +390,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetCurrentConversation", "Failed", ex);
+            SdkLogger.Error("Conversation.GetCurrentConversation: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -419,7 +419,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.IsConversationRunning", "Failed", ex);
+            SdkLogger.Error("Conversation.IsConversationRunning: Failed", ex);
             return false;
         }
     }
@@ -472,7 +472,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetAvailableConversations", "Failed", ex);
+            SdkLogger.Error("Conversation.GetAvailableConversations: Failed", ex);
             return result;
         }
     }
@@ -499,7 +499,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetAllConversationTemplates", "Failed", ex);
+            SdkLogger.Error("Conversation.GetAllConversationTemplates: Failed", ex);
             return result;
         }
     }
@@ -580,7 +580,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetConversationInfo", "Failed", ex);
+            SdkLogger.Error("Conversation.GetConversationInfo: Failed", ex);
             return null;
         }
     }
@@ -626,7 +626,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetRoles", "Failed", ex);
+            SdkLogger.Error("Conversation.GetRoles: Failed", ex);
             return result;
         }
     }
@@ -705,7 +705,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetRoleInfo", "Failed", ex);
+            SdkLogger.Error("Conversation.GetRoleInfo: Failed", ex);
             return null;
         }
     }
@@ -761,7 +761,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetPresenterState", "Failed", ex);
+            SdkLogger.Error("Conversation.GetPresenterState: Failed", ex);
             return null;
         }
     }
@@ -780,7 +780,7 @@ public static class Conversation
             var template = GameQuery.FindByName<ConversationTemplate>(templateName);
             if (template == null)
             {
-                ModError.Warn("Menace.SDK", $"Conversation template '{templateName}' not found");
+                SdkLogger.Msg($"[Menace.SDK]Conversation template '{templateName}' not found");
                 return false;
             }
 
@@ -788,7 +788,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.TriggerConversation", "Failed", ex);
+            SdkLogger.Error("Conversation.TriggerConversation: Failed", ex);
             return false;
         }
     }
@@ -840,14 +840,14 @@ public static class Conversation
             {
                 // PlayConversation takes FindConversationSpeakersResult, not just template
                 // For simplicity, log info and return
-                ModError.Info("Menace.SDK", $"Triggering conversation: {template.GetName()}");
+                SdkLogger.Msg($"[Menace.SDK] Triggering conversation: {template.GetName()}");
             }
 
             return true;
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.TriggerConversation", "Failed", ex);
+            SdkLogger.Error("Conversation.TriggerConversation: Failed", ex);
             return false;
         }
     }
@@ -870,12 +870,12 @@ public static class Conversation
             if (cancelMethod == null) return false;
 
             cancelMethod.Invoke(presenter, null);
-            ModError.Info("Menace.SDK", "Cancelled conversation");
+            SdkLogger.Msg($"[Menace.SDK] Cancelled conversation");
             return true;
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.CancelConversation", "Failed", ex);
+            SdkLogger.Error("Conversation.CancelConversation: Failed", ex);
             return false;
         }
     }
@@ -916,7 +916,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.ShowNextNode", "Failed", ex);
+            SdkLogger.Error("Conversation.ShowNextNode: Failed", ex);
             return false;
         }
     }
@@ -943,7 +943,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.ProcessContinue", "Failed", ex);
+            SdkLogger.Error("Conversation.ProcessContinue: Failed", ex);
             return false;
         }
     }
@@ -970,7 +970,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetAllSpeakers", "Failed", ex);
+            SdkLogger.Error("Conversation.GetAllSpeakers: Failed", ex);
             return result;
         }
     }
@@ -1015,7 +1015,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetSpeakerInfo", "Failed", ex);
+            SdkLogger.Error("Conversation.GetSpeakerInfo: Failed", ex);
             return null;
         }
     }
@@ -1088,7 +1088,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.GetRepetitionCount", "Failed", ex);
+            SdkLogger.Error("Conversation.GetRepetitionCount: Failed", ex);
             return 0;
         }
     }
@@ -1130,7 +1130,7 @@ public static class Conversation
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Conversation.IsTriggerCompleted", "Failed", ex);
+            SdkLogger.Error("Conversation.IsTriggerCompleted: Failed", ex);
             return false;
         }
     }

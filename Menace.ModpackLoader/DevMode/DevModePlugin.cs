@@ -12,13 +12,12 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using UnityEngine;
-using UnityEngine.Playables;
 
 namespace Menace.ModpackLoader;
 
 public class DevModePlugin
 {
-    private MelonLogger.Instance SdkLogger;
+    private static SdkLog _log;
     private HarmonyLib.Harmony _harmony;
     private bool _devModeReady;
     private bool _sceneSeen;
@@ -80,16 +79,16 @@ public class DevModePlugin
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("DevMode.ResolveHandles", "Field handle resolution failed", ex);
+            _log.Error("DevMode.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
     public void Initialize(HarmonyLib.Harmony harmony, MelonLogger.Instance logger)
     {
-        SdkLogger = logger;
+        _log = new SdkLog("DevMode", logger);
         GameState.SceneLoaded += _ => ResolveHandles();
 
-        SdkLogger.Msg("Menace Dev Mode v1.1.1");
+        _log.Msg("Menace Dev Mode v1.1.1");
         DevConsole.RegisterPanel("Dev Mode", DrawDevModePanel);
 
         ModSettings.Register("Dev Mode", settings => {
@@ -117,11 +116,11 @@ public class DevModePlugin
     {
         if (modName != "Dev Mode") return;
 
-        SdkLogger.Msg($"Setting changed: {key} = {value}");
+        _log.Msg($"Setting changed: {key} = {value}");
 
         if (key == "ShowAllEntityTypes" && _devModeReady)
         {
-            SdkLogger.Msg("Reloading entity templates with new filter...");
+            _log.Msg("Reloading entity templates with new filter...");
             ReloadEntityTemplates();
         }
 
@@ -129,12 +128,12 @@ public class DevModePlugin
         {
             if ((bool)value)
             {
-                SdkLogger.Msg("Enabling recruit all leaders...");
+                _log.Msg("Enabling recruit all leaders...");
                 ApplyRecruitAllLeaders();
             }
             else
             {
-                SdkLogger.Msg("Recruit all leaders disabled");
+                _log.Msg("Recruit all leaders disabled");
             }
         }
 
@@ -155,7 +154,7 @@ public class DevModePlugin
     {
         try
         {
-            SdkLogger.Msg("=== Recruit All Leaders ===");
+            _log.Msg("=== Recruit All Leaders ===");
 
             // Get StrategyState via static Get() method
             var strategyStateType = _gameAssembly?.GetTypes()
@@ -163,7 +162,7 @@ public class DevModePlugin
 
             if (strategyStateType == null)
             {
-                SdkLogger.Warning("StrategyState type not found");
+                _log.Warning("StrategyState type not found");
                 return;
             }
 
@@ -171,36 +170,36 @@ public class DevModePlugin
                 BindingFlags.Public | BindingFlags.Static);
             if (getMethod == null)
             {
-                SdkLogger.Warning("StrategyState.Get() method not found");
+                _log.Warning("StrategyState.Get() method not found");
                 return;
             }
 
             var strategyState = getMethod.Invoke(null, null);
             if (strategyState == null)
             {
-                SdkLogger.Warning("StrategyState.Get() returned null - not in strategy mode?");
+                _log.Warning("StrategyState.Get() returned null - not in strategy mode?");
                 return;
             }
 
-            SdkLogger.Msg($"StrategyState found: {strategyState.GetType().Name}");
+            _log.Msg($"StrategyState found: {strategyState.GetType().Name}");
 
             // Get Roster from StrategyState
             var rosterProp = strategyStateType.GetProperty("Roster",
                 BindingFlags.Public | BindingFlags.Instance);
             if (rosterProp == null)
             {
-                SdkLogger.Warning("StrategyState.Roster property not found");
+                _log.Warning("StrategyState.Roster property not found");
                 return;
             }
 
             var roster = rosterProp.GetValue(strategyState);
             if (roster == null)
             {
-                SdkLogger.Warning("Roster is null");
+                _log.Warning("Roster is null");
                 return;
             }
 
-            SdkLogger.Msg($"Roster found: {roster.GetType().Name}");
+            _log.Msg($"Roster found: {roster.GetType().Name}");
 
             // Get the m_HirableLeaders property (List<UnitLeaderTemplate>)
             var rosterType = roster.GetType();
@@ -213,7 +212,7 @@ public class DevModePlugin
             if (hirableProp != null)
             {
                 hirableList = hirableProp.GetValue(roster);
-                SdkLogger.Msg($"Found m_HirableLeaders property");
+                _log.Msg($"Found m_HirableLeaders property");
             }
             else
             {
@@ -224,15 +223,15 @@ public class DevModePlugin
                 var props = rosterType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                     .Select(p => $"{p.Name}:{p.PropertyType.Name}")
                     .ToList();
-                SdkLogger.Msg($"Roster fields: {string.Join(", ", fields.Take(15))}");
-                SdkLogger.Msg($"Roster props: {string.Join(", ", props.Take(15))}");
-                SdkLogger.Warning("Could not find hirable leaders list");
+                _log.Msg($"Roster fields: {string.Join(", ", fields.Take(15))}");
+                _log.Msg($"Roster props: {string.Join(", ", props.Take(15))}");
+                _log.Warning("Could not find hirable leaders list");
                 return;
             }
 
             if (hirableList == null)
             {
-                SdkLogger.Warning("Hirable leaders list is null");
+                _log.Warning("Hirable leaders list is null");
                 return;
             }
 
@@ -240,19 +239,19 @@ public class DevModePlugin
             var listType = hirableList.GetType();
             var countProp = listType.GetProperty("Count");
             int currentCount = (int)countProp.GetValue(hirableList);
-            SdkLogger.Msg($"Current hirable leaders count: {currentCount}");
+            _log.Msg($"Current hirable leaders count: {currentCount}");
 
             // Get all UnitLeaderTemplates via SDK Templates.FindAllManaged
             // Use full namespace for reliable type resolution
             var allLeaders = Templates.FindAll<UnitLeaderTemplate>();
-            SdkLogger.Msg($"Found {allLeaders.Count} UnitLeaderTemplates");
+            _log.Msg($"Found {allLeaders.Count} UnitLeaderTemplates");
 
             // Get the Add and Contains methods on the hirable list
             var addMethod = listType.GetMethod("Add");
             var containsMethod = listType.GetMethod("Contains");
             if (addMethod == null)
             {
-                SdkLogger.Warning("List.Add method not found");
+                _log.Warning("List.Add method not found");
                 return;
             }
 
@@ -290,27 +289,27 @@ public class DevModePlugin
                     if (added <= 3)
                     {
                         var name = GetTemplateName(leader);
-                        SdkLogger.Msg($"  Added: {name}");
+                        _log.Msg($"  Added: {name}");
                     }
                 }
                 catch (Exception ex)
                 {
-                    SdkLogger.Warning($"Error processing leader: {ex.Message}");
+                    _log.Warning($"Error processing leader: {ex.Message}");
                 }
             }
 
             if (added > 3)
-                SdkLogger.Msg($"  ... and {added - 3} more");
+                _log.Msg($"  ... and {added - 3} more");
 
-            SdkLogger.Msg($"Added {added} leaders, skipped {skipped} already hirable");
+            _log.Msg($"Added {added} leaders, skipped {skipped} already hirable");
 
             // Verify new count
             int newCount = (int)countProp.GetValue(hirableList);
-            SdkLogger.Msg($"New hirable leaders count: {newCount}");
+            _log.Msg($"New hirable leaders count: {newCount}");
         }
         catch (Exception ex)
         {
-            SdkLogger.Warning($"ApplyRecruitAllLeaders error: {ex.Message}\n{ex.StackTrace}");
+            _log.Warning($"ApplyRecruitAllLeaders error: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -340,7 +339,7 @@ public class DevModePlugin
         float accuracyBonus = ModSettings.Get<float>("Dev Mode", "PlayerAccuracyBonus");
         float healthMult = ModSettings.Get<float>("Dev Mode", "EnemyHealthMult");
 
-        SdkLogger.Msg($"Applying gameplay tweaks: damage={damageMult}x, accuracy+={accuracyBonus}, health={healthMult}x");
+        _log.Msg($"Applying gameplay tweaks: damage={damageMult}x, accuracy+={accuracyBonus}, health={healthMult}x");
 
         var weapons = Templates.FindAll<WeaponTemplate>();
         if (weapons.Count > 0)
@@ -369,7 +368,7 @@ public class DevModePlugin
                 }
             }
             if (modified > 0)
-                SdkLogger.Msg($"  Modified {modified} weapons (damage x{damageMult})");
+                _log.Msg($"  Modified {modified} weapons (damage x{damageMult})");
         }
 
         if (System.Math.Abs(accuracyBonus) > 0.1f)
@@ -394,7 +393,7 @@ public class DevModePlugin
                 }
             }
             if (modified > 0)
-                SdkLogger.Msg($"  Modified {modified} player weapons (accuracy +{accuracyBonus})");
+                _log.Msg($"  Modified {modified} player weapons (accuracy +{accuracyBonus})");
         }
 
         var entities = Templates.FindAll<EntityTemplate>();
@@ -429,7 +428,7 @@ public class DevModePlugin
                 }
             }
             if (modified > 0)
-                SdkLogger.Msg($"  Modified {modified} enemy entities (health x{healthMult})");
+                _log.Msg($"  Modified {modified} enemy entities (health x{healthMult})");
         }
 
         _baseValuesStored = true;
@@ -437,11 +436,11 @@ public class DevModePlugin
 
     public void OnSceneLoaded(int buildIndex, string sceneName)
     {
-        SdkLogger.Msg($"Scene loaded: '{sceneName}' (index {buildIndex})");
+        _log.Msg($"Scene loaded: '{sceneName}' (index {buildIndex})");
 
         if (!_sceneSeen)
         {
-            SdkLogger.Msg($"First scene '{sceneName}', starting setup coroutine...");
+            _log.Msg($"First scene '{sceneName}', starting setup coroutine...");
             _sceneSeen = true;
             MelonCoroutines.Start(WaitAndSetupCore());
         }
@@ -453,16 +452,16 @@ public class DevModePlugin
         {
             yield return new WaitForSeconds(2f);
 
-            SdkLogger.Msg($"Setup attempt {attempt + 1}/30...");
+            _log.Msg($"Setup attempt {attempt + 1}/30...");
 
             if (TrySetupCore())
             {
-                SdkLogger.Msg("Dev mode core setup complete (cheats + actions).");
+                _log.Msg("Dev mode core setup complete (cheats + actions).");
                 yield break;
             }
         }
 
-        SdkLogger.Warning("Failed to set up dev mode core after 30 attempts.");
+        _log.Warning("Failed to set up dev mode core after 30 attempts.");
         _devModeReady = true;
     }
 
@@ -473,11 +472,11 @@ public class DevModePlugin
 
         if (_gameAssembly == null)
         {
-            SdkLogger.Msg("Assembly-CSharp not loaded yet");
+            _log.Msg("Assembly-CSharp not loaded yet");
             return false;
         }
 
-        SdkLogger.Msg($"Assembly-CSharp found, {_gameAssembly.GetTypes().Length} types");
+        _log.Msg($"Assembly-CSharp found, {_gameAssembly.GetTypes().Length} types");
         var gameAssembly = _gameAssembly;
 
         _entityTemplateType = gameAssembly.GetTypes()
@@ -489,7 +488,7 @@ public class DevModePlugin
                 .Where(t => t.Name.Contains("Entity") || t.Name.Contains("Template"))
                 .Select(t => t.Name)
                 .Take(30);
-            SdkLogger.Msg($"EntityTemplate not found. Candidates: {string.Join(", ", candidates)}");
+            _log.Msg($"EntityTemplate not found. Candidates: {string.Join(", ", candidates)}");
             return false;
         }
 
@@ -498,12 +497,12 @@ public class DevModePlugin
 
         if (ModSettings.Get<bool>("Dev Mode", "AutoEnableCheats"))
         {
-            SdkLogger.Msg("AutoEnableCheats is ON, enabling cheats...");
+            _log.Msg("AutoEnableCheats is ON, enabling cheats...");
             EnableCheats(gameAssembly);
         }
         else
         {
-            SdkLogger.Msg("AutoEnableCheats is OFF, skipping cheat enable");
+            _log.Msg("AutoEnableCheats is OFF, skipping cheat enable");
         }
 
         CacheActions(gameAssembly);
@@ -542,7 +541,7 @@ public class DevModePlugin
 
             if (loaderType == null)
             {
-                SdkLogger.Warning("DataTemplateLoader type not found — spawn menu unavailable");
+                _log.Warning("DataTemplateLoader type not found — spawn menu unavailable");
                 return;
             }
 
@@ -551,7 +550,7 @@ public class DevModePlugin
 
             if (getAllMethod == null)
             {
-                SdkLogger.Warning("DataTemplateLoader.GetAll<T> not found — spawn menu unavailable");
+                _log.Warning("DataTemplateLoader.GetAll<T> not found — spawn menu unavailable");
                 return;
             }
 
@@ -560,7 +559,7 @@ public class DevModePlugin
 
             if (collection == null)
             {
-                SdkLogger.Warning("DataTemplateLoader.GetAll<EntityTemplate>() returned null");
+                _log.Warning("DataTemplateLoader.GetAll<EntityTemplate>() returned null");
                 return;
             }
 
@@ -573,12 +572,12 @@ public class DevModePlugin
             }
             else
             {
-                SdkLogger.Warning("No EntityTemplate instances returned — spawn menu unavailable");
+                _log.Warning("No EntityTemplate instances returned — spawn menu unavailable");
             }
         }
         catch (Exception ex)
         {
-            SdkLogger.Warning($"Could not load entity templates: {ex.Message}");
+            _log.Warning($"Could not load entity templates: {ex.Message}");
         }
     }
 
@@ -586,7 +585,7 @@ public class DevModePlugin
     {
         if (_allEntityObjects.Count == 0)
         {
-            SdkLogger.Warning("No cached entity objects to reload");
+            _log.Warning("No cached entity objects to reload");
             return;
         }
 
@@ -597,7 +596,7 @@ public class DevModePlugin
 
         LoadEntityTemplates(_allEntityObjects.ToArray());
 
-        SdkLogger.Msg($"Reloaded {_entityTemplates.Count} entities with current filter");
+        _log.Msg($"Reloaded {_entityTemplates.Count} entities with current filter");
     }
 
     private List<UnityEngine.Object> EnumerateIl2CppCollection(object collection)
@@ -624,14 +623,14 @@ public class DevModePlugin
 
                     if (results.Count > 0)
                     {
-                        SdkLogger.Msg($"Enumerated via Il2Cpp IEnumerable: {results.Count} items");
+                        _log.Msg($"Enumerated via Il2Cpp IEnumerable: {results.Count} items");
                         return results;
                     }
                 }
             }
             catch (Exception ex)
             {
-                SdkLogger.Msg($"Il2Cpp IEnumerable strategy failed: {ex.Message}");
+                _log.Msg($"Il2Cpp IEnumerable strategy failed: {ex.Message}");
             }
         }
 
@@ -662,7 +661,7 @@ public class DevModePlugin
 
                         if (results.Count > 0)
                         {
-                            SdkLogger.Msg($"Enumerated via reflection GetEnumerator: {results.Count} items");
+                            _log.Msg($"Enumerated via reflection GetEnumerator: {results.Count} items");
                             return results;
                         }
                     }
@@ -671,7 +670,7 @@ public class DevModePlugin
         }
         catch (Exception ex)
         {
-            SdkLogger.Msg($"Reflection GetEnumerator strategy failed: {ex.Message}");
+            _log.Msg($"Reflection GetEnumerator strategy failed: {ex.Message}");
         }
 
         try
@@ -683,7 +682,7 @@ public class DevModePlugin
             if (countProp != null)
             {
                 int count = Convert.ToInt32(countProp.GetValue(collection));
-                SdkLogger.Msg($"Collection Count={count}, trying indexer...");
+                _log.Msg($"Collection Count={count}, trying indexer...");
 
                 var indexer = collType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                     .FirstOrDefault(p => p.GetIndexParameters().Length == 1);
@@ -698,7 +697,7 @@ public class DevModePlugin
 
                     if (results.Count > 0)
                     {
-                        SdkLogger.Msg($"Enumerated via Count+indexer: {results.Count} items");
+                        _log.Msg($"Enumerated via Count+indexer: {results.Count} items");
                         return results;
                     }
                 }
@@ -706,7 +705,7 @@ public class DevModePlugin
         }
         catch (Exception ex)
         {
-            SdkLogger.Msg($"Count+indexer strategy failed: {ex.Message}");
+            _log.Msg($"Count+indexer strategy failed: {ex.Message}");
         }
 
         if (collection is System.Collections.IEnumerable managedEnumerable)
@@ -715,7 +714,7 @@ public class DevModePlugin
                 AddAsUnityObject(results, item);
 
             if (results.Count > 0)
-                SdkLogger.Msg($"Enumerated via managed IEnumerable: {results.Count} items");
+                _log.Msg($"Enumerated via managed IEnumerable: {results.Count} items");
         }
 
         return results;
@@ -759,7 +758,7 @@ public class DevModePlugin
 
             if (_entityTypeActorValue == null)
             {
-                SdkLogger.Warning("Could not find EntityType.Actor enum value");
+                _log.Warning("Could not find EntityType.Actor enum value");
                 return false;
             }
 
@@ -770,7 +769,7 @@ public class DevModePlugin
 
             if (_entityTypeProperty == null)
             {
-                SdkLogger.Warning("EntityTemplate.Type property not found");
+                _log.Warning("EntityTemplate.Type property not found");
                 return false;
             }
 
@@ -789,12 +788,12 @@ public class DevModePlugin
             }
             else
             {
-                SdkLogger.Warning("DeveloperSettingType enum not found");
+                _log.Warning("DeveloperSettingType enum not found");
             }
 
             if (_cheatsEnabledIndex < 0)
             {
-                SdkLogger.Warning("CheatsEnabled not found in DeveloperSettingType");
+                _log.Warning("CheatsEnabled not found in DeveloperSettingType");
             }
 
             _factionEnumType = gameAssembly.GetTypes()
@@ -825,7 +824,7 @@ public class DevModePlugin
         }
         catch (Exception ex)
         {
-            SdkLogger.Warning($"ResolveReflectionCache error: {ex.Message}");
+            _log.Warning($"ResolveReflectionCache error: {ex.Message}");
             return false;
         }
     }
@@ -834,7 +833,7 @@ public class DevModePlugin
     {
         if (_cheatsEnabledIndex < 0)
         {
-            SdkLogger.Warning("CheatsEnabled enum index not resolved, skipping");
+            _log.Warning("CheatsEnabled enum index not resolved, skipping");
             return;
         }
 
@@ -844,7 +843,7 @@ public class DevModePlugin
                 .FirstOrDefault(t => t.Name == "DevSettings");
             if (devSettingsType == null)
             {
-                SdkLogger.Warning("DevSettings type not found");
+                _log.Warning("DevSettings type not found");
                 return;
             }
 
@@ -852,7 +851,7 @@ public class DevModePlugin
                 BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
             if (nativeFieldInfo == null)
             {
-                SdkLogger.Warning("DevSettings.NativeFieldInfoPtr_VALUES not found");
+                _log.Warning("DevSettings.NativeFieldInfoPtr_VALUES not found");
                 return;
             }
 
@@ -876,7 +875,7 @@ public class DevModePlugin
 
             if (_cheatsEnabledIndex >= arrayLength)
             {
-                SdkLogger.Warning($"CheatsEnabled index {_cheatsEnabledIndex} out of bounds (length {arrayLength})");
+                _log.Warning($"CheatsEnabled index {_cheatsEnabledIndex} out of bounds (length {arrayLength})");
                 return;
             }
 
@@ -887,11 +886,11 @@ public class DevModePlugin
 
             _cheatsEnabled = Marshal.ReadInt32(arrayPtr + headerSize + (_cheatsEnabledIndex * elemSize)) == 1;
             if (!_cheatsEnabled)
-                SdkLogger.Warning("CheatsEnabled write succeeded but readback returned false");
+                _log.Warning("CheatsEnabled write succeeded but readback returned false");
         }
         catch (Exception ex)
         {
-            SdkLogger.Warning($"EnableCheats error: {ex.Message}\n{ex.StackTrace}");
+            _log.Warning($"EnableCheats error: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -909,13 +908,13 @@ public class DevModePlugin
                     BindingFlags.Public | BindingFlags.Instance);
 
                 if (_tacticalStateGet == null)
-                    SdkLogger.Warning("TacticalState.Get not found");
+                    _log.Warning("TacticalState.Get not found");
                 if (_startDevModeAction == null)
-                    SdkLogger.Warning("TacticalState.StartDevModeAction not found");
+                    _log.Warning("TacticalState.StartDevModeAction not found");
             }
             else
             {
-                SdkLogger.Warning("TacticalState type not found");
+                _log.Warning("TacticalState type not found");
             }
 
             var godModeType = gameAssembly.GetTypes().FirstOrDefault(t => t.Name == "GodModeAction");
@@ -938,7 +937,7 @@ public class DevModePlugin
                         }
                         else
                         {
-                            SdkLogger.Warning("GodModeAction: found 1-param ctor but couldn't resolve GodModeTarget enum");
+                            _log.Warning("GodModeAction: found 1-param ctor but couldn't resolve GodModeTarget enum");
                             _godModeActionCtor = null;
                         }
                     }
@@ -946,7 +945,7 @@ public class DevModePlugin
             }
             else
             {
-                SdkLogger.Warning("GodModeAction type not found");
+                _log.Warning("GodModeAction type not found");
             }
 
             CacheActionCtor(gameAssembly, "DeleteEntityAction", out _deleteEntityActionCtor);
@@ -958,16 +957,16 @@ public class DevModePlugin
                 _spawnEntityActionCtor = spawnType.GetConstructors()
                     .FirstOrDefault(c => c.GetParameters().Length == 2);
                 if (_spawnEntityActionCtor == null)
-                    SdkLogger.Warning("SpawnEntityAction: no 2-param constructor found");
+                    _log.Warning("SpawnEntityAction: no 2-param constructor found");
             }
             else
             {
-                SdkLogger.Warning("SpawnEntityAction type not found");
+                _log.Warning("SpawnEntityAction type not found");
             }
         }
         catch (Exception ex)
         {
-            SdkLogger.Warning($"CacheActions error: {ex.Message}\n{ex.StackTrace}");
+            _log.Warning($"CacheActions error: {ex.Message}\n{ex.StackTrace}");
         }
     }
 
@@ -1013,14 +1012,14 @@ public class DevModePlugin
             {
                 errorCount++;
                 if (errorCount <= 3)
-                    SdkLogger.Warning($"Entity iteration error #{errorCount}: {ex.InnerException?.Message ?? ex.Message}");
+                    _log.Warning($"Entity iteration error #{errorCount}: {ex.InnerException?.Message ?? ex.Message}");
             }
         }
 
         if (nullPtrCount > 0)
-            SdkLogger.Warning($"LoadEntityTemplates: {nullPtrCount} null pointers skipped");
+            _log.Warning($"LoadEntityTemplates: {nullPtrCount} null pointers skipped");
         if (errorCount > 0)
-            SdkLogger.Warning($"LoadEntityTemplates: {errorCount} errors during iteration");
+            _log.Warning($"LoadEntityTemplates: {errorCount} errors during iteration");
 
         entries.Sort((a, b) => string.Compare(a.name, b.name, StringComparison.Ordinal));
 
@@ -1031,7 +1030,7 @@ public class DevModePlugin
             _entityActorTypes.Add(actorType);
         }
 
-        SdkLogger.Msg($"Loaded {_entityTemplates.Count} entity templates");
+        _log.Msg($"Loaded {_entityTemplates.Count} entity templates");
     }
 
     private void CacheActionCtor(Assembly gameAssembly, string typeName, out ConstructorInfo ctor)
@@ -1055,40 +1054,40 @@ public class DevModePlugin
         if (!_earlyDiagDone && _updateCount == 60)
         {
             _earlyDiagDone = true;
-            SdkLogger.Msg($"--- Early diagnostics (frame {_updateCount}) ---");
-            SdkLogger.Msg($"sceneSeen={_sceneSeen}, devModeReady={_devModeReady}");
-            SdkLogger.Msg($"Active scene: '{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}'");
+            _log.Msg($"--- Early diagnostics (frame {_updateCount}) ---");
+            _log.Msg($"sceneSeen={_sceneSeen}, devModeReady={_devModeReady}");
+            _log.Msg($"Active scene: '{UnityEngine.SceneManagement.SceneManager.GetActiveScene().name}'");
 
             try
             {
                 int sceneCount = UnityEngine.SceneManagement.SceneManager.sceneCountInBuildSettings;
-                SdkLogger.Msg($"Scenes in build settings: {sceneCount}");
+                _log.Msg($"Scenes in build settings: {sceneCount}");
                 for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
                 {
                     var s = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
-                    SdkLogger.Msg($"  Loaded scene [{i}]: '{s.name}' (path: {s.path}, isLoaded: {s.isLoaded})");
+                    _log.Msg($"  Loaded scene [{i}]: '{s.name}' (path: {s.path}, isLoaded: {s.isLoaded})");
                 }
             }
             catch (Exception ex)
             {
-                SdkLogger.Warning($"Scene enumeration error: {ex.Message}");
+                _log.Warning($"Scene enumeration error: {ex.Message}");
             }
 
             try
             {
                 var assemblies = AppDomain.CurrentDomain.GetAssemblies();
                 var gameAsm = assemblies.FirstOrDefault(a => a.GetName().Name == "Assembly-CSharp");
-                SdkLogger.Msg($"Loaded assemblies: {assemblies.Length}, Assembly-CSharp: {(gameAsm != null ? $"yes ({gameAsm.GetTypes().Length} types)" : "NOT FOUND")}");
+                _log.Msg($"Loaded assemblies: {assemblies.Length}, Assembly-CSharp: {(gameAsm != null ? $"yes ({gameAsm.GetTypes().Length} types)" : "NOT FOUND")}");
             }
             catch (Exception ex)
             {
-                SdkLogger.Warning($"Assembly check error: {ex.Message}");
+                _log.Warning($"Assembly check error: {ex.Message}");
             }
 
             if (!_sceneSeen)
-                SdkLogger.Warning("OnSceneWasLoaded has NOT fired yet — scene callback may not be working");
+                _log.Warning("OnSceneWasLoaded has NOT fired yet — scene callback may not be working");
 
-            SdkLogger.Msg("--- End early diagnostics ---");
+            _log.Msg("--- End early diagnostics ---");
         }
 
         if (!_devModeReady) return;
@@ -1171,7 +1170,7 @@ public class DevModePlugin
         {
             var inner = ex.InnerException ?? ex;
             SetStatus($"Error: {inner.Message}");
-            SdkLogger.Warning($"Spawn error: {inner.Message}");
+            _log.Warning($"Spawn error: {inner.Message}");
         }
     }
 

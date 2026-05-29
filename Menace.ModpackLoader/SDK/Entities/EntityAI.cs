@@ -163,12 +163,12 @@ public static class EntityAI
             if (boostCount == 0)
                 return AIResult.Failed($"No behaviors found matching '{actionType}'");
 
-            ModError.Info("Menace.SDK", $"Boosted {boostCount} behaviors for {actor.AsManaged().DebugName}");
+            SdkLogger.Msg($"[Menace.SDK] Boosted {boostCount} behaviors for {actor.AsManaged().DebugName}");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.ForceNextAction", "Failed", ex);
+            SdkLogger.Error("EntityAI.ForceNextAction: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -202,12 +202,12 @@ public static class EntityAI
                 return AIResult.Failed("TacticalManager instance not found");
 
             tm.SetAIPaused(true);
-            ModError.Info("Menace.SDK", "AI paused via SetAIPaused()");
+            SdkLogger.Msg("[Menace.SDK] AI paused via SetAIPaused()");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.PauseAI", "Failed", ex);
+            SdkLogger.Error("EntityAI.PauseAI: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -228,12 +228,12 @@ public static class EntityAI
                 return AIResult.Failed("TacticalManager instance not found");
 
             tm.SetAIPaused(false);
-            ModError.Info("Menace.SDK", "AI resumed via SetAIPaused()");
+            SdkLogger.Msg("[Menace.SDK]: AI resumed via SetAIPaused()");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.ResumeAI", "Failed", ex);
+            SdkLogger.Error("EntityAI.ResumeAI: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -258,7 +258,7 @@ public static class EntityAI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.IsAIPaused", "Failed", ex);
+            SdkLogger.Error("EntityAI.IsAIPaused: Failed", ex);
             return false;
         }
     }
@@ -300,12 +300,12 @@ public static class EntityAI
 
             Offsets.Actor_Morale.Value.Write(actor, morale);
 
-            ModError.Info("Menace.SDK", $"Set threat override for {actor.AsManaged().DebugName}: threat={threat:F1}, morale={morale:F1}");
+            SdkLogger.Msg($"[Menace.SDK] Set threat override for {actor.AsManaged().DebugName}: threat={threat:F1}, morale={morale:F1}");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.SetThreatValueOverride", "Failed", ex);
+            SdkLogger.Error("EntityAI.SetThreatValueOverride: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -329,12 +329,12 @@ public static class EntityAI
         {
             Offsets.Actor_Morale.Value.Write(actor, MORALE_STEADY);
 
-            ModError.Info("Menace.SDK", $"Cleared threat overrides for {actor.AsManaged().DebugName}");
+            SdkLogger.Msg($"[Menace.SDK] Cleared threat overrides for {actor.AsManaged().DebugName}");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.ClearThreatOverrides", "Failed", ex);
+            SdkLogger.Error("EntityAI.ClearThreatOverrides: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -371,12 +371,12 @@ public static class EntityAI
         {
             Offsets.Actor_Morale.Value.Write(actor, MORALE_PANICKED);
 
-            ModError.Info("Menace.SDK", $"Forced flee decision for {actor.AsManaged().DebugName} (morale={MORALE_PANICKED})");
+            SdkLogger.Msg($"[Menace.SDK] Forced flee decision for {actor.AsManaged().DebugName} (morale={MORALE_PANICKED})");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.ForceFleeDecision", "Failed", ex);
+            SdkLogger.Error("EntityAI.ForceFleeDecision: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -410,12 +410,12 @@ public static class EntityAI
         {
             Offsets.Actor_Morale.Value.Write(actor, MORALE_FEARLESS);
 
-            ModError.Info("Menace.SDK", $"Blocked flee decision for {actor.AsManaged().DebugName} (morale={MORALE_FEARLESS})");
+            SdkLogger.Msg($"[Menace.SDK] Blocked flee decision for {actor.AsManaged().DebugName} (morale={MORALE_FEARLESS})");
             return AIResult.Ok();
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.BlockFleeDecision", "Failed", ex);
+            SdkLogger.Error("EntityAI.BlockFleeDecision: Failed", ex);
             return AIResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -439,7 +439,7 @@ public static class EntityAI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.GetAgent", "Failed", ex);
+            SdkLogger.Error("EntityAI.GetAgent: Failed", ex);
             return default;
         }
     }

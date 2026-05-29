@@ -98,7 +98,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("BlackMarket.ResolveHandles Field handle resolution failed", ex);
         }
     }
 
@@ -195,7 +195,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetBlackMarket", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetBlackMarket: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -242,7 +242,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetBlackMarketInfo", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetBlackMarketInfo: Failed", ex);
             return null;
         }
     }
@@ -271,7 +271,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetAvailableStacks", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetAvailableStacks: Failed", ex);
             return result;
         }
     }
@@ -295,7 +295,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetStackInfo", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetStackInfo: Failed", ex);
             return null;
         }
     }
@@ -353,7 +353,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetItemsInStack", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetItemsInStack: Failed", ex);
             return result;
         }
     }
@@ -387,7 +387,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.FindStackByTemplateId", "Failed", ex);
+            SdkLogger.Error("BlackMarket.FindStackByTemplateId: Failed", ex);
             return null;
         }
     }
@@ -442,7 +442,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetExpiringStacks", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetExpiringStacks: Failed", ex);
             return result;
         }
     }
@@ -473,7 +473,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetPermanentStacks", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetPermanentStacks: Failed", ex);
             return result;
         }
     }
@@ -505,7 +505,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetStacksByType", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetStacksByType: Failed", ex);
             return result;
         }
     }
@@ -535,7 +535,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetTotalTradeValue", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetTotalTradeValue: Failed", ex);
             return 0;
         }
     }
@@ -570,7 +570,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.StockItemInBlackMarket", "Failed", ex);
+            SdkLogger.Error("BlackMarket.StockItemInBlackMarket: Failed", ex);
             return $"Failed to stock item: {ex.Message}";
         }
     }
@@ -805,7 +805,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetStacksList", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetStacksList: Failed", ex);
             return result;
         }
     }
@@ -846,7 +846,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetItemStackInfoInternal", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetItemStackInfoInternal: Failed", ex);
             return null;
         }
     }
@@ -865,7 +865,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetBlackMarketConfig", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetBlackMarketConfig: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -897,7 +897,7 @@ public static class BlackMarket
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("BlackMarket.GetItemInfoInternal", "Failed", ex);
+            SdkLogger.Error("BlackMarket.GetItemInfoInternal: Failed", ex);
             return null;
         }
     }

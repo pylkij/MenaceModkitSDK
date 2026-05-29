@@ -30,7 +30,7 @@ public static class CustomMaps
             // Apply patches
             if (!CustomMapPatches.Initialize(harmony))
             {
-                ModError.ReportInternal("CustomMaps.Initialize", "Failed to apply patches");
+                SdkLogger.Error("CustomMaps.Initialize: Failed to apply patches");
                 return false;
             }
 
@@ -47,7 +47,7 @@ public static class CustomMaps
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMaps.Initialize", "Failed", ex);
+            SdkLogger.Error("CustomMaps.Initialize: Failed", ex);
             return false;
         }
     }

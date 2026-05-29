@@ -542,7 +542,7 @@ public static class AICoordination
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.GetActorTilePosition", "Failed", ex);
+            SdkLogger.Error("EntityAI.GetActorTilePosition: Failed", ex);
             return (-1, -1);
         }
     }
@@ -562,7 +562,7 @@ public static class AICoordination
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.GetFactionIndex", "Failed", ex);
+            SdkLogger.Error("EntityAI.GetFactionIndex: Failed", ex);
             return -1;
         }
     }
@@ -586,7 +586,7 @@ public static class AICoordination
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("EntityAI.GetAgentFactionIndex", "Failed", ex);
+            SdkLogger.Error("EntityAI.GetAgentFactionIndex: Failed", ex);
             return -1;
         }
     }

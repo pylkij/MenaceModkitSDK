@@ -42,7 +42,7 @@ public static class CustomMapPatches
 
         if (harmony == null)
         {
-            ModError.ReportInternal("CustomMapPatches.Initialize", "Harmony instance is null");
+            SdkLogger.Error("CustomMapPatches.Initialize: Harmony instance is null");
             return false;
         }
 
@@ -62,7 +62,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapPatches.Initialize", "Failed to apply patches", ex);
+            SdkLogger.Error("CustomMapPatches.Initialize: Failed to apply patches", ex);
             return false;
         }
     }
@@ -185,8 +185,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapPatches.TryCreateMapLayout_Prefix",
-                "Failed to apply config", ex);
+            SdkLogger.Error("CustomMapPatches.TryCreateMapLayout_Prefix: Failed to apply config", ex);
         }
     }
 
@@ -206,8 +205,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapPatches.InitGenerators_Postfix",
-                "Failed to apply generator overrides", ex);
+            SdkLogger.Error("CustomMapPatches.InitGenerators_Postfix: Failed to apply generator overrides", ex);
         }
     }
 
@@ -256,8 +254,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapPatches.GetMissionsForDifficulties_Postfix",
-                "Failed to inject custom maps", ex);
+            SdkLogger.Error("CustomMapPatches.GetMissionsForDifficulties_Postfix: Failed to inject custom maps", ex);
         }
     }
 
@@ -278,7 +275,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CustomMapPatches.OnLayoutPass_Prefix", ex.Message);
+            SdkLogger.Error("CustomMapPatches.OnLayoutPass_Prefix", ex);
         }
     }
 
@@ -313,8 +310,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapPatches.OnSecondPass_Postfix",
-                "Failed to apply tile overrides", ex);
+            SdkLogger.Error("CustomMapPatches.OnSecondPass_Postfix: Failed to apply tile overrides", ex);
         }
     }
 
@@ -401,7 +397,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CustomMapPatches.ApplySeedOverride", ex.Message);
+            SdkLogger.Error("CustomMapPatches.ApplySeedOverride", ex);
         }
     }
 
@@ -427,7 +423,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CustomMapPatches.ApplyMapSizeOverride", ex.Message);
+            SdkLogger.Error("CustomMapPatches.ApplyMapSizeOverride", ex);
         }
     }
 
@@ -447,8 +443,7 @@ public static class CustomMapPatches
 
             if (generatorsProp == null)
             {
-                ModError.WarnInternal("CustomMapPatches.ApplyGeneratorOverrides",
-                    "Generators property not found");
+                SdkLogger.Warning("CustomMapPatches.ApplyGeneratorOverrides: Generators property not found");
                 return;
             }
 
@@ -510,8 +505,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("CustomMapPatches.ApplyGeneratorOverrides",
-                "Failed to apply overrides", ex);
+            SdkLogger.Error("CustomMapPatches.ApplyGeneratorOverrides: Failed to apply overrides", ex);
         }
     }
 
@@ -549,8 +543,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CustomMapPatches.ApplyPropertyOverride",
-                $"Failed to set {propName}: {ex.Message}");
+            SdkLogger.Error($"CustomMapPatches.ApplyPropertyOverride: Failed to set {propName}: {ex.Message}");
         }
     }
 
@@ -565,8 +558,7 @@ public static class CustomMapPatches
             var prefabs = AssetResolver.ResolvePrefabArray(assetPaths);
             if (prefabs == null || prefabs.Length == 0)
             {
-                ModError.WarnInternal("CustomMapPatches.ApplyPrefabOverride",
-                    $"No prefabs resolved for {fieldName}");
+                SdkLogger.Warning($"CustomMapPatches.ApplyPrefabOverride. No prefabs resolved for {fieldName}");
                 return;
             }
 
@@ -581,8 +573,7 @@ public static class CustomMapPatches
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CustomMapPatches.ApplyPrefabOverride",
-                $"Failed to set {fieldName}: {ex.Message}");
+            SdkLogger.Error($"CustomMapPatches.ApplyPrefabOverride. Failed to set {fieldName}: {ex.Message}");
         }
     }
 

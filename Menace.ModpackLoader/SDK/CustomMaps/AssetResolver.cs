@@ -58,14 +58,12 @@ public static class AssetResolver
                 return prefab;
             }
 
-            ModError.WarnInternal("AssetResolver.ResolvePrefab",
-                $"Prefab not found: {assetPath}");
+            SdkLogger.Warning($"AssetResolver.ResolvePrefab. Prefab not found: {assetPath}");
             return null;
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AssetResolver.ResolvePrefab",
-                $"Failed to resolve {assetPath}", ex);
+            SdkLogger.Error($"AssetResolver.ResolvePrefab. Failed to resolve {assetPath}", ex);
             return null;
         }
     }
@@ -131,7 +129,7 @@ public static class AssetResolver
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("AssetResolver.FindPrefabByName", ex.Message);
+            SdkLogger.Error("AssetResolver.FindPrefabByName", ex);
             return null;
         }
     }
@@ -201,8 +199,7 @@ public static class AssetResolver
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AssetResolver.BuildAssetCatalog",
-                "Failed to build catalog", ex);
+            SdkLogger.Error("AssetResolver.BuildAssetCatalog. Failed to build catalog", ex);
         }
     }
 

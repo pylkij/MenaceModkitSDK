@@ -180,7 +180,7 @@ public static class CharacterVisuals
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CharacterVisuals.ApplyToExistingEntities", ex.Message);
+            SdkLogger.Error("CharacterVisuals.ApplyToExistingEntities", ex);
         }
 
         if (applied > 0)
@@ -201,8 +201,7 @@ public static class CharacterVisuals
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CharacterVisuals.EnsureHooked",
-                $"Failed to hook spawn events: {ex.Message}");
+            SdkLogger.Error("CharacterVisuals.EnsureHooked. Failed to hook spawn events.", ex);
         }
     }
 
@@ -230,7 +229,7 @@ public static class CharacterVisuals
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CharacterVisuals.OnEntitySpawned", ex.Message);
+            SdkLogger.Error("CharacterVisuals.OnEntitySpawned", ex);
         }
     }
 
@@ -425,8 +424,7 @@ public static class CharacterVisuals
         }
         catch (Exception ex)
         {
-            ModError.WarnInternal("CharacterVisuals.ApplyOverrideConfig",
-                $"Failed to apply override for '{prefabName}': {ex.Message}");
+            SdkLogger.Error($"CharacterVisuals.ApplyOverrideConfig. Failed to apply override for '{prefabName}': {ex.Message}");
         }
     }
 

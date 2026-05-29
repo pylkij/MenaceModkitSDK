@@ -94,7 +94,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("Emotions.ResolveHandles: Field handle resolution failed", ex);
         }
     }
 
@@ -325,7 +325,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.GetEmotionalStates", "Failed", ex);
+            SdkLogger.Error("Emotions.GetEmotionalStates: Failed", ex);
             return GameObj.Null;
         }
     }
@@ -415,7 +415,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.GetEmotionalStatesInfo", "Failed", ex);
+            SdkLogger.Error("Emotions.GetEmotionalStatesInfo: Failed", ex);
             return null;
         }
     }
@@ -442,7 +442,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.HasEmotion", "Failed", ex);
+            SdkLogger.Error("Emotions.HasEmotion: Failed", ex);
             return false;
         }
     }
@@ -484,7 +484,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.GetStateSet", "Failed", ex);
+            SdkLogger.Error("Emotions.GetStateSet: Failed", ex);
             return EmotionalStateType.None;
         }
     }
@@ -536,12 +536,12 @@ public static class Emotions
                 random,
                 mission);
 
-            ModError.Info("Menace.SDK", $"Triggered emotion: {trigger} on {leader.Untyped.GetName()}");
+            SdkLogger.Msg($"Menace.SDK] Triggered emotion: {trigger} on {leader.Untyped.GetName()}");
             return EmotionResult.Ok(EmotionalStateType.None, "Triggered");
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.TriggerEmotion", "Failed", ex);
+            SdkLogger.Error("Emotions.TriggerEmotion: Failed", ex);
             return EmotionResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -591,7 +591,7 @@ public static class Emotions
 
             if (result)
             {
-                ModError.Info("Menace.SDK", $"Applied emotion '{templateId}' to {leader.Untyped.GetName()}");
+                SdkLogger.Msg($"[Menace.SDK] Applied emotion '{templateId}' to {leader.Untyped.GetName()}");
                 return EmotionResult.Ok((EmotionalStateType)(int)template.StateType, "Applied");
             }
             else
@@ -601,7 +601,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.ApplyEmotion", "Failed", ex);
+            SdkLogger.Error("Emotions.ApplyEmotion: Failed", ex);
             return EmotionResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -635,12 +635,12 @@ public static class Emotions
 
             removeMethod.Invoke(emotionsManaged, new object[] { idx });
 
-            ModError.Info("Menace.SDK", $"Removed emotion {type} from {leader.Untyped.GetName()}");
+            SdkLogger.Msg($"[Menace.SDK] Removed emotion {type} from {leader.Untyped.GetName()}");
             return EmotionResult.Ok(type, "Removed");
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.RemoveEmotion", "Failed", ex);
+            SdkLogger.Error("Emotions.RemoveEmotion: Failed", ex);
             return EmotionResult.Failed($"Exception: {ex.Message}");
         }
     }
@@ -670,7 +670,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.ClearEmotions", "Failed", ex);
+            SdkLogger.Error("Emotions.ClearEmotions: Failed", ex);
             return 0;
         }
     }
@@ -703,7 +703,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.ClearNegativeEmotions", "Failed", ex);
+            SdkLogger.Error("Emotions.ClearNegativeEmotions: Failed", ex);
             return 0;
         }
     }
@@ -736,7 +736,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.ClearPositiveEmotions", "Failed", ex);
+            SdkLogger.Error("Emotions.ClearPositiveEmotions: Failed", ex);
             return 0;
         }
     }
@@ -782,7 +782,7 @@ public static class Emotions
                 if ((EmotionalStateType)(int)stateType == type)
                 {
                     stateManaged.ExtendDuration(missions);
-                    ModError.Info("Menace.SDK", $"Extended {type} duration by {missions} on {leader.Untyped.GetName()}");
+                    SdkLogger.Msg($"[Menace.SDK] Extended {type} duration by {missions} on {leader.Untyped.GetName()}");
                     return EmotionResult.Ok(type, "Extended");
                 }
             }
@@ -791,7 +791,7 @@ public static class Emotions
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Emotions.ExtendDuration", "Failed", ex);
+            SdkLogger.Error("Emotions.ExtendDuration: Failed", ex);
             return EmotionResult.Failed($"Exception: {ex.Message}");
         }
     }

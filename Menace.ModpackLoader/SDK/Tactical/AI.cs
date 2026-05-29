@@ -196,7 +196,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetAgent", "Failed", ex);
+            SdkLogger.Error("AI.GetAgent: Failed", ex);
             return default;
         }
     }
@@ -276,7 +276,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetAgentInfo", "Failed", ex);
+            SdkLogger.Error("AI.GetAgentInfo: Failed", ex);
             return info;
         }
     }
@@ -327,7 +327,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetRoleData", "Failed", ex);
+            SdkLogger.Error("AI.GetRoleData: Failed", ex);
             return info;
         }
     }
@@ -403,7 +403,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetBehaviors", "Failed", ex);
+            SdkLogger.Error("AI.GetBehaviors: Failed", ex);
             return result;
         }
     }
@@ -470,7 +470,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetTileScores", "Failed", ex);
+            SdkLogger.Error("AI.GetTileScores: Failed", ex);
             return result;
         }
     }
@@ -510,7 +510,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetAIFactionInfo", "Failed", ex);
+            SdkLogger.Error("AI.GetAIFactionInfo: Failed", ex);
             return info;
         }
     }
@@ -756,7 +756,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.GetRoleDataObject", "Failed", ex);
+            SdkLogger.Error("AI.GetRoleDataObject: Failed", ex);
             return default;
         }
     }
@@ -776,15 +776,14 @@ public static class AI
     {
         if (IsAnyFactionThinking())
         {
-            ModError.ReportInternal("AI.SetRoleDataFloat",
-                $"Cannot write during AI evaluation - will cause race condition. Field: {fieldName}");
+            SdkLogger.Error($"AI.SetRoleDataFloat. Cannot write during AI evaluation - will cause race condition. Field: {fieldName}");
             return false;
         }
 
         var roleData = GetRoleDataObject(actor);
         if (roleData.Untyped.IsNull)
         {
-            ModError.ReportInternal("AI.SetRoleDataFloat", $"Actor has no RoleData");
+            SdkLogger.Error($"AI.SetRoleDataFloat. {actor} has no RoleData");
             return false;
         }
 
@@ -792,7 +791,7 @@ public static class AI
         var offset = OffsetCache.GetOrResolve(roleKlass, fieldName);
         if (offset == 0)
         {
-            ModError.ReportInternal("AI.SetRoleDataFloat", $"Could not resolve offset for field: {fieldName}");
+            SdkLogger.Error($"AI.SetRoleDataFloat. Could not resolve offset for field: {fieldName}");
             return false;
         }
 
@@ -815,15 +814,14 @@ public static class AI
     {
         if (IsAnyFactionThinking())
         {
-            ModError.ReportInternal("AI.SetRoleDataBool",
-                $"Cannot write during AI evaluation - will cause race condition. Field: {fieldName}");
+            SdkLogger.Error($"AI.SetRoleDataBool. Cannot write during AI evaluation - will cause race condition. Field: {fieldName}");
             return false;
         }
 
         var roleData = GetRoleDataObject(actor);
         if (roleData.Untyped.IsNull)
         {
-            ModError.ReportInternal("AI.SetRoleDataBool", $"Actor has no RoleData");
+            SdkLogger.Error($"AI.SetRoleDataBool. {actor} has no RoleData");
             return false;
         }
 
@@ -831,7 +829,7 @@ public static class AI
         var offset = OffsetCache.GetOrResolve(roleKlass, fieldName);
         if (offset == 0)
         {
-            ModError.ReportInternal("AI.SetRoleDataBool", $"Could not resolve offset for field: {fieldName}");
+            SdkLogger.Error($"AI.SetRoleDataBool. Could not resolve offset for field: {fieldName}");
             return false;
         }
 
@@ -851,15 +849,14 @@ public static class AI
     {
         if (IsAnyFactionThinking())
         {
-            ModError.ReportInternal("AI.ApplyRoleData",
-                "Cannot write during AI evaluation - will cause race condition");
+            SdkLogger.Error("AI.ApplyRoleData. Cannot write during AI evaluation - will cause race condition");
             return false;
         }
 
         var roleData = GetRoleDataObject(actor);
         if (roleData.Untyped.IsNull)
         {
-            ModError.ReportInternal("AI.ApplyRoleData", "Actor has no RoleData");
+            SdkLogger.Error($"AI.ApplyRoleData. {actor} has no RoleData");
             return false;
         }
 
@@ -891,7 +888,7 @@ public static class AI
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("AI.ApplyRoleData", "Failed during write", ex);
+            SdkLogger.Error("AI.ApplyRoleData. Failed during write", ex);
             return false;
         }
     }
@@ -908,8 +905,7 @@ public static class AI
     {
         if (IsAnyFactionThinking())
         {
-            ModError.ReportInternal("AI.SetBehaviorScore",
-                "Cannot write during AI evaluation - will cause race condition");
+            SdkLogger.Error("AI.SetBehaviorScore. Cannot write during AI evaluation - will cause race condition");
             return false;
         }
 

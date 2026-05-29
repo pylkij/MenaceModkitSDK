@@ -10,7 +10,7 @@ namespace Menace.SDK;
 /// Error severity levels. Used as flags for filtering in DevConsole.
 /// </summary>
 [Flags]
-public enum ErrorSeverity
+internal enum ErrorSeverity
 {
     Info = 1,
     Warning = 2,
@@ -18,7 +18,7 @@ public enum ErrorSeverity
     Fatal = 8
 }
 
-public class ModErrorEntry
+internal class ModErrorEntry
 {
     public string ModId;
     public string Message;
@@ -33,7 +33,7 @@ public class ModErrorEntry
 /// Central error reporting for the Menace SDK. Never throws — routes all failures
 /// to MelonLogger and stores them in a queryable ring buffer.
 /// </summary>
-public static class ModError
+internal static class ModError
 {
     public static event Action<ModErrorEntry> OnError;
 
