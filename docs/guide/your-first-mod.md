@@ -30,21 +30,21 @@ Create a `.cs` file in the `src/` directory and add this:
 
 ```csharp
 using System;
-
 using MelonLoader;
+using Menace.SDK;
 using Menace.ModpackLoader;
 
 namespace YourFirstMod;
 
 public class Plugin : IModpackPlugin
 {
-    private MelonLogger.Instance _log;
+    private SdkLog _log;
     private HarmonyLib.Harmony _harmony;
 
     public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
     {
-        _log = logger;
-        _harmony = harmony; // we will need this for later
+        _log = new SdkLog("YourFirstMod", logger);
+        _harmony = harmony;
         _log.Msg("YourFirstMod loaded.");
     }
 
@@ -185,7 +185,7 @@ Next, let's subscribe to `OnAttackTileStart`. The SDK handles all of the underly
 ```csharp
     public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
     {
-        _log = logger;
+        _log = new SdkLog("YourFirstMod", logger);
         _harmony = harmony; // we will need this for later
         _log.Msg("YourFirstMod loaded.");
 
@@ -289,7 +289,7 @@ There are different types of Harmony patches. The two you will use most are `Pre
 Because our patch method will be called by Harmony outside of the normal instance context, `_log`, `_harmony`, and our new `_applyAccuracyDebuff` flag all need to be `static`:
 
 ```csharp
-    private static MelonLogger.Instance _log;
+    private static SdkLog _log;
     private static HarmonyLib.Harmony _harmony;
     private static bool _applyAccuracyDebuff = false;
 ```
@@ -299,7 +299,7 @@ Now, let's set up the patch in `OnInitialize`. We will use `GameState.FindManage
 ```csharp
     public void OnInitialize(MelonLogger.Instance logger, HarmonyLib.Harmony harmony)
     {
-        _log = logger;
+        _log = new SdkLog("YourFirstMod", logger);
         _harmony = harmony;
         _log.Msg("YourFirstMod loaded.");
 
@@ -382,7 +382,7 @@ We probably don't want users getting spammed with development log lines when the
 I typically go for option 2, as it helps me check if I break things when adding features later, or if game code changes under me. Add a new flag:
 
 ```csharp
-    private static MelonLogger.Instance _log;
+    private static SdkLog _log;
     private static HarmonyLib.Harmony _harmony;
     private static bool _applyAccuracyDebuff = false;
     private static bool _debugLogging = false;
