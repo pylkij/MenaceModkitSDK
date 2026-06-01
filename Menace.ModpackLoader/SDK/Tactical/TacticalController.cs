@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
 using System.Reflection;
-using System.Runtime.InteropServices;
-using Il2CppInterop.Runtime.InteropTypes;
 using UnityEngine;
 
 namespace Menace.SDK;
@@ -34,6 +31,21 @@ public enum TacticalFinishReason
     Leave = 2,
     LoadingSavegame = 3
 }
+public class TacticalStateInfo
+{
+    public int RoundNumber { get; set; }
+    public FactionType CurrentFactionType { get; set; }
+    public bool IsPlayerTurn { get; set; }
+    public bool IsPaused { get; set; }
+    public float TimeScale { get; set; }
+    public bool IsMissionRunning { get; set; }
+    public string ActiveActorName { get; set; }
+    public bool IsAnyPlayerAlive { get; set; }
+    public bool IsAnyEnemyAlive { get; set; }
+    public int TotalEnemyCount { get; set; }
+    public int DeadEnemyCount { get; set; }
+    public int AliveEnemyCount { get; set; }
+}
 
 /// <summary>
 /// SDK extension for controlling tactical game state including rounds, turns,
@@ -52,40 +64,16 @@ public enum TacticalFinishReason
 /// </summary>
 public static class TacticalController
 {
-    // Cached types
-    private static readonly GameType _actorType = GameType.Of<Il2CppMenace.Tactical.Actor>();
-    private static readonly GameType _taticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
-    private static readonly GameType _tacticalManagerType = GameType.Of<Il2CppMenace.Tactical.TacticalManager>();
-    private static readonly GameType _tacticalStateType = GameType.Of<Il2CppMenace.States.TacticalState>();
-    private static readonly GameType _baseFactionType = GameType.Of<Il2CppMenace.Tactical.AI.BaseFaction>();
-
-    // TacticalState offsets (still needed for some operations)
-    private const uint OFFSET_TS_TIME_SCALE = 0x28;
-    private const uint OFFSET_TS_CURRENT_ACTION = 0x38;
-
     /// <summary>
     /// Get the current round number (1-indexed).
     /// </summary>
     public static int GetCurrentRound()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return 0;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return 0;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return 0;
-
-            var getRoundMethod = tmType.GetMethod("GetRound", BindingFlags.Public | BindingFlags.Instance);
-            if (getRoundMethod == null) return 0;
-
-            return (int)getRoundMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.GetCurrentRound", "Failed", ex);
-            return 0;
-        }
+        return GameMethod.CallInt<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.GetRound());
     }
 
     /// <summary>
@@ -93,24 +81,11 @@ public static class TacticalController
     /// </summary>
     public static int GetCurrentFaction()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return -1;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return -1;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return -1;
-
-            var getActiveFactionMethod = tmType.GetMethod("GetActiveFactionID", BindingFlags.Public | BindingFlags.Instance);
-            if (getActiveFactionMethod == null) return -1;
-
-            return (int)getActiveFactionMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.GetCurrentFaction", "Failed", ex);
-            return -1;
-        }
+        return GameMethod.CallInt<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.GetActiveFactionID());
     }
 
     /// <summary>
@@ -137,24 +112,11 @@ public static class TacticalController
     /// </summary>
     public static bool IsPaused()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return false;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return false;
-
-            var isPausedMethod = tmType.GetMethod("IsPaused", BindingFlags.Public | BindingFlags.Instance);
-            if (isPausedMethod == null) return false;
-
-            return (bool)isPausedMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.IsPaused", "Failed", ex);
-            return false;
-        }
+        return GameMethod.CallBool<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.IsPaused());
     }
 
     /// <summary>
@@ -162,32 +124,19 @@ public static class TacticalController
     /// </summary>
     public static bool SetPaused(bool paused)
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return false;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return false;
-
-            var setPausedMethod = tmType.GetMethod("SetPaused", BindingFlags.Public | BindingFlags.Instance);
-            if (setPausedMethod == null) return false;
-
-            setPausedMethod.Invoke(tm, new object[] { paused });
-            ModError.Info("Menace.SDK", $"Game {(paused ? "paused" : "unpaused")}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.SetPaused", "Failed", ex);
-            return false;
-        }
+        GameMethod.Call<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.SetPaused(default), new object[] { paused });
+        SdkLogger.Msg($"Game {(paused ? "paused" : "unpaused")}");
+        return true;
     }
 
     /// <summary>
     /// Toggle pause state.
     /// </summary>
-    public static bool TogglePause()
+    internal static bool TogglePause()
     {
         return SetPaused(!IsPaused());
     }
@@ -206,18 +155,10 @@ public static class TacticalController
     /// <param name="scale">Time scale (1.0 = normal, 2.0 = 2x speed, 0.5 = half speed)</param>
     public static bool SetTimeScale(float scale)
     {
-        try
-        {
-            var clamped = Math.Clamp(scale, 0f, 10f);
-            Time.timeScale = clamped;
-            ModError.Info("Menace.SDK", $"Time scale set to {clamped}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.SetTimeScale", "Failed", ex);
-            return false;
-        }
+        var clamped = Math.Clamp(scale, 0f, 10f);
+        Time.timeScale = clamped;
+        SdkLogger.Msg($"Time scale set to {clamped}");
+        return true;
     }
 
     /// <summary>
@@ -227,22 +168,23 @@ public static class TacticalController
     {
         try
         {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
-
-            var tm = GetTacticalManagerProxy();
+            var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+                x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
             if (tm == null) return false;
 
-            var nextRoundMethod = tmType.GetMethod("NextRound", BindingFlags.Public | BindingFlags.Instance);
+            // NextRound() is private — GameMethod expression trees cannot reference private members.
+            // Raw reflection is intentionally retained here until a public alternative is confirmed.
+            var nextRoundMethod = typeof(Il2CppMenace.Tactical.TacticalManager)
+                .GetMethod("NextRound", BindingFlags.NonPublic | BindingFlags.Instance);
             if (nextRoundMethod == null) return false;
 
             nextRoundMethod.Invoke(tm, null);
-            ModError.Info("Menace.SDK", $"Advanced to round {GetCurrentRound()}");
+            SdkLogger.Msg($"Advanced to round {GetCurrentRound()}");
             return true;
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TacticalController.NextRound", "Failed", ex);
+            SdkLogger.Error("TacticalController.NextRound: Failed", ex);
             return false;
         }
     }
@@ -254,22 +196,23 @@ public static class TacticalController
     {
         try
         {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
-
-            var tm = GetTacticalManagerProxy();
+            var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+                x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
             if (tm == null) return false;
 
-            var nextFactionMethod = tmType.GetMethod("NextFaction", BindingFlags.Public | BindingFlags.Instance);
+            // NextFaction() is private — GameMethod expression trees cannot reference private members.
+            // Raw reflection is intentionally retained here until a public alternative is confirmed.
+            var nextFactionMethod = typeof(Il2CppMenace.Tactical.TacticalManager)
+                .GetMethod("NextFaction", BindingFlags.NonPublic | BindingFlags.Instance);
             if (nextFactionMethod == null) return false;
 
             nextFactionMethod.Invoke(tm, null);
-            ModError.Info("Menace.SDK", $"Advanced to faction {GetCurrentFaction()}");
+            SdkLogger.Msg($"Advanced to faction {GetCurrentFaction()}");
             return true;
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("TacticalController.NextFaction", "Failed", ex);
+            SdkLogger.Error("TacticalController.NextFaction: Failed", ex);
             return false;
         }
     }
@@ -279,26 +222,13 @@ public static class TacticalController
     /// </summary>
     public static bool EndTurn()
     {
-        try
-        {
-            var tsType = _tacticalStateType?.ManagedType;
-            if (tsType == null) return false;
+        var ts = GameMethod.CallStatic<Il2CppMenace.States.TacticalState>(
+            x => Il2CppMenace.States.TacticalState.Get()) as Il2CppMenace.States.TacticalState;
+        if (ts == null) return false;
 
-            var ts = GetTacticalStateProxy();
-            if (ts == null) return false;
-
-            var endTurnMethod = tsType.GetMethod("EndTurn", BindingFlags.Public | BindingFlags.Instance);
-            if (endTurnMethod == null) return false;
-
-            endTurnMethod.Invoke(ts, null);
-            ModError.Info("Menace.SDK", "Ended turn");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.EndTurn", "Failed", ex);
-            return false;
-        }
+        GameMethod.Call<Il2CppMenace.States.TacticalState>(ts, x => x.EndTurn());
+        SdkLogger.Msg("Ended turn");
+        return true;
     }
 
     /// <summary>
@@ -306,27 +236,14 @@ public static class TacticalController
     /// </summary>
     public static GameObj GetActiveActor()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return GameObj.Null;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return GameObj.Null;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return GameObj.Null;
+        var result = GameMethod.Call<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.GetActiveActor());
+        if (result is not Il2CppMenace.Tactical.Actor actor) return GameObj.Null;
 
-            var getActiveActorMethod = tmType.GetMethod("GetActiveActor", BindingFlags.Public | BindingFlags.Instance);
-            if (getActiveActorMethod == null) return GameObj.Null;
-
-            var result = getActiveActorMethod.Invoke(tm, null);
-            if (result == null) return GameObj.Null;
-
-            return new GameObj(((Il2CppObjectBase)result).Pointer);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.GetActiveActor", "Failed", ex);
-            return GameObj.Null;
-        }
+        return new GameObj(actor.Pointer);
     }
 
     /// <summary>
@@ -334,88 +251,37 @@ public static class TacticalController
     /// </summary>
     public static bool SetActiveActor(GameObj actor)
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return false;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return false;
-
-            var setActiveMethod = tmType.GetMethod("SetActiveActor", BindingFlags.Public | BindingFlags.Instance);
-            if (setActiveMethod == null) return false;
-
-            object actorProxy = null;
-            if (!actor.IsNull)
-            {
-                var actorType = _actorType.ManagedType;
-                if (actorType != null)
-                {
-                    var ptrCtor = actorType.GetConstructor(new[] { typeof(IntPtr) });
-                    actorProxy = ptrCtor?.Invoke(new object[] { actor.Pointer });
-                }
-            }
-
-            setActiveMethod.Invoke(tm, new object[] { actorProxy, true });
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.SetActiveActor", "Failed", ex);
-            return false;
-        }
+        var actorProxy = actor.IsNull ? null : actor.As<Il2CppMenace.Tactical.Actor>();
+        GameMethod.Call<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.SetActiveActor(default, default), new object[] { actorProxy, true });
+        return true;
     }
 
     /// <summary>
     /// Get total count of enemy actors.
-    /// Uses TacticalManager.GetTotalEnemyCount().
     /// </summary>
     public static int GetTotalEnemyCount()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return 0;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return 0;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return 0;
-
-            var getCountMethod = tmType.GetMethod("GetTotalEnemyCount", BindingFlags.Public | BindingFlags.Instance);
-            if (getCountMethod == null) return 0;
-
-            return (int)getCountMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.GetTotalEnemyCount", "Failed", ex);
-            return 0;
-        }
+        return GameMethod.CallInt<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.GetActorCount(default, default, default, default, default), new object[] { false, true, true, true, null });
     }
 
     /// <summary>
     /// Get count of dead enemy actors.
-    /// Uses TacticalManager.GetDeadEnemyCount().
     /// </summary>
     public static int GetDeadEnemyCount()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return 0;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return 0;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return 0;
-
-            var getDeadMethod = tmType.GetMethod("GetDeadEnemyCount", BindingFlags.Public | BindingFlags.Instance);
-            if (getDeadMethod == null) return 0;
-
-            return (int)getDeadMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.GetDeadEnemyCount", "Failed", ex);
-            return 0;
-        }
+        return GameMethod.CallInt<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.GetActorCount(default, default, default, default, default), new object[] { false, true, false, true, null });
     }
 
     /// <summary>
@@ -423,97 +289,32 @@ public static class TacticalController
     /// </summary>
     public static bool IsMissionRunning()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
-
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return false;
-
-            var isRunningMethod = tmType.GetMethod("IsMissionRunning", BindingFlags.Public | BindingFlags.Instance);
-            if (isRunningMethod == null) return false;
-
-            return (bool)isRunningMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.IsMissionRunning", "Failed", ex);
-            return false;
-        }
+        return (bool)(GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.IsMissionRunning()) ?? false);
     }
 
     /// <summary>
     /// Check if any player unit is still alive.
-    /// Uses TacticalManager.IsAnyPlayerUnitAlive().
     /// </summary>
     public static bool IsAnyPlayerUnitAlive()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return false;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return false;
-
-            var isAliveMethod = tmType.GetMethod("IsAnyPlayerUnitAlive", BindingFlags.Public | BindingFlags.Instance);
-            if (isAliveMethod == null) return false;
-
-            return (bool)isAliveMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.IsAnyPlayerUnitAlive", "Failed", ex);
-            return false;
-        }
+        return GameMethod.CallBool<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.IsAnyPlayerUnitAlive());
     }
 
     /// <summary>
     /// Check if any AI/enemy unit is still alive.
-    /// Uses TacticalManager.IsAnyAIUnitAlive().
     /// </summary>
     public static bool IsAnyEnemyAlive()
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return false;
 
-            var tm = GetTacticalManagerProxy();
-            if (tm == null) return false;
-
-            var isAliveMethod = tmType.GetMethod("IsAnyAIUnitAlive", BindingFlags.Public | BindingFlags.Instance);
-            if (isAliveMethod == null) return false;
-
-            return (bool)isAliveMethod.Invoke(tm, null);
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.IsAnyEnemyAlive", "Failed", ex);
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// Get the name of a faction type.
-    /// </summary>
-    public static string GetFactionName(FactionType faction)
-    {
-        return faction switch
-        {
-            FactionType.Neutral => "Neutral",
-            FactionType.Player => "Player",
-            FactionType.PlayerAI => "Player AI",
-            FactionType.Civilian => "Civilian",
-            FactionType.AlliedLocalForces => "Allied Local Forces",
-            FactionType.EnemyLocalForces => "Enemy Local Forces",
-            FactionType.Pirates => "Pirates",
-            FactionType.Wildlife => "Wildlife",
-            FactionType.Constructs => "Constructs",
-            FactionType.RogueArmy => "Rogue Army",
-            _ => $"Unknown ({(int)faction})"
-        };
+        return GameMethod.CallBool<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.IsAnyAIUnitAlive());
     }
 
     /// <summary>
@@ -524,9 +325,7 @@ public static class TacticalController
         var activeActor = GetActiveActor();
         string activeActorName = null;
         if (!activeActor.IsNull)
-        {
             activeActorName = activeActor.GetName();
-        }
 
         var currentFaction = GetCurrentFactionType();
         var totalEnemies = GetTotalEnemyCount();
@@ -535,9 +334,7 @@ public static class TacticalController
         return new TacticalStateInfo
         {
             RoundNumber = GetCurrentRound(),
-            CurrentFaction = (int)currentFaction,
             CurrentFactionType = currentFaction,
-            CurrentFactionName = GetFactionName(currentFaction),
             IsPlayerTurn = IsPlayerTurn(),
             IsPaused = IsPaused(),
             TimeScale = GetTimeScale(),
@@ -551,43 +348,12 @@ public static class TacticalController
         };
     }
 
-    public class TacticalStateInfo
-    {
-        public int RoundNumber { get; set; }
-        public int CurrentFaction { get; set; }
-        public FactionType CurrentFactionType { get; set; }
-        public string CurrentFactionName { get; set; }
-        public bool IsPlayerTurn { get; set; }
-        public bool IsPaused { get; set; }
-        public float TimeScale { get; set; }
-        public bool IsMissionRunning { get; set; }
-        public string ActiveActorName { get; set; }
-        public bool IsAnyPlayerAlive { get; set; }
-        public bool IsAnyEnemyAlive { get; set; }
-        public int TotalEnemyCount { get; set; }
-        public int DeadEnemyCount { get; set; }
-        public int AliveEnemyCount { get; set; }
-    }
-
     /// <summary>
     /// Clear all enemies from the battlefield.
     /// </summary>
     public static int ClearAllEnemies()
     {
         return EntitySpawner.ClearEnemies(immediate: true);
-    }
-
-    /// <summary>
-    /// Spawn a wave of enemies at specified positions.
-    /// </summary>
-    /// <param name="templateName">EntityTemplate name for enemies</param>
-    /// <param name="positions">Tile positions to spawn at</param>
-    /// <param name="faction">Faction type for spawned units (default: EnemyLocalForces)</param>
-    /// <returns>Number successfully spawned</returns>
-    public static int SpawnWave(string templateName, List<(int x, int y)> positions, FactionType faction = FactionType.EnemyLocalForces)
-    {
-        var results = EntitySpawner.SpawnGroup(templateName, positions, (Il2CppMenace.Tactical.FactionType)faction);
-        return results.FindAll(r => r.Success).Count;
     }
 
     /// <summary>
@@ -609,77 +375,12 @@ public static class TacticalController
     /// <param name="reason">The reason for finishing the mission</param>
     public static bool FinishMission(TacticalFinishReason reason = TacticalFinishReason.Leave)
     {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return false;
+        var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
+            x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;
+        if (tm == null) return false;
 
-            // Get the singleton instance via the static Get() method
-            var getMethod = tmType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            if (getMethod == null) return false;
-
-            var tm = getMethod.Invoke(null, null);
-            if (tm == null) return false;
-
-            // Find Finish() on the instance
-            var finishMethod = tmType.GetMethod("Finish", BindingFlags.Public | BindingFlags.Instance);
-            if (finishMethod == null) return false;
-
-            // Look up the game's TacticalFinishReason enum type separately
-            // It lives in the Menace.Tactical namespace alongside TacticalManager
-            var finishReasonType = finishMethod.GetParameters()[0].ParameterType;
-
-            // Convert our local enum value to the game's enum type by integer value
-            object gameReason = Enum.ToObject(finishReasonType, (int)reason);
-
-            finishMethod.Invoke(tm, new object[] { gameReason });
-            ModError.Info("Menace.SDK", $"Mission finished with reason: {reason}");
-            return true;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("TacticalController.FinishMission", "Failed", ex);
-            return false;
-        }
-    }
-
-    // --- Internal helpers ---
-
-    private static object GetTacticalManagerProxy()
-    {
-        try
-        {
-            var tmType = _tacticalManagerType?.ManagedType;
-            if (tmType == null) return null;
-
-            var instanceProp = tmType.GetProperty("s_Singleton", BindingFlags.Public | BindingFlags.Static);
-            return instanceProp?.GetValue(null);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static object GetTacticalStateProxy()
-    {
-        try
-        {
-            var tsType = _tacticalStateType?.ManagedType;
-            if (tsType == null) return null;
-
-            // Try Instance property first
-            var instanceProp = tsType.GetProperty("s_Singleton", BindingFlags.Public | BindingFlags.Static);
-            if (instanceProp != null)
-                return instanceProp.GetValue(null);
-
-            // Try Get() static method
-            var getMethod = tsType.GetMethod("Get", BindingFlags.Public | BindingFlags.Static);
-            return getMethod?.Invoke(null, null);
-        }
-        catch
-        {
-            return null;
-        }
+        GameMethod.Call<Il2CppMenace.Tactical.TacticalManager>(tm, x => x.Finish(default), new object[] { (Il2CppMenace.Tactical.TacticalFinishReason)reason });
+        SdkLogger.Msg($"Mission finished with reason: {reason}");
+        return true;
     }
 }

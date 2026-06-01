@@ -856,7 +856,7 @@ public static class DevConsole
         RegisterCommand("status", "", "Show tactical state summary", args =>
         {
             var state = TacticalController.GetTacticalState();
-            return $"Round: {state.RoundNumber}, {state.CurrentFactionName}'s turn\n" +
+            return $"Round: {state.RoundNumber}, {state.CurrentFactionType}'s turn\n" +
                    $"Active: {state.ActiveActorName ?? "(none)"}\n" +
                    $"Players: {(state.IsAnyPlayerAlive ? "alive" : "dead")}\n" +
                    $"Enemies: {state.AliveEnemyCount} alive, {state.DeadEnemyCount} dead\n" +

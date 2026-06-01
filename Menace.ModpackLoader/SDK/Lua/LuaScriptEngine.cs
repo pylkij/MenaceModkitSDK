@@ -473,7 +473,7 @@ public class LuaScriptEngine
         // --- Tactical State API ---
         script.Globals["get_round"] = DynValue.NewCallback((ctx, args) => DynValue.NewNumber(TacticalController.GetCurrentRound()));
         script.Globals["get_faction"] = DynValue.NewCallback((ctx, args) => DynValue.NewNumber(TacticalController.GetCurrentFaction()));
-        script.Globals["get_faction_name"] = DynValue.NewCallback((ctx, args) => DynValue.NewString(TacticalController.GetFactionName((FactionType)(int)args[0].Number)));
+        script.Globals["get_faction_name"] = DynValue.NewCallback((ctx, args) => DynValue.NewString(((FactionType)(int)args[0].Number).ToString()));
         script.Globals["is_player_turn"] = DynValue.NewCallback((ctx, args) => DynValue.NewBoolean(TacticalController.IsPlayerTurn()));
         script.Globals["is_paused"] = DynValue.NewCallback((ctx, args) => DynValue.NewBoolean(TacticalController.IsPaused()));
         script.Globals["pause"] = DynValue.NewCallback((ctx, args) => DynValue.NewBoolean(TacticalController.SetPaused(args.Count > 0 ? args[0].Boolean : true)));
@@ -1553,8 +1553,8 @@ public class LuaScriptEngine
 
         var table = new Table(_lua);
         table["round"] = state.RoundNumber;
-        table["faction"] = state.CurrentFaction;
-        table["faction_name"] = state.CurrentFactionName;
+        table["faction"] = (int)state.CurrentFactionType;
+        table["faction_name"] = state.CurrentFactionType.ToString();
         table["is_player_turn"] = state.IsPlayerTurn;
         table["is_paused"] = state.IsPaused;
         table["time_scale"] = state.TimeScale;

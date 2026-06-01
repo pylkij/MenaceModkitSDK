@@ -600,20 +600,17 @@ public static class TacticalEventHooks
 
         // Get faction info
         int faction = 0;
-        string factionName = "";
         try
         {
             var gameObj = new GameObj(actorPtr);
             faction = gameObj.ReadInt(OffsetActorFactionId);
-            factionName = TacticalController.GetFactionName((FactionType)faction);
         }
         catch (Exception ex)
         {
             ModError.WarnInternal("TacticalEventHooks", $"OnTurnEnd faction lookup failed: {ex.Message}");
         }
 
-        // Fire existing turn_end event for compatibility
-        LuaScriptEngine.Instance?.OnTurnEnd(faction, factionName);
+        LuaScriptEngine.Instance?.OnTurnEnd(faction, ((FactionType)faction).ToString());
     }
 
     private static void NextRound_Postfix(object __instance)

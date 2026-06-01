@@ -117,7 +117,7 @@ public class Actor
     /// <summary>
     /// Get the actor's faction name.
     /// </summary>
-    public string FactionName => TacticalController.GetFactionName(Faction);
+    public string FactionName => Faction.ToString();
 
     // ═══════════════════════════════════════════════════════════════════
     //  Effect System Integration

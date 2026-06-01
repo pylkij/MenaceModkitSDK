@@ -480,8 +480,8 @@ public static class GameMcpServer
         return new
         {
             round = state.RoundNumber,
-            faction = state.CurrentFaction,
-            factionName = state.CurrentFactionName,
+            faction = (int)state.CurrentFactionType,
+            factionName = state.CurrentFactionType.ToString(),
             isPlayerTurn = state.IsPlayerTurn,
             isPaused = state.IsPaused,
             timeScale = state.TimeScale,
