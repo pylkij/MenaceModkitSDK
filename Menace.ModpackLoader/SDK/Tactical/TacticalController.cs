@@ -48,19 +48,9 @@ public class TacticalStateInfo
 }
 
 /// <summary>
-/// SDK extension for controlling tactical game state including rounds, turns,
-/// time scale, and mission flow.
-///
-/// Based on reverse engineering findings:
-/// - TacticalManager singleton manages game state
-/// - TacticalManager.GetRound() for round number
-/// - TacticalManager.GetActiveFactionID() for active faction
-/// - TacticalManager.GetActiveActor() for active actor
-/// - TacticalManager.IsPaused() @ 0x180672c90
-/// - TacticalManager.SetPaused(bool) @ 0x1806753c0
-/// - TacticalManager.NextRound() @ 0x1806736b0
-/// - TacticalManager.NextFaction() @ 0x1806730f0
-/// - TacticalState.TimeScale @ +0x28
+/// Controls tactical game state including rounds, turns, time scale, and mission flow.
+/// Wraps <c>TacticalManager</c> and <c>TacticalState</c> singletons.
+/// Safe to call any time after <c>GameState.SceneLoaded</c> has fired for a tactical scene.
 /// </summary>
 public static class TacticalController
 {
@@ -79,7 +69,7 @@ public static class TacticalController
     /// <summary>
     /// Get the currently active faction ID.
     /// </summary>
-    public static int GetCurrentFaction()
+    internal static int GetCurrentFaction()
     {
         var tm = GameMethod.CallStatic<Il2CppMenace.Tactical.TacticalManager>(
             x => Il2CppMenace.Tactical.TacticalManager.Get()) as Il2CppMenace.Tactical.TacticalManager;

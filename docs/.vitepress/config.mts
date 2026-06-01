@@ -101,6 +101,7 @@ export default defineConfig({
           items: [
             { text: 'Tile Map', link: '/api/tactical/tile-map'},
             { text: 'Line of Sight', link: '/api/tactical/line-of-sight'},
+            { text: 'Tactical Controller', link: '/api/tactical/tactical-controller'},
           ]
         }
       ]
