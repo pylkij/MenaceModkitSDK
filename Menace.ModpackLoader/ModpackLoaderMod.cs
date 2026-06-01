@@ -149,6 +149,10 @@ public partial class ModpackLoaderMod : MelonMod
         Faction.Initialize();
         Emotions.Initialize();
 
+        TileMap.Initialize();
+        LineOfSight.Initialize();
+        Vehicle.Initialize();
+
         PlayerLog("========================================");
         PlayerLog("THIS GAME SESSION IS RUNNING MODDED");
         PlayerLog(ModkitVersion.LoaderFull);

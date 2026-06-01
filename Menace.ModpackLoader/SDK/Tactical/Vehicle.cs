@@ -1,43 +1,82 @@
-using Il2CppInterop.Runtime.InteropTypes;
-using Menace.SDK.Internal;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.Metrics;
-using System.Reflection;
 
 namespace Menace.SDK;
 
 /// <summary>
 /// SDK wrapper for vehicle operations.
 /// Provides safe access to vehicle health, armor, modular equipment, and twin-fire detection.
-///
-/// Based on reverse engineering findings:
-/// - Vehicle.m_HitpointsPct @ +0x20
-/// - Vehicle.m_ArmorDurabilityPct @ +0x24
-/// - Vehicle.EquipmentSkills @ +0x28
-/// - ItemsModularVehicle.Slots @ +0x18
-/// - ItemsModularVehicle.IsTwinFire @ +0x20
 /// </summary>
 public static class Vehicle
 {
-    // Cached types
-    private static readonly GameType _itemContainerType = GameType.Of<Il2CppMenace.Items.ItemContainer>();
-    private static readonly GameType _vehicleType = GameType.Of<Il2CppMenace.Strategy.Vehicle>();
-    private static readonly GameType _modularVehicleType = GameType.Of<Il2CppMenace.Strategy.ItemsModularVehicle>();
-    private static readonly GameType _slotType = GameType.Of<Il2CppMenace.Strategy.ModularVehicleSlot>();
-    private static readonly GameType _vehicleTemplateType = GameType.Of<Il2CppMenace.Strategy.ModularVehicleTemplate>();
+    // ═══════════════════════════════════════════════════════════════════
+    //  Field Handles — resolved once in OnSceneLoaded, never at call site
+    // ═══════════════════════════════════════════════════════════════════
 
-    // Modular slot types
-    public const int MODULAR_WEAPON = 0;
-    public const int MODULAR_ARMOR = 1;
-    public const int MODULAR_ACCESSORY = 2;
+    // Vehicle fields
+    private static FieldHandle<Il2CppMenace.Strategy.Vehicle, float> _hHitpointsPct;
+    private static FieldHandle<Il2CppMenace.Strategy.Vehicle, float> _hArmorDurabilityPct;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.Vehicle, Il2CppMenace.Tactical.EntityTemplate> _hEntityTemplate;
+
+    // ItemContainer fields
+    private static ObjFieldHandle<Il2CppMenace.Items.ItemContainer, Il2CppMenace.Strategy.ItemsModularVehicle> _hModularVehicle;
+
+    // ItemsModularVehicle fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ItemsModularVehicle, Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppMenace.Strategy.ItemsModularVehicle.Slot>> _hSlots;
+    private static FieldHandle<Il2CppMenace.Strategy.ItemsModularVehicle, bool> _hIsTwinFire;
+
+    // ItemsModularVehicle.Slot fields
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ItemsModularVehicle.Slot, Il2CppMenace.Strategy.ModularVehicleSlot> _hSlotData;
+    private static ObjFieldHandle<Il2CppMenace.Strategy.ItemsModularVehicle.Slot, Il2CppMenace.Items.Item> _hMountedWeapon;
+
+    // ModularVehicleSlot fields (template data)
+    private static FieldHandle<Il2CppMenace.Strategy.ModularVehicleSlot, Il2CppMenace.Strategy.ModularVehicleSlotType> _hSlotType;
+
+    // ═══════════════════════════════════════════════════════════════════
+    //  Initialisation — wire up to GameState.SceneLoaded
+    // ═══════════════════════════════════════════════════════════════════
+
+    private static bool _handlesResolved = false;
+
+    internal static void Initialize()
+    {
+        GameState.SceneLoaded += _ => ResolveHandles();
+    }
+
+    private static void ResolveHandles()
+    {
+        if (_handlesResolved) return;
+
+        try
+        {
+            _hHitpointsPct = GameObj<Il2CppMenace.Strategy.Vehicle>.ResolveField(x => x.m_HitpointsPct);
+            _hArmorDurabilityPct = GameObj<Il2CppMenace.Strategy.Vehicle>.ResolveField(x => x.m_ArmorDurabilityPct);
+            _hEntityTemplate = GameObj<Il2CppMenace.Strategy.Vehicle>.ResolveObjField(x => x.EntityTemplate);
+
+            _hModularVehicle = GameObj<Il2CppMenace.Items.ItemContainer>.ResolveObjField(x => x.m_ModularVehicle);
+
+            _hSlots = GameObj<Il2CppMenace.Strategy.ItemsModularVehicle>.ResolveObjField(x => x.Slots);
+            _hIsTwinFire = GameObj<Il2CppMenace.Strategy.ItemsModularVehicle>.ResolveField(x => x.IsTwinFire);
+
+            _hSlotData = GameObj<Il2CppMenace.Strategy.ItemsModularVehicle.Slot>.ResolveObjField(x => x.Data);
+            _hMountedWeapon = GameObj<Il2CppMenace.Strategy.ItemsModularVehicle.Slot>.ResolveObjField(x => x.MountedWeapon);
+
+            _hSlotType = GameObj<Il2CppMenace.Strategy.ModularVehicleSlot>.ResolveField(x => x.SlotType);
+
+            _handlesResolved = true;
+        }
+        catch (Exception ex)
+        {
+            SdkLogger.Error("Vehicle.ResolveHandles: Field handle resolution failed", ex);
+        }
+    }
 
     /// <summary>
     /// Vehicle information structure.
     /// </summary>
     public class VehicleInfo
     {
-        public string TemplateName { get; set; }
+        public string TemplateId { get; set; }
         public float HitpointsPct { get; set; }
         public float ArmorDurabilityPct { get; set; }
         public int BaseHp { get; set; }
@@ -54,10 +93,8 @@ public static class Vehicle
     /// </summary>
     public class SlotInfo
     {
-        public int SlotType { get; set; }
-        public string SlotTypeName { get; set; }
-        public bool IsEnabled { get; set; }
-        public string EquippedItem { get; set; }
+        public Il2CppMenace.Strategy.ModularVehicleSlotType SlotType { get; set; }
+        public string EquippedItemId { get; set; }
         public bool HasItem { get; set; }
         public IntPtr Pointer { get; set; }
     }
@@ -69,191 +106,86 @@ public static class Vehicle
     {
         if (entity.IsNull) return null;
 
-        try
-        {
-            var vehicleType = _vehicleType?.ManagedType;
-            if (vehicleType == null) return null;
-
-            var proxy = GetManagedProxy(entity, vehicleType);
-            if (proxy == null) return null;
-
-            var info = new VehicleInfo { Pointer = entity.Pointer };
-
-            // Get template
-            var templateProp = vehicleType.GetProperty("EntityTemplate", BindingFlags.Public | BindingFlags.Instance);
-            var template = templateProp?.GetValue(proxy);
-            if (template != null)
-            {
-                var templateObj = new GameObj(((Il2CppObjectBase)template).Pointer);
-                info.TemplateName = templateObj.GetName();
-            }
-
-            // Get health
-            var hpPctProp = vehicleType.GetProperty("m_HitpointsPct", BindingFlags.Public | BindingFlags.Instance);
-            if (hpPctProp != null)
-                info.HitpointsPct = (float)hpPctProp.GetValue(proxy);
-
-            var armorPctProp = vehicleType.GetProperty("m_ArmorDurabilityPct", BindingFlags.Public | BindingFlags.Instance);
-            if (armorPctProp != null)
-                info.ArmorDurabilityPct = (float)armorPctProp.GetValue(proxy);
-
-            var getBaseHpMethod = vehicleType.GetMethod("GetBaseHp", BindingFlags.Public | BindingFlags.Instance);
-            if (getBaseHpMethod != null)
-                info.BaseHp = (int)getBaseHpMethod.Invoke(proxy, null);
-
-            var getMaxHpMethod = vehicleType.GetMethod("GetBaseMaxHp", BindingFlags.Public | BindingFlags.Instance);
-            if (getMaxHpMethod != null)
-                info.MaxHp = (int)getMaxHpMethod.Invoke(proxy, null);
-
-            var getArmorMethod = vehicleType.GetMethod("GetArmor", BindingFlags.Public | BindingFlags.Instance);
-            if (getArmorMethod != null)
-                info.Armor = (int)getArmorMethod.Invoke(proxy, null);
-
-            // Get modular vehicle info
-            var modVehicle = GetModularVehicle(entity);
-            if (modVehicle != null)
-            {
-                info.HasTwinFire = modVehicle.HasTwinFire;
-                info.EquippedSlots = modVehicle.EquippedCount;
-                info.Slots = modVehicle.Slots;
-            }
-
-            return info;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Vehicle.GetVehicleInfo", "Failed", ex);
+        if (!GameObj<Il2CppMenace.Strategy.Vehicle>.TryWrap(entity, out var vehicleObj))
             return null;
-        }
+
+        var info = new VehicleInfo { Pointer = entity.Pointer };
+
+        if (_hEntityTemplate.TryRead(vehicleObj, out var templateObj))
+            if (GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(templateObj.Untyped, out var dataTemplateObj))
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var templateId))
+                    info.TemplateId = templateId;
+
+        if (_hHitpointsPct.TryRead(vehicleObj, out var hpPct))
+            info.HitpointsPct = hpPct;
+
+        if (_hArmorDurabilityPct.TryRead(vehicleObj, out var armorPct))
+            info.ArmorDurabilityPct = armorPct;
+
+        info.BaseHp = GameMethod.CallInt<Il2CppMenace.Strategy.Vehicle>(vehicleObj, x => x.GetBaseHp());
+        info.MaxHp = GameMethod.CallInt<Il2CppMenace.Strategy.Vehicle>(vehicleObj, x => x.GetBaseMaxHp());
+        info.Armor = GameMethod.CallInt<Il2CppMenace.Strategy.Vehicle>(vehicleObj, x => x.GetArmor());
+
+        GetModularVehicle(entity, info);
+
+        return info;
     }
 
     /// <summary>
-    /// Modular vehicle wrapper info.
+    /// Reads modular vehicle data into the provided VehicleInfo instance.
     /// </summary>
-    public class ModularVehicleInfo
+    private static void GetModularVehicle(GameObj entity, VehicleInfo info)
     {
-        public bool HasTwinFire { get; set; }
-        public int EquippedCount { get; set; }
-        public List<SlotInfo> Slots { get; set; } = new();
-    }
+        if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(entity, out var typedEntity))
+            return;
 
-    /// <summary>
-    /// Get modular vehicle information.
-    /// </summary>
-    public static ModularVehicleInfo GetModularVehicle(GameObj entity)
-    {
-        if (entity.IsNull) return null;
+        var container = Inventory.GetContainer(typedEntity);
+        if (container.Untyped.IsNull) return;
 
-        try
+        if (!_hModularVehicle.TryRead(container, out var modVehicleObj)) return;
+        if (modVehicleObj.Untyped.IsNull) return;
+
+        if (_hIsTwinFire.TryRead(modVehicleObj, out var isTwinFire))
+            info.HasTwinFire = isTwinFire;
+
+        if (!_hSlots.TryRead(modVehicleObj, out var slotsObj)) return;
+
+        var slots = slotsObj.AsManaged();
+        if (slots == null) return;
+
+        foreach (var slot in slots)
         {
-            if (!GameObj<Il2CppMenace.Tactical.Entity>.TryWrap(entity, out var typedEntity))
-                return null;
-
-            var container = Inventory.GetContainer(typedEntity);
-            if (container.Untyped.IsNull) return null;
-
-            var containerType = _itemContainerType.ManagedType;
-            if (containerType == null) return null;
-
-            var containerProxy = GetManagedProxy(container.Untyped, containerType);
-            if (containerProxy == null) return null;
-
-            var modVehicleProp = containerType.GetProperty("m_ModularVehicle",
-                BindingFlags.Public | BindingFlags.Instance);
-            var modVehicle = modVehicleProp?.GetValue(containerProxy);
-            if (modVehicle == null) return null;
-
-            var modType = _modularVehicleType?.ManagedType;
-            if (modType == null) return null;
-
-            var info = new ModularVehicleInfo();
-
-            // Get IsTwinFire
-            var twinFireProp = modType.GetProperty("IsTwinFire", BindingFlags.Public | BindingFlags.Instance);
-            if (twinFireProp != null)
-                info.HasTwinFire = (bool)twinFireProp.GetValue(modVehicle);
-
-            // Get slots
-            var slotsProp = modType.GetProperty("Slots", BindingFlags.Public | BindingFlags.Instance);
-            var slots = slotsProp?.GetValue(modVehicle) as Array;
-            if (slots != null)
-            {
-                foreach (var slot in slots)
-                {
-                    if (slot == null) continue;
-                    var slotInfo = GetSlotInfo(new GameObj(((Il2CppObjectBase)slot).Pointer));
-                    if (slotInfo != null)
-                    {
-                        info.Slots.Add(slotInfo);
-                        if (slotInfo.HasItem)
-                            info.EquippedCount++;
-                    }
-                }
-            }
-
-            return info;
-        }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Vehicle.GetModularVehicle", "Failed", ex);
-            return null;
+            if (slot == null) continue;
+            if (!GameObj<Il2CppMenace.Strategy.ItemsModularVehicle.Slot>.TryWrap(GameObj.FromPointer(slot.Pointer), out var slotObj))
+                continue;
+            var slotInfo = GetSlotInfo(slotObj);
+            if (slotInfo == null) continue;
+            info.Slots.Add(slotInfo);
+            if (slotInfo.HasItem)
+                info.EquippedSlots++;
         }
     }
 
     /// <summary>
     /// Get slot information.
     /// </summary>
-    public static SlotInfo GetSlotInfo(GameObj slot)
+    public static SlotInfo GetSlotInfo(GameObj<Il2CppMenace.Strategy.ItemsModularVehicle.Slot> slotObj)
     {
-        if (slot.IsNull) return null;
+        var info = new SlotInfo { Pointer = slotObj.Untyped.Pointer };
 
-        try
+        if (_hSlotData.TryRead(slotObj, out var dataObj))
+            if (_hSlotType.TryRead(dataObj, out var slotType))
+                info.SlotType = slotType;
+
+        if (_hMountedWeapon.TryRead(slotObj, out var weaponObj))
         {
-            var slotType = _slotType?.ManagedType;
-            if (slotType == null) return null;
-
-            var proxy = GetManagedProxy(slot, slotType);
-            if (proxy == null) return null;
-
-            var info = new SlotInfo { Pointer = slot.Pointer };
-
-            // Slot is always enabled (no IsEnabled property)
-            info.IsEnabled = true;
-
-            // Get Data for slot type (returns ModularVehicleSlot with SlotType)
-            var dataProp = slotType.GetProperty("Data", BindingFlags.Public | BindingFlags.Instance);
-            var data = dataProp?.GetValue(proxy);
-            if (data != null)
-            {
-                var slotTypeProp = data.GetType().GetProperty("SlotType",
-                    BindingFlags.Public | BindingFlags.Instance);
-                if (slotTypeProp != null)
-                {
-                    info.SlotType = (int)slotTypeProp.GetValue(data);
-                    info.SlotTypeName = GetSlotTypeName(info.SlotType);
-                }
-            }
-
-            // Get mounted weapon
-            var mountedProp = slotType.GetProperty("MountedWeapon", BindingFlags.Public | BindingFlags.Instance);
-            var mounted = mountedProp?.GetValue(proxy);
-            if (mounted != null)
-            {
-                info.HasItem = true;
-                var itemObj = new GameObj(((Il2CppObjectBase)mounted).Pointer);
-                if (GameObj<Il2CppMenace.Items.Item>.TryWrap(itemObj, out var typedItem))
-                    info.EquippedItem = Inventory.GetItemInfo(typedItem)?.TemplateName ?? "Unknown";
-                else
-                    info.EquippedItem = "Unknown";
-            }
-
-            return info;
+            info.HasItem = true;
+            if (GameObj<Il2CppMenace.Tools.DataTemplate>.TryWrap(weaponObj.Untyped, out var dataTemplateObj))
+                if (Templates._hDataTemplateId.TryRead(dataTemplateObj, out var weaponId))
+                    info.EquippedItemId = weaponId;
         }
-        catch (Exception ex)
-        {
-            ModError.ReportInternal("Vehicle.GetSlotInfo", "Failed", ex);
-            return null;
-        }
+
+        return info;
     }
 
     /// <summary>
@@ -262,33 +194,41 @@ public static class Vehicle
     public static bool IsVehicle(GameObj entity)
     {
         if (entity.IsNull) return false;
-
-        try
-        {
-            var vehicleType = _vehicleType?.ManagedType;
-            if (vehicleType == null) return false;
-
-            var proxy = GetManagedProxy(entity, vehicleType);
-            return proxy != null;
-        }
-        catch
-        {
-            return false;
-        }
+        return GameMethod.CallBool<Il2CppMenace.Tactical.Entity>(entity, x => x.IsVehicle());
     }
 
     /// <summary>
-    /// Get slot type name.
+    /// Fully heals the vehicle and clears all active damage effects.
     /// </summary>
-    public static string GetSlotTypeName(int slotType)
+    public static void HealAndClearDamageEffects(GameObj entity)
     {
-        return slotType switch
-        {
-            0 => "Weapon",
-            1 => "Armor",
-            2 => "Accessory",
-            _ => $"Type{slotType}"
-        };
+        if (entity.IsNull) return;
+        if (!IsVehicle(entity)) return;
+        GameMethod.Call<Il2CppMenace.Strategy.Vehicle>(entity, x => x.HealAndClearDamageEffects());
+    }
+
+    /// <summary>
+    /// Sets the vehicle's hitpoints as a percentage of maximum.
+    /// </summary>
+    /// <param name="entity">The vehicle entity.</param>
+    /// <param name="value">Percentage value between 0.0 and 1.0.</param>
+    public static void SetHitpointsPct(GameObj entity, float value)
+    {
+        if (entity.IsNull) return;
+        if (!IsVehicle(entity)) return;
+        GameMethod.Call<Il2CppMenace.Strategy.Vehicle>(entity, x => x.SetHitpointsPct(value));
+    }
+
+    /// <summary>
+    /// Sets the vehicle's armor durability as a percentage of maximum.
+    /// </summary>
+    /// <param name="entity">The vehicle entity.</param>
+    /// <param name="value">Percentage value between 0.0 and 1.0.</param>
+    public static void SetArmorDurabilityPct(GameObj entity, float value)
+    {
+        if (entity.IsNull) return;
+        if (!IsVehicle(entity)) return;
+        GameMethod.Call<Il2CppMenace.Strategy.Vehicle>(entity, x => x.SetArmorDurabilityPct(value));
     }
 
     /// <summary>
@@ -311,7 +251,7 @@ public static class Vehicle
 
             var lines = new List<string>
             {
-                $"Vehicle: {info.TemplateName}",
+                $"Vehicle: {info.TemplateId}",
                 $"HP: {info.BaseHp}/{info.MaxHp} ({info.HitpointsPct:P0})",
                 $"Armor: {info.Armor} (Durability: {info.ArmorDurabilityPct:P0})",
                 $"Equipped Slots: {info.EquippedSlots}",
@@ -323,9 +263,8 @@ public static class Vehicle
                 lines.Add("Slots:");
                 foreach (var slot in info.Slots)
                 {
-                    var item = slot.HasItem ? slot.EquippedItem : "(empty)";
-                    var enabled = slot.IsEnabled ? "" : " [disabled]";
-                    lines.Add($"  [{slot.SlotTypeName}] {item}{enabled}");
+                    var item = slot.HasItem ? slot.EquippedItemId : "(empty)";
+                    lines.Add($"  [{slot.SlotType}] {item}");
                 }
             }
 
@@ -341,17 +280,12 @@ public static class Vehicle
             if (!IsVehicle(actor))
                 return "Selected actor is not a vehicle";
 
-            var modular = GetModularVehicle(actor);
-            if (modular == null)
+            var info = GetVehicleInfo(actor);
+            if (info == null)
                 return "No modular vehicle data";
 
-            return $"Twin-Fire Active: {modular.HasTwinFire}\n" +
-                   $"Equipped Slots: {modular.EquippedCount}";
+            return $"Twin-Fire Active: {info.HasTwinFire}\n" +
+                   $"Equipped Slots: {info.EquippedSlots}";
         });
     }
-
-    // --- Internal helpers ---
-
-    private static object GetManagedProxy(GameObj obj, Type managedType)
-        => Il2CppUtils.GetManagedProxy(obj, managedType);
 }
