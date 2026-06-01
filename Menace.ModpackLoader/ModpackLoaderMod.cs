@@ -139,6 +139,7 @@ public partial class ModpackLoaderMod : MelonMod
 
         // Field Handle Initializers
         Templates.Initialize();
+        Inventory.Initialize();
 
         Operation.Initialize();
         Mission.Initialize();

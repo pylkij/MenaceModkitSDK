@@ -78,6 +78,13 @@ export default defineConfig({
           ]
         },
         {
+          text: 'Shared',
+          items: [
+            { text: 'Templates', link: '/api/shared/templates' },
+            { text: 'Inventory', link: '/api/shared/inventory' },
+          ]
+        },
+        {
           text: 'Event Hooks',
           items: [
             { text: 'Strategy Event Hooks', link: '/api/events/strategy-event-hooks' },

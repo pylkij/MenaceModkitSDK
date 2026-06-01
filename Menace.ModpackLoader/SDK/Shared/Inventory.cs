@@ -51,7 +51,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.ResolveHandles", "Field handle resolution failed", ex);
+            SdkLogger.Error("Inventory.ResolveHandles Field handle resolution failed", ex);
         }
     }
 
@@ -104,7 +104,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetOwnedItems", "Failed", ex);
+            SdkLogger.Error("Inventory.GetOwnedItems: Failed", ex);
             return default;
         }
     }
@@ -127,7 +127,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetContainer", "Failed", ex);
+            SdkLogger.Error("Inventory.GetContainer: Failed", ex);
             return default;
         }
     }
@@ -164,7 +164,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetAllItems", "Failed", ex);
+            SdkLogger.Error("Inventory.GetAllItems: Failed", ex);
             return result;
         }
     }
@@ -201,7 +201,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetItemsInSlot", "Failed", ex);
+            SdkLogger.Error("Inventory.GetItemsInSlot: Failed", ex);
             return result;
         }
     }
@@ -229,7 +229,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetItemAt", "Failed", ex);
+            SdkLogger.Error("Inventory.GetItemAt: Failed", ex);
             return default;
         }
     }
@@ -264,7 +264,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetItemInfo", "Failed", ex);
+            SdkLogger.Error("Inventory.GetItemInfo: Failed", ex);
             return null;
         }
     }
@@ -303,7 +303,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetContainerInfo", "Failed", ex);
+            SdkLogger.Error("Inventory.GetContainerInfo: Failed", ex);
             return null;
         }
     }
@@ -324,7 +324,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.HasItemWithTag", "Failed", ex);
+            SdkLogger.Error("Inventory.HasItemWithTag: Failed", ex);
             return false;
         }
     }
@@ -358,7 +358,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GetItemsWithTag", "Failed", ex);
+            SdkLogger.Error("Inventory.GetItemsWithTag: Failed", ex);
             return result;
         }
     }
@@ -422,7 +422,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.RemoveItem", "Failed", ex);
+            SdkLogger.Error("Inventory.RemoveItem: Failed", ex);
             return false;
         }
     }
@@ -442,7 +442,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.RemoveItemAt", "Failed", ex);
+            SdkLogger.Error("Inventory.RemoveItemAt: Failed", ex);
             return false;
         }
     }
@@ -473,7 +473,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.TransferItem", "Failed", ex);
+            SdkLogger.Error("Inventory.TransferItem: Failed", ex);
             return false;
         }
     }
@@ -504,7 +504,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.ClearInventory", "Failed", ex);
+            SdkLogger.Error("Inventory.ClearInventory: Failed", ex);
             return 0;
         }
     }
@@ -543,7 +543,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.GiveItemToActor", "Failed", ex);
+            SdkLogger.Error("Inventory.GiveItemToActor: Failed", ex);
             return $"Give failed: {ex.Message}";
         }
     }
@@ -574,7 +574,7 @@ public static class Inventory
         }
         catch (Exception ex)
         {
-            ModError.ReportInternal("Inventory.SpawnItem", "Failed", ex);
+            SdkLogger.Error("Inventory.SpawnItem: Failed", ex);
             return $"Failed to spawn item: {ex.Message}";
         }
     }
