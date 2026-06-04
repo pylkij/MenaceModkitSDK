@@ -181,22 +181,22 @@ public static class BlackMarket
     /// <summary>
     /// Get the BlackMarket instance from StrategyState.
     /// </summary>
-    /// <returns>GameObj representing the BlackMarket, or GameObj.Null if unavailable.</returns>
-    public static GameObj GetBlackMarket()
+    /// <returns>Typed GameObj for the BlackMarket, or an empty GameObj if unavailable.</returns>
+    public static GameObj<Il2CppMenace.Strategy.BlackMarket> GetBlackMarket()
     {
         try
         {
             var ss = Il2CppMenace.States.StrategyState.Get();
-            if (ss == null) return GameObj.Null;
+            if (ss == null) return default;
 
             var ssObj = GameObj<Il2CppMenace.States.StrategyState>.Wrap(ss.Pointer);
-            if (!_hSSBlackMarket.TryRead(ssObj, out var bmObj)) return GameObj.Null;
-            return bmObj.Untyped;
+            if (!_hSSBlackMarket.TryRead(ssObj, out var bmObj)) return default;
+            return bmObj;
         }
         catch (Exception ex)
         {
             SdkLogger.Error("BlackMarket.GetBlackMarket: Failed", ex);
-            return GameObj.Null;
+            return default;
         }
     }
 
@@ -207,11 +207,11 @@ public static class BlackMarket
     public static BlackMarketInfo GetBlackMarketInfo()
     {
         var bm = GetBlackMarket();
-        if (bm.IsNull) return null;
+        if (bm.Untyped.IsNull) return null;
 
         try
         {
-            var info = new BlackMarketInfo { Pointer = bm.Pointer };
+            var info = new BlackMarketInfo { Pointer = bm.Untyped.Pointer };
 
             var stacks = GetStacksList(bm);
             info.StackCount = stacks.Count;
@@ -236,7 +236,8 @@ public static class BlackMarket
                     info.ItemPoolSize = baseItems.AsManaged()?.Length ?? 0;
             }
 
-            info.CampaignProgress = Il2CppMenace.States.StrategyState.Get()?.GetCampaignProgress() ?? 0f;
+            var ss = Il2CppMenace.States.StrategyState.Get();
+            info.CampaignProgress = ss?.GetCampaignProgress() ?? 0f;
 
             return info;
         }
@@ -258,7 +259,7 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return result;
+            if (bm.Untyped.IsNull) return result;
 
             foreach (var stack in GetStacksList(bm))
             {
@@ -286,7 +287,7 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return null;
+            if (bm.Untyped.IsNull) return null;
 
             var stacks = GetStacksList(bm);
             if (index < 0 || index >= stacks.Count) return null;
@@ -310,7 +311,7 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return GameObj.Null;
+            if (bm.Untyped.IsNull) return GameObj.Null;
 
             var stacks = GetStacksList(bm);
             if (index < 0 || index >= stacks.Count) return GameObj.Null;
@@ -328,15 +329,14 @@ public static class BlackMarket
     /// </summary>
     /// <param name="stack">The stack GameObj to inspect.</param>
     /// <returns>List of ItemInfo for items in the stack.</returns>
-    public static List<ItemInfo> GetItemsInStack(GameObj stack)
+    public static List<ItemInfo> GetItemsInStack(GameObj<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack> stack)
     {
         var result = new List<ItemInfo>();
-        if (stack.IsNull) return result;
+        if (stack.Untyped.IsNull) return result;
 
         try
         {
-            var stackTyped = GameObj<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>.Wrap(stack.Pointer);
-            if (!_hStackInstances.TryRead(stackTyped, out var instancesObj)) return result;
+            if (!_hStackInstances.TryRead(stack, out var instancesObj)) return result;
 
             var instances = instancesObj.AsManaged();
             if (instances == null) return result;
@@ -370,7 +370,7 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return null;
+            if (bm.Untyped.IsNull) return null;
 
             foreach (var stack in GetStacksList(bm))
             {
@@ -409,7 +409,7 @@ public static class BlackMarket
     public static int GetStackCount()
     {
         var bm = GetBlackMarket();
-        if (bm.IsNull) return 0;
+        if (bm.Untyped.IsNull) return 0;
         return GetStacksList(bm).Count;
     }
 
@@ -423,15 +423,15 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return result;
+            if (bm.Untyped.IsNull) return result;
 
             foreach (var stack in GetStacksList(bm))
             {
                 if (!_hStackTimeout.TryRead(stack, out var timeout)) continue;
                 if (timeout > 1) continue;
 
-                var stackTyped = stack.AsManaged();
-                if (stackTyped == null || !stackTyped.CanTimeout()) continue;
+                if (!GameMethod.CallBool<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>(
+                    stack.AsManaged(), x => x.CanTimeout())) continue;
 
                 var stackInfo = GetItemStackInfoInternal(stack);
                 if (stackInfo != null)
@@ -457,12 +457,12 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return result;
+            if (bm.Untyped.IsNull) return result;
 
             foreach (var stack in GetStacksList(bm))
             {
-                var stackManaged = stack.AsManaged();
-                if (stackManaged == null || stackManaged.CanTimeout()) continue;
+                if (GameMethod.CallBool<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>(
+                    stack.AsManaged(), x => x.CanTimeout())) continue;
 
                 var stackInfo = GetItemStackInfoInternal(stack);
                 if (stackInfo != null)
@@ -489,7 +489,7 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return result;
+            if (bm.Untyped.IsNull) return result;
 
             foreach (var stack in GetStacksList(bm))
             {
@@ -519,7 +519,7 @@ public static class BlackMarket
         try
         {
             var bm = GetBlackMarket();
-            if (bm.IsNull) return 0;
+            if (bm.Untyped.IsNull) return 0;
 
             int total = 0;
             foreach (var stack in GetStacksList(bm))
@@ -547,12 +547,9 @@ public static class BlackMarket
     {
         try
         {
-            var bmUntyped = GetBlackMarket();
-            if (bmUntyped.IsNull)
+            var bm = GetBlackMarket();
+            if (bm.Untyped.IsNull)
                 return "BlackMarket not available. Are you on the strategy map?";
-
-            if (!GameObj<Il2CppMenace.Strategy.BlackMarket>.TryWrap(bmUntyped, out var bm))
-                return "Failed to wrap BlackMarket";
 
             if (bm.Untyped.CheckAlive() != AliveStatus.Alive)
                 return "BlackMarket is no longer alive";
@@ -606,9 +603,9 @@ public static class BlackMarket
                 lines.Add($"  StrategyState.Get(): {(ss != null ? "EXISTS" : "NULL")}");
 
                 var bm = GetBlackMarket();
-                lines.Add($"  BlackMarket: {(bm.IsNull ? "NULL" : $"0x{bm.Pointer:X}")}");
+                lines.Add($"  BlackMarket: {(bm.Untyped.IsNull ? "NULL" : $"0x{bm.Untyped.Pointer:X}")}");
 
-                if (!bm.IsNull)
+                if (!bm.Untyped.IsNull)
                 {
                     var stacks = GetStacksList(bm);
                     lines.Add($"  Stacks: {stacks.Count}");
@@ -740,7 +737,7 @@ public static class BlackMarket
         {
             var total = GetTotalTradeValue();
             var bm = GetBlackMarket();
-            var stackCount = bm.IsNull ? 0 : GetStacksList(bm).Count;
+            var stackCount = bm.Untyped.IsNull ? 0 : GetStacksList(bm).Count;
 
             return $"Total BlackMarket Value: ${total}\n" +
                    $"Stacks: {stackCount}";
@@ -782,15 +779,14 @@ public static class BlackMarket
     // --- Internal helpers ---
 
     // Returns raw typed stack wrappers — no info building, no reflection
-    private static List<GameObj<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>> GetStacksList(GameObj bm)
+    private static List<GameObj<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>> GetStacksList(GameObj<Il2CppMenace.Strategy.BlackMarket> bm)
     {
         var result = new List<GameObj<Il2CppMenace.Strategy.BlackMarket.BlackMarketItemStack>>();
-        if (bm.IsNull) return result;
+        if (bm.Untyped.IsNull) return result;
 
         try
         {
-            var bmTyped = GameObj<Il2CppMenace.Strategy.BlackMarket>.Wrap(bm.Pointer);
-            if (!_hBMItemStacks.TryRead(bmTyped, out var stacksObj)) return result;
+            if (!_hBMItemStacks.TryRead(bm, out var stacksObj)) return result;
 
             var stacks = stacksObj.AsManaged();
             if (stacks == null) return result;
