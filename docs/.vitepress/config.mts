@@ -110,6 +110,7 @@ export default defineConfig({
             { text: 'Line of Sight', link: '/api/tactical/line-of-sight'},
             { text: 'Tactical Controller', link: '/api/tactical/tactical-controller'},
             { text: 'Vehicle', link: '/api/tactical/vehicle'},
+            { text: 'Entity Spawner', link: '/api/tactical/entity-spawner'},
           ]
         }
       ]
